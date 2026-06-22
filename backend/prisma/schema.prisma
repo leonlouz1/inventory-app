@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Warehouse {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(100)
+  location  String?  @db.VarChar(200)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  stock      WarehouseStock[]
+  orderLines OrderLine[]
+  restocks   Restock[]
+
+  @@map("warehouses")
+}
+
+model Product {
+  id            Int      @id @default(autoincrement())
+  sku           String   @unique @db.VarChar(50)
+  name          String   @db.VarChar(200)
+  category      String?  @db.VarChar(50)
+  reorderPoint  Int      @default(0) @map("reorder_point")
+  reorderQty    Int      @default(0) @map("reorder_qty")
+  leadTimeDays  Int      @default(21) @map("lead_time_days")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  stock      WarehouseStock[]
+  orderLines OrderLine[]
+  restocks   Restock[]
+
+  @@map("products")
+}
+
+model WarehouseStock {
+  id          Int      @id @default(autoincrement())
+  productId   Int      @map("product_id")
+  warehouseId Int      @map("warehouse_id")
+  onHand      Int      @default(0) @map("on_hand")
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  product   Product   @relation(fields: [productId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@unique([productId, warehouseId])
+  @@map("warehouse_stock")
+}
+
+model Order {
+  id          Int      @id @default(autoincrement())
+  orderNumber String   @unique @map("order_number") @db.VarChar(50)
+  customer    String   @db.VarChar(200)
+  customerPo  String?  @map("customer_po") @db.VarChar(50)
+  orderDate   DateTime @map("order_date") @db.Date
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  lines OrderLine[]
+
+  @@map("orders")
+}
+
+model OrderLine {
+  id          Int      @id @default(autoincrement())
+  orderId     Int      @map("order_id")
+  productId   Int      @map("product_id")
+  warehouseId Int?     @map("warehouse_id")
+  quantity    Int
+  shipDate    DateTime @map("ship_date") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product    @relation(fields: [productId], references: [id])
+  warehouse Warehouse? @relation(fields: [warehouseId], references: [id])
+
+  // Projection queries always filter productId+warehouseId then range on shipDate.
+  @@index([productId, warehouseId, shipDate])
+  // Orders list view sorts by earliest ship_date across all lines.
+  @@index([shipDate])
+  @@map("order_lines")
+}
+
+model Restock {
+  id           Int      @id @default(autoincrement())
+  productId    Int      @map("product_id")
+  warehouseId  Int      @map("warehouse_id")
+  quantity     Int
+  expectedDate DateTime @map("expected_date") @db.Date
+  supplier     String?  @db.VarChar(200)
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  product   Product   @relation(fields: [productId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+
+  // Projection queries always filter productId+warehouseId then range on expectedDate.
+  @@index([productId, warehouseId, expectedDate])
+  // Restocks list view sorts by expected_date.
+  @@index([expectedDate])
+  @@map("restocks")
+}
