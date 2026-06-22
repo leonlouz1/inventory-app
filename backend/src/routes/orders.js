@@ -54,6 +54,30 @@ async function buildLineProjections(lines) {
   });
 }
 
+// Suggests the next sequential order number (SO-####) based on the highest
+// existing numeric suffix among "SO-" prefixed orders.
+async function generateNextOrderNumber() {
+  const orders = await prisma.order.findMany({ select: { orderNumber: true } });
+  let max = 1000;
+  for (const { orderNumber } of orders) {
+    const match = /^SO-(\d+)$/i.exec(orderNumber || "");
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (n > max) max = n;
+    }
+  }
+  return `SO-${max + 1}`;
+}
+
+// GET /api/orders/next-number — preview the next auto-generated order number,
+// used by the New Order form to prefill the field (still overridable).
+router.get(
+  "/next-number",
+  asyncHandler(async (req, res) => {
+    res.json({ orderNumber: await generateNextOrderNumber() });
+  })
+);
+
 // GET /api/orders — list orders with line items, sorted by earliest ship_date
 router.get(
   "/",
@@ -142,36 +166,59 @@ router.post(
       return res.json({ dryRun: true, lines: lineProjections });
     }
 
-    if (!order_number || !customer || !order_date) {
-      return res.status(400).json({ message: "order_number, customer, and order_date are required" });
+    if (!customer || !order_date) {
+      return res.status(400).json({ message: "customer and order_date are required" });
     }
 
-    try {
-      const order = await prisma.$transaction(async (tx) => {
-        const created = await tx.order.create({
-          data: { orderNumber: order_number, customer, customerPo: customer_po, orderDate: new Date(order_date), notes },
+    const maxAttempts = order_number ? 1 : 5;
+    let order = null;
+    let lastError = null;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const orderNumberToUse = order_number || (await generateNextOrderNumber());
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        order = await prisma.$transaction(async (tx) => {
+          const created = await tx.order.create({
+            data: {
+              orderNumber: orderNumberToUse,
+              customer,
+              customerPo: customer_po,
+              orderDate: new Date(order_date),
+              notes,
+            },
+          });
+
+          await tx.orderLine.createMany({
+            data: lines.map((line) => ({
+              orderId: created.id,
+              productId: productBySku.get(line.sku).id,
+              warehouseId: line.warehouse_id ?? null,
+              quantity: line.quantity,
+              shipDate: new Date(line.ship_date),
+            })),
+          });
+
+          return created;
         });
-
-        await tx.orderLine.createMany({
-          data: lines.map((line) => ({
-            orderId: created.id,
-            productId: productBySku.get(line.sku).id,
-            warehouseId: line.warehouse_id ?? null,
-            quantity: line.quantity,
-            shipDate: new Date(line.ship_date),
-          })),
-        });
-
-        return created;
-      });
-
-      res.status(201).json({ order: { ...order, orderDate: isoDate(order.orderDate) }, lines: lineProjections });
-    } catch (err) {
-      if (err.code === "P2002") {
-        return res.status(409).json({ message: `Order number "${order_number}" already exists` });
+        break;
+      } catch (err) {
+        if (err.code === "P2002") {
+          if (order_number) {
+            return res.status(409).json({ message: `Order number "${order_number}" already exists` });
+          }
+          lastError = err;
+          continue; // auto-generated number collided with a concurrent insert — retry with a fresh one
+        }
+        throw err;
       }
-      throw err;
     }
+
+    if (!order) {
+      throw lastError || new Error("Failed to generate a unique order number");
+    }
+
+    res.status(201).json({ order: { ...order, orderDate: isoDate(order.orderDate) }, lines: lineProjections });
   })
 );
 

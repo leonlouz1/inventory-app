@@ -14,6 +14,7 @@ export const ordersApi = {
   create: (data) => apiClient.post("/orders", data),
   delete: (id) => apiClient.delete(`/orders/${id}`),
   updateLine: (orderId, lineId, data) => apiClient.put(`/orders/${orderId}/lines/${lineId}`, data),
+  nextNumber: () => apiClient.get("/orders/next-number"),
 };
 
 export const restocksApi = {

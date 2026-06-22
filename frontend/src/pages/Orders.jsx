@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
-import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space } from "antd";
+import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
 import { ordersApi, productsApi, warehousesApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
 import EditOrderLineModal from "../components/EditOrderLineModal";
+import BulkImportOrdersModal from "../components/BulkImportOrdersModal";
 
 function ProjectionTag({ projection }) {
   if (!projection) return null;
@@ -21,6 +22,7 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editingLine, setEditingLine] = useState(null); // { orderId, line }
 
   const loadOrders = useCallback(() => {
@@ -53,18 +55,27 @@ export default function Orders() {
     }
   }
 
+  const sortString = (key) => (a, b) => (a[key] || "").localeCompare(b[key] || "");
+  const sortNumber = (key) => (a, b) => (a[key] ?? 0) - (b[key] ?? 0);
+
   const columns = [
-    { title: "Order #", dataIndex: "orderNumber" },
-    { title: "Customer", dataIndex: "customer" },
-    { title: "Customer PO #", dataIndex: "customerPo", render: (v) => v || "—" },
-    { title: "Order Date", dataIndex: "orderDate" },
-    { title: "# Lines", dataIndex: "lineCount" },
-    { title: "Earliest Ship Date", dataIndex: "earliestShipDate" },
-    { title: "Latest Ship Date", dataIndex: "latestShipDate" },
+    { title: "Order #", dataIndex: "orderNumber", sorter: sortString("orderNumber") },
+    { title: "Customer", dataIndex: "customer", sorter: sortString("customer") },
+    {
+      title: "Customer PO #",
+      dataIndex: "customerPo",
+      render: (v) => v || "—",
+      sorter: sortString("customerPo"),
+    },
+    { title: "Order Date", dataIndex: "orderDate", sorter: sortString("orderDate") },
+    { title: "# Lines", dataIndex: "lineCount", sorter: sortNumber("lineCount") },
+    { title: "Earliest Ship Date", dataIndex: "earliestShipDate", sorter: sortString("earliestShipDate") },
+    { title: "Latest Ship Date", dataIndex: "latestShipDate", sorter: sortString("latestShipDate") },
     {
       title: "Status",
       dataIndex: "status",
       render: (status) => <Tag color={status === "OK" ? "green" : "red"}>{status}</Tag>,
+      sorter: sortString("status"),
     },
     {
       title: "",
@@ -87,9 +98,14 @@ export default function Orders() {
         <Typography.Title level={5} style={{ margin: 0 }}>
           Orders
         </Typography.Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-          New Order
-        </Button>
+        <Space>
+          <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
+            Import CSV
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+            New Order
+          </Button>
+        </Space>
       </div>
 
       <Table
@@ -137,6 +153,14 @@ export default function Orders() {
         onUpdated={loadOrders}
         orderId={editingLine?.orderId}
         line={editingLine?.line}
+        warehouses={warehouses}
+      />
+
+      <BulkImportOrdersModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={loadOrders}
+        products={products}
         warehouses={warehouses}
       />
     </Spin>

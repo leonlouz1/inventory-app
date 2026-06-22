@@ -71,6 +71,15 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
 
   useEffect(() => {
     if (!open) return;
+    ordersApi
+      .nextNumber()
+      .then(({ orderNumber }) => form.setFieldValue("order_number", orderNumber))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const completeLines = lines.filter((l) => l.sku && l.shipDate && l.quantity > 0);
     if (completeLines.length === 0) {
       setProjectionsByKey({});
@@ -134,8 +143,8 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
   async function doSave(headerValues) {
     setSaving(true);
     try {
-      await ordersApi.create({
-        order_number: headerValues.order_number,
+      const result = await ordersApi.create({
+        order_number: headerValues.order_number || undefined,
         customer: headerValues.customer,
         customer_po: headerValues.customer_po || undefined,
         order_date: headerValues.order_date.format("YYYY-MM-DD"),
@@ -149,7 +158,7 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
             ship_date: l.shipDate.format("YYYY-MM-DD"),
           })),
       });
-      message.success(`Order ${headerValues.order_number} created`);
+      message.success(`Order ${result.order.orderNumber} created`);
       resetAndClose();
       onCreated();
     } catch (err) {
@@ -272,7 +281,7 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
     >
       <Form form={form} layout="vertical" initialValues={{ order_date: dayjs() }}>
         <Space size="large" style={{ display: "flex" }}>
-          <Form.Item name="order_number" label="Order #" rules={[{ required: true, message: "Required" }]}>
+          <Form.Item name="order_number" label="Order #" extra="Auto-generated; clear to regenerate">
             <Input placeholder="SO-1001" style={{ width: 160 }} />
           </Form.Item>
           <Form.Item name="customer" label="Customer" rules={[{ required: true, message: "Required" }]}>

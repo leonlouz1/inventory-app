@@ -48,29 +48,47 @@ export default function Products() {
       {
         title: "SKU",
         dataIndex: "sku",
+        sorter: (a, b) => a.sku.localeCompare(b.sku),
         render: (sku) => (
           <Link to={`/timeline?sku=${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
             {sku}
           </Link>
         ),
       },
-      { title: "Name", dataIndex: "name" },
+      { title: "Name", dataIndex: "name", sorter: (a, b) => a.name.localeCompare(b.name) },
       {
         title: "Category",
         dataIndex: "category",
         render: (v) => v || "—",
         filters: PRODUCT_CATEGORIES.map((c) => ({ text: c, value: c })),
         onFilter: (value, product) => product.category === value,
+        sorter: (a, b) => (a.category || "").localeCompare(b.category || ""),
       },
       ...warehouses.map((w) => ({
         title: w.name,
         key: `wh-${w.id}`,
         align: "right",
         render: (_, product) => product.stockByWarehouse[w.id] ?? 0,
+        sorter: (a, b) => (a.stockByWarehouse[w.id] ?? 0) - (b.stockByWarehouse[w.id] ?? 0),
       })),
-      { title: "Reorder Point", dataIndex: "reorderPoint", align: "right" },
-      { title: "Reorder Qty", dataIndex: "reorderQty", align: "right" },
-      { title: "Lead Time (days)", dataIndex: "leadTimeDays", align: "right" },
+      {
+        title: "Reorder Point",
+        dataIndex: "reorderPoint",
+        align: "right",
+        sorter: (a, b) => a.reorderPoint - b.reorderPoint,
+      },
+      {
+        title: "Reorder Qty",
+        dataIndex: "reorderQty",
+        align: "right",
+        sorter: (a, b) => a.reorderQty - b.reorderQty,
+      },
+      {
+        title: "Lead Time (days)",
+        dataIndex: "leadTimeDays",
+        align: "right",
+        sorter: (a, b) => a.leadTimeDays - b.leadTimeDays,
+      },
       {
         title: "",
         key: "actions",
