@@ -117,6 +117,39 @@ router.put(
   })
 );
 
+// DELETE /api/products/:id — delete a product, blocked if it has order lines or
+// restocks (those are historical records tied to real orders/shipments and must
+// not silently disappear). Its warehouse_stock rows are removed along with it.
+router.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+
+    const product = await prisma.product.findUnique({ where: { id } });
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const [orderLineCount, restockCount] = await Promise.all([
+      prisma.orderLine.count({ where: { productId: id } }),
+      prisma.restock.count({ where: { productId: id } }),
+    ]);
+
+    if (orderLineCount > 0 || restockCount > 0) {
+      return res.status(409).json({
+        message: `Cannot delete ${product.sku}: it has ${orderLineCount} order line(s) and ${restockCount} restock(s) on record. Remove those first.`,
+      });
+    }
+
+    await prisma.$transaction([
+      prisma.warehouseStock.deleteMany({ where: { productId: id } }),
+      prisma.product.delete({ where: { id } }),
+    ]);
+
+    res.status(204).end();
+  })
+);
+
 // GET /api/products/:id/projection — full 12-month projection for one SKU, all warehouses
 router.get(
   "/:id/projection",

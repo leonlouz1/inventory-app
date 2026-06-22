@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Table, Button, Spin, Alert, Typography, Space } from "antd";
-import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message } from "antd";
+import { PlusOutlined, UploadOutlined, DeleteOutlined } from "@ant-design/icons";
 import { productsApi, warehousesApi } from "../api/inventory";
 import { NewProductModal, EditProductModal } from "../components/ProductModals";
 import BulkImportProductsModal from "../components/BulkImportProductsModal";
@@ -33,6 +33,16 @@ export default function Products() {
     warehousesApi.list().then(setWarehouses);
   }, [loadProducts]);
 
+  async function handleDelete(product) {
+    try {
+      await productsApi.delete(product.id);
+      message.success(`${product.sku} deleted`);
+      loadProducts();
+    } catch (err) {
+      message.error(err.message);
+    }
+  }
+
   const columns = useMemo(
     () => [
       {
@@ -61,6 +71,22 @@ export default function Products() {
       { title: "Reorder Point", dataIndex: "reorderPoint", align: "right" },
       { title: "Reorder Qty", dataIndex: "reorderQty", align: "right" },
       { title: "Lead Time (days)", dataIndex: "leadTimeDays", align: "right" },
+      {
+        title: "",
+        key: "actions",
+        render: (_, product) => (
+          <Popconfirm
+            title={`Delete ${product.sku}?`}
+            description="This is only allowed if it has no order lines or restocks on record."
+            onConfirm={(e) => {
+              e?.stopPropagation();
+              handleDelete(product);
+            }}
+          >
+            <Button icon={<DeleteOutlined />} danger type="text" onClick={(e) => e.stopPropagation()} />
+          </Popconfirm>
+        ),
+      },
     ],
     [warehouses]
   );
