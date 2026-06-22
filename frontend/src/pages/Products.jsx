@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Table, Button, Spin, Alert, Typography } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { Table, Button, Spin, Alert, Typography, Space } from "antd";
+import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import { productsApi, warehousesApi } from "../api/inventory";
 import { NewProductModal, EditProductModal } from "../components/ProductModals";
+import BulkImportProductsModal from "../components/BulkImportProductsModal";
 import { PRODUCT_CATEGORIES } from "../constants/categories";
 
 export default function Products() {
@@ -12,6 +13,7 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
   const loadProducts = useCallback(() => {
@@ -73,9 +75,14 @@ export default function Products() {
         <Typography.Title level={5} style={{ margin: 0 }}>
           Products
         </Typography.Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
-          Add Product
-        </Button>
+        <Space>
+          <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
+            Import CSV
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
+            Add Product
+          </Button>
+        </Space>
       </div>
 
       <Table
@@ -101,6 +108,13 @@ export default function Products() {
         onClose={() => setEditingProduct(null)}
         onUpdated={loadProducts}
         product={editingProduct}
+      />
+
+      <BulkImportProductsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={loadProducts}
+        warehouses={warehouses}
       />
     </Spin>
   );
