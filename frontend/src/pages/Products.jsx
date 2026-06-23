@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message } from "antd";
+import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Tooltip } from "antd";
 import { PlusOutlined, UploadOutlined, DeleteOutlined } from "@ant-design/icons";
 import { productsApi, warehousesApi } from "../api/inventory";
 import { NewProductModal, EditProductModal } from "../components/ProductModals";
@@ -81,6 +81,23 @@ export default function Products() {
         render: (_, product) => product.stockByWarehouse[w.id] ?? 0,
         sorter: (a, b) => (a.stockByWarehouse[w.id] ?? 0) - (b.stockByWarehouse[w.id] ?? 0),
       })),
+      {
+        title: "Pending Orders",
+        dataIndex: "pendingQty",
+        align: "right",
+        sorter: (a, b) => a.pendingQty - b.pendingQty,
+      },
+      {
+        title: (
+          <Tooltip title="On hand minus pending (unshipped) orders, across all warehouses">
+            Available to Sell
+          </Tooltip>
+        ),
+        dataIndex: "availableToSell",
+        align: "right",
+        sorter: (a, b) => a.availableToSell - b.availableToSell,
+        render: (v) => <span style={{ color: v < 0 ? "#cf1322" : undefined, fontWeight: 600 }}>{v}</span>,
+      },
       {
         title: "Reorder Point",
         dataIndex: "reorderPoint",

@@ -9,13 +9,28 @@ const router = express.Router();
 router.get(
   "/",
   asyncHandler(async (req, res) => {
-    const [products, warehouses] = await Promise.all([
+    // Past ship dates are ignored, per the projection scope business rule
+    // (same convention as alerts.js): a line still counts as "pending" — not
+    // yet shipped — through and including today.
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const [products, warehouses, pendingByProduct] = await Promise.all([
       prisma.product.findMany({
         orderBy: { sku: "asc" },
         include: { stock: true },
       }),
       prisma.warehouse.findMany({ orderBy: { id: "asc" } }),
+      prisma.orderLine.groupBy({
+        by: ["productId"],
+        where: { shipDate: { gte: today } },
+        _sum: { quantity: true },
+      }),
     ]);
+
+    const pendingQtyByProductId = new Map(
+      pendingByProduct.map((row) => [row.productId, row._sum.quantity ?? 0])
+    );
 
     const result = products.map((product) => {
       const stockByWarehouse = {};
@@ -26,6 +41,7 @@ router.get(
         stockByWarehouse[warehouse.id] = onHand;
         totalOnHand += onHand;
       }
+      const pendingQty = pendingQtyByProductId.get(product.id) ?? 0;
       return {
         id: product.id,
         sku: product.sku,
@@ -37,6 +53,8 @@ router.get(
         leadTimeDays: product.leadTimeDays,
         stockByWarehouse,
         totalOnHand,
+        pendingQty,
+        availableToSell: totalOnHand - pendingQty,
       };
     });
 
