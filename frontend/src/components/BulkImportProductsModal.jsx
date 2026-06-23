@@ -4,6 +4,7 @@ import { UploadOutlined, DownloadOutlined } from "@ant-design/icons";
 import Papa from "papaparse";
 import { productsApi } from "../api/inventory";
 import { PRODUCT_CATEGORIES } from "../constants/categories";
+import { PRODUCT_BRANDS } from "../constants/brands";
 
 function buildTemplateCsv(warehouses) {
   const headers = [
@@ -19,7 +20,7 @@ function buildTemplateCsv(warehouses) {
   const exampleRow = [
     "WDG-101",
     "Example Widget",
-    "Acme",
+    PRODUCT_BRANDS[0],
     PRODUCT_CATEGORIES[0],
     "20",
     "100",
@@ -52,6 +53,9 @@ function validateRow(row, warehouses, seenSkus) {
   if (!sku) return { sku, name, error: "Missing SKU" };
   if (!name) return { sku, name, error: "Missing name" };
   if (seenSkus.has(sku)) return { sku, name, error: "Duplicate SKU in file" };
+  if (brand && !PRODUCT_BRANDS.includes(brand)) {
+    return { sku, name, error: `Unknown brand "${brand}"` };
+  }
   if (category && !PRODUCT_CATEGORIES.includes(category)) {
     return { sku, name, error: `Unknown category "${category}"` };
   }
@@ -198,8 +202,8 @@ export default function BulkImportProductsModal({ open, onClose, onImported, war
     >
       <Typography.Paragraph type="secondary">
         Download the template, fill in one row per product, then upload it here. Columns: sku, name, brand
-        (optional, free text), category (optional, must match an existing category), reorderPoint, reorderQty,
-        leadTimeDays, and one column per warehouse for initial on-hand quantity.
+        (optional, must match an existing brand), category (optional, must match an existing category),
+        reorderPoint, reorderQty, leadTimeDays, and one column per warehouse for initial on-hand quantity.
       </Typography.Paragraph>
 
       <Button

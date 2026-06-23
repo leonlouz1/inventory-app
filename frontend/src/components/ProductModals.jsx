@@ -2,8 +2,10 @@ import { useEffect } from "react";
 import { Modal, Form, Input, InputNumber, Select, Row, Col, Typography, message } from "antd";
 import { productsApi } from "../api/inventory";
 import { PRODUCT_CATEGORIES } from "../constants/categories";
+import { PRODUCT_BRANDS } from "../constants/brands";
 
 const CATEGORY_OPTIONS = PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c }));
+const BRAND_OPTIONS = PRODUCT_BRANDS.map((b) => ({ value: b, label: b }));
 
 export function NewProductModal({ open, onClose, onCreated, warehouses }) {
   const [form] = Form.useForm();
@@ -63,7 +65,7 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
         <Row gutter={12}>
           <Col span={12}>
             <Form.Item name="brand" label="Brand">
-              <Input placeholder="Acme" />
+              <Select allowClear placeholder="Select brand" options={BRAND_OPTIONS} />
             </Form.Item>
           </Col>
           <Col span={12}>
@@ -143,7 +145,7 @@ export function EditProductModal({ open, onClose, onUpdated, product }) {
         <Row gutter={12}>
           <Col span={12}>
             <Form.Item name="brand" label="Brand">
-              <Input placeholder="Acme" />
+              <Select allowClear placeholder="Select brand" options={BRAND_OPTIONS} />
             </Form.Item>
           </Col>
           <Col span={12}>

@@ -6,6 +6,7 @@ import { productsApi, warehousesApi } from "../api/inventory";
 import { NewProductModal, EditProductModal } from "../components/ProductModals";
 import BulkImportProductsModal from "../components/BulkImportProductsModal";
 import { PRODUCT_CATEGORIES } from "../constants/categories";
+import { PRODUCT_BRANDS } from "../constants/brands";
 
 export default function Products() {
   const [products, setProducts] = useState([]);
@@ -60,9 +61,7 @@ export default function Products() {
         title: "Brand",
         dataIndex: "brand",
         render: (v) => v || "—",
-        filters: [...new Set(products.map((p) => p.brand).filter(Boolean))]
-          .sort()
-          .map((b) => ({ text: b, value: b })),
+        filters: PRODUCT_BRANDS.map((b) => ({ text: b, value: b })),
         onFilter: (value, product) => product.brand === value,
         sorter: (a, b) => (a.brand || "").localeCompare(b.brand || ""),
       },
@@ -133,7 +132,7 @@ export default function Products() {
         ),
       },
     ],
-    [warehouses, products]
+    [warehouses]
   );
 
   if (error) {
