@@ -38,13 +38,15 @@ function buildPeriods(grain, today) {
   });
 }
 
-function sumQuantityInRange(rows, dateField, start, end) {
-  return rows
-    .filter((row) => {
-      const date = toDateOnly(row[dateField]);
-      return date >= start && date <= end;
-    })
-    .reduce((sum, row) => sum + row.quantity, 0);
+function filterInRange(rows, dateField, start, end) {
+  return rows.filter((row) => {
+    const date = toDateOnly(row[dateField]);
+    return date >= start && date <= end;
+  });
+}
+
+function sumQuantity(rows) {
+  return rows.reduce((sum, row) => sum + row.quantity, 0);
 }
 
 function flagFor(balance, reorderPoint) {
@@ -75,9 +77,35 @@ async function buildSkuTimeline(sku, grain = "month") {
   const [warehouses, stock, restocks, orderLines] = await Promise.all([
     prisma.warehouse.findMany({ orderBy: { id: "asc" } }),
     prisma.warehouseStock.findMany({ where: { productId: product.id } }),
-    prisma.restock.findMany({ where: { productId: product.id } }),
-    prisma.orderLine.findMany({ where: { productId: product.id } }),
+    prisma.restock.findMany({ where: { productId: product.id }, include: { warehouse: true } }),
+    prisma.orderLine.findMany({
+      where: { productId: product.id },
+      include: { order: true, warehouse: true },
+    }),
   ]);
+
+  function serializeOrderLine(line) {
+    return {
+      orderId: line.orderId,
+      orderNumber: line.order.orderNumber,
+      customer: line.order.customer,
+      warehouseId: line.warehouseId,
+      warehouseName: line.warehouse ? line.warehouse.name : null,
+      quantity: line.quantity,
+      shipDate: isoDate(toDateOnly(line.shipDate)),
+    };
+  }
+
+  function serializeRestock(restock) {
+    return {
+      restockId: restock.id,
+      warehouseId: restock.warehouseId,
+      warehouseName: restock.warehouse.name,
+      quantity: restock.quantity,
+      expectedDate: isoDate(toDateOnly(restock.expectedDate)),
+      supplier: restock.supplier,
+    };
+  }
 
   const warehouseRows = warehouses.map((warehouse) => {
     const startingOnHand = stock.find((s) => s.warehouseId === warehouse.id)?.onHand ?? 0;
@@ -87,16 +115,22 @@ async function buildSkuTimeline(sku, grain = "month") {
     const onHandStart = [];
     const restocksIn = [];
     const ordersOut = [];
+    const restocksDetail = [];
+    const ordersDetail = [];
     const projectedAvailable = [];
     const flags = [];
 
     let runningBalance = startingOnHand;
     for (const period of periods) {
       onHandStart.push(runningBalance);
-      const inQty = sumQuantityInRange(warehouseRestocks, "expectedDate", period.start, period.end);
-      const outQty = sumQuantityInRange(warehouseOrderLines, "shipDate", period.start, period.end);
+      const inRows = filterInRange(warehouseRestocks, "expectedDate", period.start, period.end);
+      const outRows = filterInRange(warehouseOrderLines, "shipDate", period.start, period.end);
+      const inQty = sumQuantity(inRows);
+      const outQty = sumQuantity(outRows);
       restocksIn.push(inQty);
       ordersOut.push(outQty);
+      restocksDetail.push(inRows.map(serializeRestock));
+      ordersDetail.push(outRows.map(serializeOrderLine));
       runningBalance = runningBalance + inQty - outQty;
       projectedAvailable.push(runningBalance);
       flags.push(flagFor(runningBalance, product.reorderPoint));
@@ -108,6 +142,8 @@ async function buildSkuTimeline(sku, grain = "month") {
       onHandStart,
       restocksIn,
       ordersOut,
+      restocksDetail,
+      ordersDetail,
       projectedAvailable,
       flags,
     };
@@ -121,16 +157,22 @@ async function buildSkuTimeline(sku, grain = "month") {
     onHandStart: [],
     restocksIn: [],
     ordersOut: [],
+    restocksDetail: [],
+    ordersDetail: [],
     projectedAvailable: [],
     flags: [],
   };
   let networkRunningBalance = networkStartingOnHand;
   for (const period of periods) {
     network.onHandStart.push(networkRunningBalance);
-    const inQty = sumQuantityInRange(restocks, "expectedDate", period.start, period.end);
-    const outQty = sumQuantityInRange(orderLines, "shipDate", period.start, period.end);
+    const inRows = filterInRange(restocks, "expectedDate", period.start, period.end);
+    const outRows = filterInRange(orderLines, "shipDate", period.start, period.end);
+    const inQty = sumQuantity(inRows);
+    const outQty = sumQuantity(outRows);
     network.restocksIn.push(inQty);
     network.ordersOut.push(outQty);
+    network.restocksDetail.push(inRows.map(serializeRestock));
+    network.ordersDetail.push(outRows.map(serializeOrderLine));
     networkRunningBalance = networkRunningBalance + inQty - outQty;
     network.projectedAvailable.push(networkRunningBalance);
     network.flags.push(flagFor(networkRunningBalance, product.reorderPoint));

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Select, Segmented, Spin, Alert, Typography, Empty } from "antd";
+import { useSearchParams, Link } from "react-router-dom";
+import { Select, Segmented, Spin, Alert, Typography, Empty, Modal, Table } from "antd";
 import dayjs from "dayjs";
 import { productsApi, timelineApi } from "../api/inventory";
 
@@ -17,7 +17,7 @@ function formatPeriodLabel(period, grain) {
   return grain === "week" ? dayjs(period.start).format("MMM D") : dayjs(period.start).format("MMM YYYY");
 }
 
-function TimelineBlock({ title, rows, periods, grain, flags }) {
+function TimelineBlock({ title, rows, periods, grain, flags, onShowDetail }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <Typography.Title level={5}>{title}</Typography.Title>
@@ -45,7 +45,11 @@ function TimelineBlock({ title, rows, periods, grain, flags }) {
             <tr>
               <td style={cellStyle(true)}>+ Restocks Arriving</td>
               {rows.restocksIn.map((v, i) => (
-                <td key={i} style={cellStyle(false, v > 0 ? RESTOCK_BG : undefined)}>
+                <td
+                  key={i}
+                  style={cellStyle(false, v > 0 ? RESTOCK_BG : undefined, v > 0)}
+                  onClick={() => v > 0 && onShowDetail("restocks", formatPeriodLabel(periods[i], grain), rows.restocksDetail[i])}
+                >
                   {v}
                 </td>
               ))}
@@ -53,7 +57,11 @@ function TimelineBlock({ title, rows, periods, grain, flags }) {
             <tr>
               <td style={cellStyle(true)}>&minus; Orders Shipping</td>
               {rows.ordersOut.map((v, i) => (
-                <td key={i} style={cellStyle(false, v > 0 ? ORDER_BG : undefined)}>
+                <td
+                  key={i}
+                  style={cellStyle(false, v > 0 ? ORDER_BG : undefined, v > 0)}
+                  onClick={() => v > 0 && onShowDetail("orders", formatPeriodLabel(periods[i], grain), rows.ordersDetail[i])}
+                >
                   {v}
                 </td>
               ))}
@@ -73,7 +81,49 @@ function TimelineBlock({ title, rows, periods, grain, flags }) {
   );
 }
 
-function cellStyle(isLabel = false, bg) {
+const ORDER_DETAIL_COLUMNS = [
+  {
+    title: "Order #",
+    dataIndex: "orderNumber",
+    render: (v) => <Link to="/orders">{v}</Link>,
+  },
+  { title: "Customer", dataIndex: "customer" },
+  { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned" },
+  { title: "Qty", dataIndex: "quantity", align: "right" },
+  { title: "Ship Date", dataIndex: "shipDate" },
+];
+
+const RESTOCK_DETAIL_COLUMNS = [
+  { title: "Warehouse", dataIndex: "warehouseName" },
+  { title: "Qty", dataIndex: "quantity", align: "right" },
+  { title: "Expected Date", dataIndex: "expectedDate" },
+  { title: "Supplier", dataIndex: "supplier", render: (v) => v || "—" },
+];
+
+function DetailModal({ detail, onClose }) {
+  if (!detail) return null;
+  const { kind, periodLabel, items } = detail;
+  const isOrders = kind === "orders";
+  return (
+    <Modal
+      title={`${isOrders ? "Orders Shipping" : "Restocks Arriving"} — ${periodLabel}`}
+      open
+      onCancel={onClose}
+      footer={null}
+      width={700}
+    >
+      <Table
+        columns={isOrders ? ORDER_DETAIL_COLUMNS : RESTOCK_DETAIL_COLUMNS}
+        dataSource={items}
+        rowKey={isOrders ? "orderId" : "restockId"}
+        pagination={false}
+        size="small"
+      />
+    </Modal>
+  );
+}
+
+function cellStyle(isLabel = false, bg, clickable = false) {
   return {
     border: "1px solid #f0f0f0",
     padding: "6px 10px",
@@ -81,6 +131,8 @@ function cellStyle(isLabel = false, bg) {
     fontWeight: isLabel ? 500 : 400,
     background: bg,
     whiteSpace: "nowrap",
+    cursor: clickable ? "pointer" : undefined,
+    textDecoration: clickable ? "underline" : undefined,
   };
 }
 
@@ -92,6 +144,11 @@ export default function Timeline() {
   const [timeline, setTimeline] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [detail, setDetail] = useState(null);
+
+  function showDetail(kind, periodLabel, items) {
+    setDetail({ kind, periodLabel, items });
+  }
 
   function setSku(newSku) {
     setSkuState(newSku);
@@ -168,6 +225,7 @@ export default function Timeline() {
               periods={timeline.periods}
               grain={timeline.grain}
               flags={timeline.network.flags}
+              onShowDetail={showDetail}
             />
             {timeline.warehouses.map((w) => (
               <TimelineBlock
@@ -177,6 +235,7 @@ export default function Timeline() {
                 periods={timeline.periods}
                 grain={timeline.grain}
                 flags={w.flags}
+                onShowDetail={showDetail}
               />
             ))}
           </>
@@ -184,6 +243,8 @@ export default function Timeline() {
           !loading && <Empty description="Select a SKU to view its projection" />
         )}
       </Spin>
+
+      <DetailModal detail={detail} onClose={() => setDetail(null)} />
     </div>
   );
 }
