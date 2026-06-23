@@ -138,6 +138,48 @@ router.put(
   })
 );
 
+// PUT /api/products/:id/stock — set on-hand quantity per warehouse, e.g. to
+// correct a count or set up a product that was created without initial stock.
+// This is a direct correction, distinct from logging a Restock (which records
+// an incoming shipment with an expected date, not an immediate adjustment).
+router.put(
+  "/:id/stock",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { stock } = req.body;
+
+    const product = await prisma.product.findUnique({ where: { id } });
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+    if (!Array.isArray(stock) || stock.length === 0) {
+      return res.status(400).json({ message: "stock must be a non-empty array of { warehouseId, onHand }" });
+    }
+
+    const warehouseIds = stock.map((s) => s.warehouseId);
+    const warehouses = await prisma.warehouse.findMany({ where: { id: { in: warehouseIds } } });
+    if (warehouses.length !== new Set(warehouseIds).size) {
+      return res.status(400).json({ message: "One or more warehouseId values are invalid" });
+    }
+    if (stock.some((s) => !Number.isInteger(s.onHand) || s.onHand < 0)) {
+      return res.status(400).json({ message: "onHand must be a non-negative integer" });
+    }
+
+    await prisma.$transaction(
+      stock.map((s) =>
+        prisma.warehouseStock.upsert({
+          where: { productId_warehouseId: { productId: id, warehouseId: s.warehouseId } },
+          update: { onHand: s.onHand },
+          create: { productId: id, warehouseId: s.warehouseId, onHand: s.onHand },
+        })
+      )
+    );
+
+    const updatedStock = await prisma.warehouseStock.findMany({ where: { productId: id } });
+    res.json({ productId: id, stock: updatedStock });
+  })
+);
+
 // DELETE /api/products/:id — delete a product, blocked if it has order lines or
 // restocks (those are historical records tied to real orders/shipments and must
 // not silently disappear). Its warehouse_stock rows are removed along with it.

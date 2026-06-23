@@ -207,6 +207,7 @@ export default function Products() {
         onClose={() => setEditingProduct(null)}
         onUpdated={loadProducts}
         product={editingProduct}
+        warehouses={warehouses}
       />
 
       <BulkImportProductsModal

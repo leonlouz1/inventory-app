@@ -107,11 +107,15 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
   );
 }
 
-export function EditProductModal({ open, onClose, onUpdated, product }) {
+export function EditProductModal({ open, onClose, onUpdated, product, warehouses }) {
   const [form] = Form.useForm();
 
   useEffect(() => {
     if (product) {
+      const stockFields = {};
+      for (const w of warehouses) {
+        stockFields[`stock_${w.id}`] = product.stockByWarehouse?.[w.id] ?? 0;
+      }
       form.setFieldsValue({
         name: product.name,
         brand: product.brand,
@@ -119,14 +123,22 @@ export function EditProductModal({ open, onClose, onUpdated, product }) {
         reorderPoint: product.reorderPoint,
         reorderQty: product.reorderQty,
         leadTimeDays: product.leadTimeDays,
+        ...stockFields,
       });
     }
-  }, [product, form]);
+  }, [product, warehouses, form]);
 
   async function handleOk() {
     try {
       const values = await form.validateFields();
-      await productsApi.update(product.id, values);
+      const stock = warehouses.map((w) => ({
+        warehouseId: w.id,
+        onHand: values[`stock_${w.id}`] ?? 0,
+      }));
+      const fields = { ...values };
+      for (const w of warehouses) delete fields[`stock_${w.id}`];
+
+      await Promise.all([productsApi.update(product.id, fields), productsApi.updateStock(product.id, stock)]);
       message.success(`Product ${product.sku} updated`);
       onClose();
       onUpdated();
@@ -170,6 +182,17 @@ export function EditProductModal({ open, onClose, onUpdated, product }) {
               <InputNumber min={0} style={{ width: "100%" }} />
             </Form.Item>
           </Col>
+        </Row>
+
+        <Typography.Title level={5}>On-Hand Stock</Typography.Title>
+        <Row gutter={12}>
+          {warehouses.map((w) => (
+            <Col span={6} key={w.id}>
+              <Form.Item name={`stock_${w.id}`} label={w.name}>
+                <InputNumber min={0} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+          ))}
         </Row>
       </Form>
     </Modal>
