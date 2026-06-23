@@ -84,7 +84,7 @@ router.post(
             category: category ?? null,
             reorderPoint: reorderPoint ?? 0,
             reorderQty: reorderQty ?? 0,
-            leadTimeDays: leadTimeDays ?? 21,
+            leadTimeDays: leadTimeDays ?? 45,
           },
         });
 

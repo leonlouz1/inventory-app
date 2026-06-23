@@ -28,7 +28,7 @@ model Product {
   category      String?  @db.VarChar(50)
   reorderPoint  Int      @default(0) @map("reorder_point")
   reorderQty    Int      @default(0) @map("reorder_qty")
-  leadTimeDays  Int      @default(21) @map("lead_time_days")
+  leadTimeDays  Int      @default(45) @map("lead_time_days")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   stock      WarehouseStock[]

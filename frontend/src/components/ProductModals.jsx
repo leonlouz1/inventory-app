@@ -24,7 +24,7 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
         category: values.category,
         reorderPoint: values.reorderPoint ?? 0,
         reorderQty: values.reorderQty ?? 0,
-        leadTimeDays: values.leadTimeDays ?? 21,
+        leadTimeDays: values.leadTimeDays ?? 45,
         initialStock,
       });
       message.success(`Product ${values.sku} created`);
@@ -49,7 +49,7 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
       okText="Create"
       destroyOnHidden
     >
-      <Form form={form} layout="vertical" initialValues={{ reorderPoint: 0, reorderQty: 0, leadTimeDays: 21 }}>
+      <Form form={form} layout="vertical" initialValues={{ reorderPoint: 0, reorderQty: 0, leadTimeDays: 45 }}>
         <Row gutter={12}>
           <Col span={12}>
             <Form.Item name="sku" label="SKU" rules={[{ required: true, message: "Required" }]}>

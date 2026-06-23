@@ -24,7 +24,7 @@ function buildTemplateCsv(warehouses) {
     PRODUCT_CATEGORIES[0],
     "20",
     "100",
-    "21",
+    "45",
     ...warehouses.map(() => "0"),
   ];
   return Papa.unparse([headers, exampleRow]);
@@ -68,7 +68,7 @@ function validateRow(row, warehouses, seenSkus) {
 
   const reorderPoint = toInt(row.reorderPoint, 0);
   const reorderQty = toInt(row.reorderQty, 0);
-  const leadTimeDays = toInt(row.leadTimeDays, 21);
+  const leadTimeDays = toInt(row.leadTimeDays, 45);
   if ([reorderPoint, reorderQty, leadTimeDays].some(Number.isNaN)) {
     return { sku, name, error: "reorderPoint/reorderQty/leadTimeDays must be numbers" };
   }
