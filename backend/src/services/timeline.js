@@ -79,9 +79,6 @@ async function buildSkuTimeline(sku, grain = "month") {
     prisma.orderLine.findMany({ where: { productId: product.id } }),
   ]);
 
-  const periodCount = periods.length;
-  const zeros = () => new Array(periodCount).fill(0);
-
   const warehouseRows = warehouses.map((warehouse) => {
     const startingOnHand = stock.find((s) => s.warehouseId === warehouse.id)?.onHand ?? 0;
     const warehouseRestocks = restocks.filter((r) => r.warehouseId === warehouse.id);
@@ -116,22 +113,28 @@ async function buildSkuTimeline(sku, grain = "month") {
     };
   });
 
+  // Built independently from all order lines/restocks (not by summing the
+  // per-warehouse rows above), since order lines with no warehouse assigned
+  // belong to no per-warehouse row but must still count network-wide.
+  const networkStartingOnHand = stock.reduce((sum, s) => sum + s.onHand, 0);
   const network = {
-    onHandStart: zeros(),
-    restocksIn: zeros(),
-    ordersOut: zeros(),
-    projectedAvailable: zeros(),
-    flags: zeros().map(() => "ok"),
+    onHandStart: [],
+    restocksIn: [],
+    ordersOut: [],
+    projectedAvailable: [],
+    flags: [],
   };
-  for (const row of warehouseRows) {
-    for (let i = 0; i < periodCount; i++) {
-      network.onHandStart[i] += row.onHandStart[i];
-      network.restocksIn[i] += row.restocksIn[i];
-      network.ordersOut[i] += row.ordersOut[i];
-      network.projectedAvailable[i] += row.projectedAvailable[i];
-    }
+  let networkRunningBalance = networkStartingOnHand;
+  for (const period of periods) {
+    network.onHandStart.push(networkRunningBalance);
+    const inQty = sumQuantityInRange(restocks, "expectedDate", period.start, period.end);
+    const outQty = sumQuantityInRange(orderLines, "shipDate", period.start, period.end);
+    network.restocksIn.push(inQty);
+    network.ordersOut.push(outQty);
+    networkRunningBalance = networkRunningBalance + inQty - outQty;
+    network.projectedAvailable.push(networkRunningBalance);
+    network.flags.push(flagFor(networkRunningBalance, product.reorderPoint));
   }
-  network.flags = network.projectedAvailable.map((balance) => flagFor(balance, product.reorderPoint));
 
   return {
     sku: product.sku,
