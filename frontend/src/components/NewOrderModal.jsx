@@ -15,6 +15,9 @@ import {
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { ordersApi } from "../api/inventory";
+import { ORDER_STATUSES, ORDER_STATUS_LABELS } from "../constants/orderStatuses";
+
+const STATUS_OPTIONS = ORDER_STATUSES.map((s) => ({ value: s, label: ORDER_STATUS_LABELS[s] }));
 
 let lineKeyCounter = 0;
 function nextLineKey() {
@@ -148,6 +151,7 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
         customer: headerValues.customer,
         customer_po: headerValues.customer_po || undefined,
         order_date: headerValues.order_date.format("YYYY-MM-DD"),
+        status: headerValues.status,
         notes: headerValues.notes || undefined,
         lines: lines
           .filter((l) => l.sku && l.shipDate && l.quantity > 0)
@@ -279,7 +283,7 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
         </Button>,
       ]}
     >
-      <Form form={form} layout="vertical" initialValues={{ order_date: dayjs() }}>
+      <Form form={form} layout="vertical" initialValues={{ order_date: dayjs(), status: "CONFIRMED" }}>
         <Space size="large" style={{ display: "flex" }}>
           <Form.Item name="order_number" label="Order #" extra="Auto-generated; clear to regenerate">
             <Input placeholder="SO-1001" style={{ width: 160 }} />
@@ -292,6 +296,9 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
           </Form.Item>
           <Form.Item name="order_date" label="Order Date" rules={[{ required: true, message: "Required" }]}>
             <DatePicker />
+          </Form.Item>
+          <Form.Item name="status" label="Status">
+            <Select options={STATUS_OPTIONS} style={{ width: 130 }} />
           </Form.Item>
         </Space>
         <Form.Item name="notes" label="Notes">

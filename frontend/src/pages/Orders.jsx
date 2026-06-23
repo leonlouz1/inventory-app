@@ -1,10 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
-import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space } from "antd";
+import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal } from "antd";
 import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
 import { ordersApi, productsApi, warehousesApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
 import EditOrderLineModal from "../components/EditOrderLineModal";
 import BulkImportOrdersModal from "../components/BulkImportOrdersModal";
+import { ORDER_STATUSES, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants/orderStatuses";
+
+const STATUS_OPTIONS = ORDER_STATUSES.map((s) => ({ value: s, label: ORDER_STATUS_LABELS[s] }));
 
 function ProjectionTag({ projection }) {
   if (!projection) return null;
@@ -55,6 +58,35 @@ export default function Orders() {
     }
   }
 
+  async function applyStatusChange(order, newStatus) {
+    try {
+      await ordersApi.updateStatus(order.id, newStatus);
+      message.success(`${order.orderNumber} marked ${ORDER_STATUS_LABELS[newStatus]}`);
+      loadOrders();
+    } catch (err) {
+      message.error(`Failed to update status: ${err.message}`);
+    }
+  }
+
+  function handleStatusChange(order, newStatus) {
+    const crossesShippedBoundary = order.status === "SHIPPED" || newStatus === "SHIPPED";
+    if (!crossesShippedBoundary) {
+      applyStatusChange(order, newStatus);
+      return;
+    }
+
+    const goingToShipped = newStatus === "SHIPPED";
+    Modal.confirm({
+      title: goingToShipped ? "Mark as Shipped?" : "Move off Shipped?",
+      content: goingToShipped
+        ? "This will deduct each line's quantity from on-hand stock at its assigned warehouse — a real inventory transaction, not just a projection."
+        : "This will restore each line's quantity back to on-hand stock, undoing the deduction made when it was marked Shipped.",
+      okText: "Confirm",
+      cancelText: "Cancel",
+      onOk: () => applyStatusChange(order, newStatus),
+    });
+  }
+
   const sortString = (key) => (a, b) => (a[key] || "").localeCompare(b[key] || "");
   const sortNumber = (key) => (a, b) => (a[key] ?? 0) - (b[key] ?? 0);
 
@@ -72,10 +104,27 @@ export default function Orders() {
     { title: "Earliest Ship Date", dataIndex: "earliestShipDate", sorter: sortString("earliestShipDate") },
     { title: "Latest Ship Date", dataIndex: "latestShipDate", sorter: sortString("latestShipDate") },
     {
-      title: "Status",
+      title: "Order Status",
       dataIndex: "status",
-      render: (status) => <Tag color={status === "OK" ? "green" : "red"}>{status}</Tag>,
       sorter: sortString("status"),
+      render: (status, order) => (
+        <Select
+          size="small"
+          value={status}
+          options={STATUS_OPTIONS}
+          style={{ width: 130 }}
+          onChange={(newStatus) => handleStatusChange(order, newStatus)}
+          variant="filled"
+          popupMatchSelectWidth={false}
+          labelRender={() => <Tag color={ORDER_STATUS_COLORS[status]}>{ORDER_STATUS_LABELS[status]}</Tag>}
+        />
+      ),
+    },
+    {
+      title: "Alerts",
+      dataIndex: "alertStatus",
+      render: (status) => <Tag color={status === "OK" ? "green" : "red"}>{status}</Tag>,
+      sorter: sortString("alertStatus"),
     },
     {
       title: "",

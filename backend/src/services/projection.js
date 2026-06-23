@@ -1,4 +1,5 @@
 const prisma = require("../prismaClient");
+const { PENDING_STATUSES } = require("../constants/orderStatuses");
 
 /**
  * Pure calculation helpers — no I/O, fully unit-testable.
@@ -97,7 +98,13 @@ async function loadProjectionData(skus) {
   const [stock, restocks, orderLines] = await Promise.all([
     prisma.warehouseStock.findMany({ where: { productId: { in: productIds } } }),
     prisma.restock.findMany({ where: { productId: { in: productIds } } }),
-    prisma.orderLine.findMany({ where: { productId: { in: productIds } } }),
+    // Only Confirmed/Routed lines count as a pending future deduction here.
+    // Draft/Cancelled never counted; Shipped is excluded too since shipping
+    // already decremented real on-hand directly — counting it again here
+    // would double-subtract it.
+    prisma.orderLine.findMany({
+      where: { productId: { in: productIds }, order: { status: { in: PENDING_STATUSES } } },
+    }),
   ]);
 
   return {

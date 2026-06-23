@@ -2,6 +2,7 @@ const express = require("express");
 const prisma = require("../prismaClient");
 const asyncHandler = require("../middleware/asyncHandler");
 const { checkShortfallBatch, projectInventoryBatch } = require("../services/projection");
+const { PENDING_STATUSES } = require("../constants/orderStatuses");
 
 const router = express.Router();
 
@@ -17,8 +18,11 @@ router.get(
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
+    // Only Confirmed/Routed lines can actually run into a shortfall worth
+    // alerting on — Draft isn't committed yet, Shipped already happened,
+    // Cancelled never will.
     const lines = await prisma.orderLine.findMany({
-      where: { shipDate: { gte: today } },
+      where: { shipDate: { gte: today }, order: { status: { in: PENDING_STATUSES } } },
       include: { order: true, product: true, warehouse: true },
     });
 

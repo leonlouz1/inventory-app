@@ -4,6 +4,7 @@ import { UploadOutlined, DownloadOutlined } from "@ant-design/icons";
 import Papa from "papaparse";
 import dayjs from "dayjs";
 import { ordersApi } from "../api/inventory";
+import { ORDER_STATUSES } from "../constants/orderStatuses";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function isValidDate(value) {
@@ -11,11 +12,22 @@ function isValidDate(value) {
 }
 
 function buildTemplateCsv() {
-  const headers = ["order_number", "customer", "customer_po", "order_date", "notes", "sku", "warehouse", "quantity", "ship_date"];
+  const headers = [
+    "order_number",
+    "customer",
+    "customer_po",
+    "order_date",
+    "status",
+    "notes",
+    "sku",
+    "warehouse",
+    "quantity",
+    "ship_date",
+  ];
   const rows = [
-    ["SO-2001", "Acme Corp", "PO-1234", "2026-07-01", "", "WDG-101", "East", "50", "2026-08-15"],
-    ["SO-2001", "Acme Corp", "PO-1234", "2026-07-01", "", "WDG-102", "East", "25", "2026-08-15"],
-    ["", "Initech", "", "2026-07-02", "", "WDG-103", "West", "10", "2026-08-20"],
+    ["SO-2001", "Acme Corp", "PO-1234", "2026-07-01", "CONFIRMED", "", "WDG-101", "East", "50", "2026-08-15"],
+    ["SO-2001", "Acme Corp", "PO-1234", "2026-07-01", "CONFIRMED", "", "WDG-102", "East", "25", "2026-08-15"],
+    ["", "Initech", "", "2026-07-02", "", "", "WDG-103", "West", "10", "2026-08-20"],
   ];
   return Papa.unparse([headers, ...rows]);
 }
@@ -63,11 +75,15 @@ function validateGroup(group, products, warehouses) {
   const customer = (first.customer || "").trim();
   const customerPo = (first.customer_po || "").trim();
   const orderDate = (first.order_date || "").trim();
+  const status = (first.status || "").trim().toUpperCase();
   const notes = (first.notes || "").trim();
 
   if (!customer) return { ...group, error: "Missing customer" };
   if (!isValidDate(orderDate)) {
     return { ...group, error: `Invalid order_date "${orderDate}" (expected YYYY-MM-DD)` };
+  }
+  if (status && !ORDER_STATUSES.includes(status)) {
+    return { ...group, error: `Unknown status "${first.status}" (expected one of ${ORDER_STATUSES.join(", ")})` };
   }
 
   const lines = [];
@@ -99,6 +115,7 @@ function validateGroup(group, products, warehouses) {
     customer,
     customerPo: customerPo || undefined,
     orderDate,
+    status: status || undefined,
     notes: notes || undefined,
     lines,
     error: null,
@@ -146,6 +163,7 @@ export default function BulkImportOrdersModal({ open, onClose, onImported, produ
           customer: group.customer,
           customer_po: group.customerPo,
           order_date: group.orderDate,
+          status: group.status,
           notes: group.notes,
           lines: group.lines,
         });
@@ -175,9 +193,10 @@ export default function BulkImportOrdersModal({ open, onClose, onImported, produ
     { title: "Customer", dataIndex: "customer", render: (v) => v || "—" },
     { title: "PO #", dataIndex: "customerPo", render: (v) => v || "—" },
     { title: "Order Date", dataIndex: "orderDate", render: (v) => v || "—" },
+    { title: "Order Status", dataIndex: "status", render: (v) => v || "Confirmed (default)" },
     { title: "# Lines", key: "lineCount", render: (_, g) => g.rows.length },
     {
-      title: "Status",
+      title: "Validation",
       dataIndex: "error",
       render: (error) => (error ? <Tag color="red">{error}</Tag> : <Tag color="green">Valid</Tag>),
     },
@@ -202,7 +221,9 @@ export default function BulkImportOrdersModal({ open, onClose, onImported, produ
         Download the template, fill in one row per order line item, then upload it here. Rows sharing the same
         order_number become one multi-line order; leave order_number blank to auto-generate one (each blank row
         becomes its own single-line order). Columns: order_number, customer, customer_po, order_date (YYYY-MM-DD),
-        notes, sku, warehouse (optional, by name), quantity, ship_date (YYYY-MM-DD).
+        status (optional — Draft/Confirmed/Routed/Shipped/Cancelled, defaults to Confirmed), notes, sku, warehouse
+        (optional, by name), quantity, ship_date (YYYY-MM-DD). Importing directly as Shipped requires every line to
+        have a warehouse, and immediately deducts that quantity from on-hand stock.
       </Typography.Paragraph>
 
       <Button

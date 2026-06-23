@@ -52,14 +52,23 @@ model WarehouseStock {
   @@map("warehouse_stock")
 }
 
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  ROUTED
+  SHIPPED
+  CANCELLED
+}
+
 model Order {
-  id          Int      @id @default(autoincrement())
-  orderNumber String   @unique @map("order_number") @db.VarChar(50)
-  customer    String   @db.VarChar(200)
-  customerPo  String?  @map("customer_po") @db.VarChar(50)
-  orderDate   DateTime @map("order_date") @db.Date
+  id          Int         @id @default(autoincrement())
+  orderNumber String      @unique @map("order_number") @db.VarChar(50)
+  customer    String      @db.VarChar(200)
+  customerPo  String?     @map("customer_po") @db.VarChar(50)
+  orderDate   DateTime    @map("order_date") @db.Date
+  status      OrderStatus @default(CONFIRMED)
   notes       String?
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
 
   lines OrderLine[]
 

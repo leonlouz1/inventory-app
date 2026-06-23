@@ -2,8 +2,28 @@ const express = require("express");
 const prisma = require("../prismaClient");
 const asyncHandler = require("../middleware/asyncHandler");
 const { checkShortfallBatch, projectInventoryBatch } = require("../services/projection");
+const { ORDER_STATUSES } = require("../constants/orderStatuses");
 
 const router = express.Router();
+
+// Moves real on-hand stock when an order's status crosses the Shipped
+// boundary. delta=-1 when entering Shipped (goods physically leave), +1 when
+// leaving Shipped (correcting a mistake, or deleting a shipped order) — that
+// stock movement is the only place "Shipped" differs from Confirmed/Routed,
+// which only ever affect forward projections, never real on-hand.
+async function adjustStockForShippedTransition(tx, lines, sign) {
+  for (const line of lines) {
+    // eslint-disable-next-line no-await-in-loop
+    await tx.warehouseStock.update({
+      where: { productId_warehouseId: { productId: line.productId, warehouseId: line.warehouseId } },
+      data: { onHand: { increment: sign * line.quantity } },
+    });
+  }
+}
+
+function hasUnassignedLine(lines) {
+  return lines.some((l) => l.warehouseId == null);
+}
 
 function isoDate(date) {
   return date ? new Date(date).toISOString().slice(0, 10) : null;
@@ -104,11 +124,12 @@ router.get(
         customer: order.customer,
         customerPo: order.customerPo,
         orderDate: isoDate(order.orderDate),
+        status: order.status,
         notes: order.notes,
         lineCount: order.lines.length,
         earliestShipDate,
         latestShipDate,
-        status: hasAlerts ? "Has alerts" : "OK",
+        alertStatus: hasAlerts ? "Has alerts" : "OK",
         lines: order.lines.map((line) => ({
           id: line.id,
           sku: line.product.sku,
@@ -139,9 +160,13 @@ router.post(
   "/",
   asyncHandler(async (req, res) => {
     const { order_number, customer, customer_po, order_date, notes, lines, dry_run } = req.body;
+    const status = req.body.status || "CONFIRMED";
 
     if (!Array.isArray(lines) || lines.length === 0) {
       return res.status(400).json({ message: "At least one line item is required" });
+    }
+    if (!ORDER_STATUSES.includes(status)) {
+      return res.status(400).json({ message: `Invalid status "${status}"` });
     }
 
     const skus = [...new Set(lines.map((l) => l.sku))];
@@ -169,6 +194,9 @@ router.post(
     if (!customer || !order_date) {
       return res.status(400).json({ message: "customer and order_date are required" });
     }
+    if (status === "SHIPPED" && hasUnassignedLine(lines.map((l) => ({ warehouseId: l.warehouse_id ?? null })))) {
+      return res.status(400).json({ message: "Cannot create as Shipped: every line must have a warehouse assigned" });
+    }
 
     const maxAttempts = order_number ? 1 : 5;
     let order = null;
@@ -185,19 +213,24 @@ router.post(
               customer,
               customerPo: customer_po,
               orderDate: new Date(order_date),
+              status,
               notes,
             },
           });
 
-          await tx.orderLine.createMany({
-            data: lines.map((line) => ({
-              orderId: created.id,
-              productId: productBySku.get(line.sku).id,
-              warehouseId: line.warehouse_id ?? null,
-              quantity: line.quantity,
-              shipDate: new Date(line.ship_date),
-            })),
-          });
+          const createdLines = lines.map((line) => ({
+            orderId: created.id,
+            productId: productBySku.get(line.sku).id,
+            warehouseId: line.warehouse_id ?? null,
+            quantity: line.quantity,
+            shipDate: new Date(line.ship_date),
+          }));
+
+          await tx.orderLine.createMany({ data: createdLines });
+
+          if (status === "SHIPPED") {
+            await adjustStockForShippedTransition(tx, createdLines, -1);
+          }
 
           return created;
         });
@@ -245,6 +278,7 @@ router.get(
       customer: order.customer,
       customerPo: order.customerPo,
       orderDate: isoDate(order.orderDate),
+      status: order.status,
       notes: order.notes,
       lines: order.lines.map((line, i) => ({
         id: line.id,
@@ -260,20 +294,65 @@ router.get(
   })
 );
 
-// DELETE /api/orders/:id — delete order and all line items (cascade)
+// PUT /api/orders/:id/status — transition status. Crossing into/out of
+// Shipped moves real on-hand stock (see adjustStockForShippedTransition);
+// any other transition (e.g. Confirmed <-> Routed, or into/out of Draft or
+// Cancelled) is a label change only, since none of those states have ever
+// touched real stock.
+router.put(
+  "/:id/status",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { status } = req.body;
+
+    if (!ORDER_STATUSES.includes(status)) {
+      return res.status(400).json({ message: `Invalid status "${status}"` });
+    }
+
+    const order = await prisma.order.findUnique({ where: { id }, include: { lines: true } });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const wasShipped = order.status === "SHIPPED";
+    const willBeShipped = status === "SHIPPED";
+
+    if (!wasShipped && willBeShipped && hasUnassignedLine(order.lines)) {
+      return res.status(400).json({ message: "Cannot mark as Shipped: every line must have a warehouse assigned" });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      if (!wasShipped && willBeShipped) {
+        await adjustStockForShippedTransition(tx, order.lines, -1);
+      } else if (wasShipped && !willBeShipped) {
+        await adjustStockForShippedTransition(tx, order.lines, 1);
+      }
+      return tx.order.update({ where: { id }, data: { status } });
+    });
+
+    res.json({ id: updated.id, status: updated.status });
+  })
+);
+
+// DELETE /api/orders/:id — delete order and all line items (cascade). If the
+// order was Shipped, restores the stock it had decremented first.
 router.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    try {
-      await prisma.order.delete({ where: { id } });
-      res.status(204).end();
-    } catch (err) {
-      if (err.code === "P2025") {
-        return res.status(404).json({ message: "Order not found" });
-      }
-      throw err;
+    const order = await prisma.order.findUnique({ where: { id }, include: { lines: true } });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
     }
+
+    await prisma.$transaction(async (tx) => {
+      if (order.status === "SHIPPED") {
+        await adjustStockForShippedTransition(tx, order.lines, 1);
+      }
+      await tx.order.delete({ where: { id } });
+    });
+
+    res.status(204).end();
   })
 );
 
@@ -285,9 +364,17 @@ router.put(
     const lineId = Number(req.params.lineId);
     const { warehouse_id, quantity, ship_date } = req.body;
 
-    const existing = await prisma.orderLine.findUnique({ where: { id: lineId }, include: { product: true } });
+    const existing = await prisma.orderLine.findUnique({
+      where: { id: lineId },
+      include: { product: true, order: true },
+    });
     if (!existing || existing.orderId !== orderId) {
       return res.status(404).json({ message: "Order line not found" });
+    }
+    if (existing.order.status === "SHIPPED" || existing.order.status === "CANCELLED") {
+      return res.status(409).json({
+        message: `Cannot edit a line on a ${existing.order.status.toLowerCase()} order`,
+      });
     }
 
     const updated = await prisma.orderLine.update({

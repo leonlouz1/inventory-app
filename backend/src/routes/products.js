@@ -2,6 +2,7 @@ const express = require("express");
 const prisma = require("../prismaClient");
 const asyncHandler = require("../middleware/asyncHandler");
 const { buildSkuTimeline } = require("../services/timeline");
+const { PENDING_STATUSES } = require("../constants/orderStatuses");
 
 const router = express.Router();
 
@@ -21,9 +22,11 @@ router.get(
         include: { stock: true },
       }),
       prisma.warehouse.findMany({ orderBy: { id: "asc" } }),
+      // Only Confirmed/Routed lines count as pending — Shipped is already
+      // reflected directly in on-hand, Draft/Cancelled never counted.
       prisma.orderLine.groupBy({
         by: ["productId"],
-        where: { shipDate: { gte: today } },
+        where: { shipDate: { gte: today }, order: { status: { in: PENDING_STATUSES } } },
         _sum: { quantity: true },
       }),
     ]);
