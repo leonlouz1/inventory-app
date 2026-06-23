@@ -30,6 +30,7 @@ router.get(
         id: product.id,
         sku: product.sku,
         name: product.name,
+        brand: product.brand,
         category: product.category,
         reorderPoint: product.reorderPoint,
         reorderQty: product.reorderQty,
@@ -47,7 +48,7 @@ router.get(
 router.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { sku, name, category, reorderPoint, reorderQty, leadTimeDays, initialStock } = req.body;
+    const { sku, name, brand, category, reorderPoint, reorderQty, leadTimeDays, initialStock } = req.body;
     if (!sku || !name) {
       return res.status(400).json({ message: "sku and name are required" });
     }
@@ -61,6 +62,7 @@ router.post(
           data: {
             sku,
             name,
+            brand: brand ?? null,
             category: category ?? null,
             reorderPoint: reorderPoint ?? 0,
             reorderQty: reorderQty ?? 0,
@@ -94,13 +96,14 @@ router.put(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    const { name, category, reorderPoint, reorderQty, leadTimeDays } = req.body;
+    const { name, brand, category, reorderPoint, reorderQty, leadTimeDays } = req.body;
 
     try {
       const product = await prisma.product.update({
         where: { id },
         data: {
           ...(name !== undefined && { name }),
+          ...(brand !== undefined && { brand }),
           ...(category !== undefined && { category }),
           ...(reorderPoint !== undefined && { reorderPoint }),
           ...(reorderQty !== undefined && { reorderQty }),

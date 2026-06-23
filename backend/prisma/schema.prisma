@@ -24,6 +24,7 @@ model Product {
   id            Int      @id @default(autoincrement())
   sku           String   @unique @db.VarChar(50)
   name          String   @db.VarChar(200)
+  brand         String?  @db.VarChar(100)
   category      String?  @db.VarChar(50)
   reorderPoint  Int      @default(0) @map("reorder_point")
   reorderQty    Int      @default(0) @map("reorder_qty")

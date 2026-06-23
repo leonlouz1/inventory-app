@@ -57,6 +57,16 @@ export default function Products() {
       },
       { title: "Name", dataIndex: "name", sorter: (a, b) => a.name.localeCompare(b.name) },
       {
+        title: "Brand",
+        dataIndex: "brand",
+        render: (v) => v || "—",
+        filters: [...new Set(products.map((p) => p.brand).filter(Boolean))]
+          .sort()
+          .map((b) => ({ text: b, value: b })),
+        onFilter: (value, product) => product.brand === value,
+        sorter: (a, b) => (a.brand || "").localeCompare(b.brand || ""),
+      },
+      {
         title: "Category",
         dataIndex: "category",
         render: (v) => v || "—",
@@ -106,7 +116,7 @@ export default function Products() {
         ),
       },
     ],
-    [warehouses]
+    [warehouses, products]
   );
 
   if (error) {

@@ -34,4 +34,66 @@ router.post(
   })
 );
 
+// PUT /api/warehouses/:id — update warehouse name/location
+router.put(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { name, location } = req.body;
+
+    try {
+      const warehouse = await prisma.warehouse.update({
+        where: { id },
+        data: {
+          ...(name !== undefined && { name }),
+          ...(location !== undefined && { location }),
+        },
+      });
+      res.json(warehouse);
+    } catch (err) {
+      if (err.code === "P2025") {
+        return res.status(404).json({ message: "Warehouse not found" });
+      }
+      if (err.code === "P2002") {
+        return res.status(409).json({ message: `Warehouse name "${name}" already exists` });
+      }
+      throw err;
+    }
+  })
+);
+
+// DELETE /api/warehouses/:id — delete a warehouse, blocked if it has order
+// lines, restocks, or any non-zero on-hand stock (all real historical/current
+// data that must not silently disappear).
+router.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+
+    const warehouse = await prisma.warehouse.findUnique({ where: { id } });
+    if (!warehouse) {
+      return res.status(404).json({ message: "Warehouse not found" });
+    }
+
+    const [orderLineCount, restockCount, nonZeroStockCount] = await Promise.all([
+      prisma.orderLine.count({ where: { warehouseId: id } }),
+      prisma.restock.count({ where: { warehouseId: id } }),
+      prisma.warehouseStock.count({ where: { warehouseId: id, onHand: { gt: 0 } } }),
+    ]);
+
+    if (orderLineCount > 0 || restockCount > 0 || nonZeroStockCount > 0) {
+      return res.status(409).json({
+        message: `Cannot delete ${warehouse.name}: it has ${orderLineCount} order line(s), ${restockCount} restock(s), and ${nonZeroStockCount} product(s) with stock on hand. Clear those first.`,
+      });
+    }
+
+    await prisma.$transaction([
+      prisma.warehouseStock.deleteMany({ where: { warehouseId: id } }),
+      prisma.warehouse.delete({ where: { id } }),
+    ]);
+
+    res.status(204).end();
+  })
+);
+
 module.exports = router;

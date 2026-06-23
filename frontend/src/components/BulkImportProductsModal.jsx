@@ -9,6 +9,7 @@ function buildTemplateCsv(warehouses) {
   const headers = [
     "sku",
     "name",
+    "brand",
     "category",
     "reorderPoint",
     "reorderQty",
@@ -18,6 +19,7 @@ function buildTemplateCsv(warehouses) {
   const exampleRow = [
     "WDG-101",
     "Example Widget",
+    "Acme",
     PRODUCT_CATEGORIES[0],
     "20",
     "100",
@@ -44,6 +46,7 @@ function downloadCsv(filename, csvText) {
 function validateRow(row, warehouses, seenSkus) {
   const sku = (row.sku || "").trim();
   const name = (row.name || "").trim();
+  const brand = (row.brand || "").trim();
   const category = (row.category || "").trim();
 
   if (!sku) return { sku, name, error: "Missing SKU" };
@@ -76,7 +79,17 @@ function validateRow(row, warehouses, seenSkus) {
     initialStock.push({ warehouseId: w.id, onHand });
   }
 
-  return { sku, name, category: category || undefined, reorderPoint, reorderQty, leadTimeDays, initialStock, error: null };
+  return {
+    sku,
+    name,
+    brand: brand || undefined,
+    category: category || undefined,
+    reorderPoint,
+    reorderQty,
+    leadTimeDays,
+    initialStock,
+    error: null,
+  };
 }
 
 export default function BulkImportProductsModal({ open, onClose, onImported, warehouses }) {
@@ -122,6 +135,7 @@ export default function BulkImportProductsModal({ open, onClose, onImported, war
         await productsApi.create({
           sku: row.sku,
           name: row.name,
+          brand: row.brand,
           category: row.category,
           reorderPoint: row.reorderPoint,
           reorderQty: row.reorderQty,
@@ -152,6 +166,7 @@ export default function BulkImportProductsModal({ open, onClose, onImported, war
   const columns = [
     { title: "SKU", dataIndex: "sku" },
     { title: "Name", dataIndex: "name" },
+    { title: "Brand", dataIndex: "brand", render: (v) => v || "—" },
     { title: "Category", dataIndex: "category", render: (v) => v || "—" },
     {
       title: "Status",
@@ -182,9 +197,9 @@ export default function BulkImportProductsModal({ open, onClose, onImported, war
       ]}
     >
       <Typography.Paragraph type="secondary">
-        Download the template, fill in one row per product, then upload it here. Columns: sku, name, category
-        (optional, must match an existing category), reorderPoint, reorderQty, leadTimeDays, and one column per
-        warehouse for initial on-hand quantity.
+        Download the template, fill in one row per product, then upload it here. Columns: sku, name, brand
+        (optional, free text), category (optional, must match an existing category), reorderPoint, reorderQty,
+        leadTimeDays, and one column per warehouse for initial on-hand quantity.
       </Typography.Paragraph>
 
       <Button

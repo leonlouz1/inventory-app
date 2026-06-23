@@ -18,6 +18,7 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
       await productsApi.create({
         sku: values.sku,
         name: values.name,
+        brand: values.brand,
         category: values.category,
         reorderPoint: values.reorderPoint ?? 0,
         reorderQty: values.reorderQty ?? 0,
@@ -59,9 +60,18 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
             </Form.Item>
           </Col>
         </Row>
-        <Form.Item name="category" label="Category">
-          <Select allowClear placeholder="Select category" options={CATEGORY_OPTIONS} />
-        </Form.Item>
+        <Row gutter={12}>
+          <Col span={12}>
+            <Form.Item name="brand" label="Brand">
+              <Input placeholder="Acme" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="category" label="Category">
+              <Select allowClear placeholder="Select category" options={CATEGORY_OPTIONS} />
+            </Form.Item>
+          </Col>
+        </Row>
         <Row gutter={12}>
           <Col span={8}>
             <Form.Item name="reorderPoint" label="Reorder Point">
@@ -102,6 +112,7 @@ export function EditProductModal({ open, onClose, onUpdated, product }) {
     if (product) {
       form.setFieldsValue({
         name: product.name,
+        brand: product.brand,
         category: product.category,
         reorderPoint: product.reorderPoint,
         reorderQty: product.reorderQty,
@@ -129,9 +140,18 @@ export function EditProductModal({ open, onClose, onUpdated, product }) {
         <Form.Item name="name" label="Name" rules={[{ required: true, message: "Required" }]}>
           <Input />
         </Form.Item>
-        <Form.Item name="category" label="Category">
-          <Select allowClear placeholder="Select category" options={CATEGORY_OPTIONS} />
-        </Form.Item>
+        <Row gutter={12}>
+          <Col span={12}>
+            <Form.Item name="brand" label="Brand">
+              <Input placeholder="Acme" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="category" label="Category">
+              <Select allowClear placeholder="Select category" options={CATEGORY_OPTIONS} />
+            </Form.Item>
+          </Col>
+        </Row>
         <Row gutter={12}>
           <Col span={8}>
             <Form.Item name="reorderPoint" label="Reorder Point">
