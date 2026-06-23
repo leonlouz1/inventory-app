@@ -1,12 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Tooltip } from "antd";
-import { PlusOutlined, UploadOutlined, DeleteOutlined } from "@ant-design/icons";
+import { PlusOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined } from "@ant-design/icons";
+import Papa from "papaparse";
 import { productsApi, warehousesApi } from "../api/inventory";
 import { NewProductModal, EditProductModal } from "../components/ProductModals";
 import BulkImportProductsModal from "../components/BulkImportProductsModal";
 import { PRODUCT_CATEGORIES } from "../constants/categories";
 import { PRODUCT_BRANDS } from "../constants/brands";
+
+function downloadCsv(filename, csvText) {
+  const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 export default function Products() {
   const [products, setProducts] = useState([]);
@@ -33,6 +46,19 @@ export default function Products() {
     loadProducts();
     warehousesApi.list().then(setWarehouses);
   }, [loadProducts]);
+
+  function handleExportAvailableToSell() {
+    const rows = [...products]
+      .sort((a, b) => a.sku.localeCompare(b.sku))
+      .map((p) => ({
+        sku: p.sku,
+        name: p.name,
+        available_to_sell: p.availableToSell,
+      }));
+    const csv = Papa.unparse(rows);
+    const today = new Date().toISOString().slice(0, 10);
+    downloadCsv(`available_to_sell_${today}.csv`, csv);
+  }
 
   async function handleDelete(product) {
     try {
@@ -146,6 +172,9 @@ export default function Products() {
           Products
         </Typography.Title>
         <Space>
+          <Button icon={<DownloadOutlined />} onClick={handleExportAvailableToSell}>
+            Export Available to Sell
+          </Button>
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
             Import CSV
           </Button>
