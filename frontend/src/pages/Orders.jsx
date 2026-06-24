@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal } from "antd";
 import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
 import { ordersApi, productsApi, warehousesApi } from "../api/inventory";
@@ -29,6 +29,9 @@ export default function Orders() {
   const [importOpen, setImportOpen] = useState(false);
   const [editingLine, setEditingLine] = useState(null); // { orderId, line }
   const [alertOrder, setAlertOrder] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightId = searchParams.get("highlight") ? Number(searchParams.get("highlight")) : null;
+  const [expandedRowKeys, setExpandedRowKeys] = useState(highlightId ? [highlightId] : []);
 
   const loadOrders = useCallback(() => {
     setLoading(true);
@@ -49,6 +52,15 @@ export default function Orders() {
       setWarehouses(w);
     });
   }, [loadOrders]);
+
+  useEffect(() => {
+    if (!highlightId || orders.length === 0) return;
+    setExpandedRowKeys((prev) => (prev.includes(highlightId) ? prev : [...prev, highlightId]));
+    const row = document.getElementById(`order-row-${highlightId}`);
+    if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId, orders.length]);
 
   async function handleDelete(orderId) {
     try {
@@ -176,7 +188,10 @@ export default function Orders() {
         dataSource={orders}
         rowKey="id"
         pagination={{ pageSize: 15 }}
+        onRow={(order) => ({ id: `order-row-${order.id}` })}
         expandable={{
+          expandedRowKeys,
+          onExpandedRowsChange: setExpandedRowKeys,
           expandedRowRender: (order) => {
             const lineColumns = [
               { title: "SKU", dataIndex: "sku" },

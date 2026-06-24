@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Row, Col, Card, Statistic, Table, Tag, Spin, Alert, Typography } from "antd";
 import { productsApi, ordersApi, alertsApi } from "../api/inventory";
 
@@ -9,7 +10,12 @@ const FLAG_META = {
 };
 
 const COLUMNS = [
-  { title: "Order #", dataIndex: "orderNumber", key: "orderNumber" },
+  {
+    title: "Order #",
+    dataIndex: "orderNumber",
+    key: "orderNumber",
+    render: (orderNumber, alert) => <Link to={`/orders?highlight=${alert.orderId}`}>{orderNumber}</Link>,
+  },
   { title: "Customer", dataIndex: "customer", key: "customer" },
   { title: "SKU", dataIndex: "sku", key: "sku" },
   { title: "Ship From", dataIndex: "shipFrom", key: "shipFrom", render: (v) => v || "Unassigned" },
