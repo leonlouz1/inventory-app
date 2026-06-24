@@ -28,6 +28,7 @@ export default function Orders() {
   const [modalOpen, setModalOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingLine, setEditingLine] = useState(null); // { orderId, line }
+  const [alertOrder, setAlertOrder] = useState(null);
 
   const loadOrders = useCallback(() => {
     setLoading(true);
@@ -129,7 +130,14 @@ export default function Orders() {
     {
       title: "Alerts",
       dataIndex: "alertStatus",
-      render: (status) => <Tag color={status === "OK" ? "green" : "red"}>{status}</Tag>,
+      render: (status, order) =>
+        status === "OK" ? (
+          <Tag color="green">{status}</Tag>
+        ) : (
+          <Tag color="red" style={{ cursor: "pointer" }} onClick={() => setAlertOrder(order)}>
+            {status}
+          </Tag>
+        ),
       sorter: sortString("alertStatus"),
     },
     {
@@ -218,6 +226,38 @@ export default function Orders() {
         products={products}
         warehouses={warehouses}
       />
+
+      <Modal
+        title={`Alerts — ${alertOrder?.orderNumber ?? ""}`}
+        open={!!alertOrder}
+        onCancel={() => setAlertOrder(null)}
+        footer={null}
+      >
+        {alertOrder && (
+          <Table
+            columns={[
+              { title: "SKU", dataIndex: "sku" },
+              { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned" },
+              { title: "Ship Date", dataIndex: "shipDate" },
+              {
+                title: "Issue",
+                key: "issue",
+                render: (_, line) => (
+                  <span>
+                    Projected balance {line.projection.balance}
+                    {line.projection.deficit != null && ` (deficit ${line.projection.deficit})`}
+                    {line.projection.date && ` — first dips below 0 on ${line.projection.date}`}
+                  </span>
+                ),
+              },
+            ]}
+            dataSource={alertOrder.lines.filter((l) => !l.projection.ok)}
+            rowKey="id"
+            pagination={false}
+            size="small"
+          />
+        )}
+      </Modal>
     </Spin>
   );
 }
