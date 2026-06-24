@@ -232,6 +232,7 @@ export default function Orders() {
         orderId={editingLine?.orderId}
         line={editingLine?.line}
         warehouses={warehouses}
+        products={products}
       />
 
       <BulkImportOrdersModal

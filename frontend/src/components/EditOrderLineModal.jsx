@@ -3,13 +3,18 @@ import { Modal, Form, Select, InputNumber, DatePicker, message } from "antd";
 import dayjs from "dayjs";
 import { ordersApi } from "../api/inventory";
 
-export default function EditOrderLineModal({ open, onClose, onUpdated, orderId, line, warehouses }) {
+export default function EditOrderLineModal({ open, onClose, onUpdated, orderId, line, warehouses, products }) {
   const [form] = Form.useForm();
   const warehouseOptions = useMemo(() => warehouses.map((w) => ({ value: w.id, label: w.name })), [warehouses]);
+  const skuOptions = useMemo(
+    () => (products || []).map((p) => ({ value: p.sku, label: `${p.sku} — ${p.name}` })),
+    [products]
+  );
 
   useEffect(() => {
     if (line) {
       form.setFieldsValue({
+        sku: line.sku,
         warehouseId: line.warehouseId,
         quantity: line.quantity,
         shipDate: dayjs(line.shipDate),
@@ -21,11 +26,12 @@ export default function EditOrderLineModal({ open, onClose, onUpdated, orderId, 
     try {
       const values = await form.validateFields();
       await ordersApi.updateLine(orderId, line.id, {
+        sku: values.sku,
         warehouse_id: values.warehouseId ?? null,
         quantity: values.quantity,
         ship_date: values.shipDate.format("YYYY-MM-DD"),
       });
-      message.success(`Line item updated for ${line.sku}`);
+      message.success(`Line item updated for ${values.sku}`);
       onClose();
       onUpdated();
     } catch (err) {
@@ -44,6 +50,13 @@ export default function EditOrderLineModal({ open, onClose, onUpdated, orderId, 
       destroyOnHidden
     >
       <Form form={form} layout="vertical">
+        <Form.Item name="sku" label="SKU" rules={[{ required: true, message: "Required" }]}>
+          <Select
+            showSearch
+            options={skuOptions}
+            filterOption={(input, option) => option.label.toLowerCase().includes(input.toLowerCase())}
+          />
+        </Form.Item>
         <Form.Item name="warehouseId" label="Warehouse">
           <Select allowClear placeholder="Unassigned" options={warehouseOptions} />
         </Form.Item>

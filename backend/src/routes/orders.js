@@ -362,7 +362,7 @@ router.put(
   asyncHandler(async (req, res) => {
     const orderId = Number(req.params.id);
     const lineId = Number(req.params.lineId);
-    const { warehouse_id, quantity, ship_date } = req.body;
+    const { sku, warehouse_id, quantity, ship_date } = req.body;
 
     const existing = await prisma.orderLine.findUnique({
       where: { id: lineId },
@@ -377,9 +377,19 @@ router.put(
       });
     }
 
+    let productId;
+    if (sku !== undefined) {
+      const product = await prisma.product.findUnique({ where: { sku } });
+      if (!product) {
+        return res.status(400).json({ message: `Unknown SKU "${sku}"` });
+      }
+      productId = product.id;
+    }
+
     const updated = await prisma.orderLine.update({
       where: { id: lineId },
       data: {
+        ...(productId !== undefined && { productId }),
         ...(warehouse_id !== undefined && { warehouseId: warehouse_id }),
         ...(quantity !== undefined && { quantity }),
         ...(ship_date !== undefined && { shipDate: new Date(ship_date) }),
