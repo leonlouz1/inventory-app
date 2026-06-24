@@ -194,7 +194,15 @@ export default function Orders() {
           onExpandedRowsChange: setExpandedRowKeys,
           expandedRowRender: (order) => {
             const lineColumns = [
-              { title: "SKU", dataIndex: "sku" },
+              {
+                title: "SKU",
+                dataIndex: "sku",
+                render: (sku) => (
+                  <Link to={`/timeline?sku=${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
+                    {sku}
+                  </Link>
+                ),
+              },
               { title: "Product", dataIndex: "productName" },
               { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned" },
               { title: "Qty", dataIndex: "quantity" },
@@ -252,7 +260,11 @@ export default function Orders() {
         {alertOrder && (
           <Table
             columns={[
-              { title: "SKU", dataIndex: "sku" },
+              {
+                title: "SKU",
+                dataIndex: "sku",
+                render: (sku) => <Link to={`/timeline?sku=${encodeURIComponent(sku)}`}>{sku}</Link>,
+              },
               { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned" },
               { title: "Ship Date", dataIndex: "shipDate" },
               {
