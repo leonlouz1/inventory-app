@@ -6,6 +6,7 @@ import {
   InboxOutlined,
   AppstoreOutlined,
   BankOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 
@@ -14,6 +15,7 @@ const { Sider, Content, Header } = Layout;
 const NAV_ITEMS = [
   { key: "/", label: "Dashboard", icon: <DashboardOutlined /> },
   { key: "/orders", label: "Orders", icon: <ShoppingCartOutlined /> },
+  { key: "/customers", label: "Customers", icon: <TeamOutlined /> },
   { key: "/timeline", label: "Timeline", icon: <FieldTimeOutlined /> },
   { key: "/restocks", label: "Restocks", icon: <InboxOutlined /> },
   { key: "/products", label: "Products", icon: <AppstoreOutlined /> },

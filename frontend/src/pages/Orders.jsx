@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal } from "antd";
 import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
 import { ordersApi, productsApi, warehousesApi } from "../api/inventory";
@@ -92,7 +93,12 @@ export default function Orders() {
 
   const columns = [
     { title: "Order #", dataIndex: "orderNumber", sorter: sortString("orderNumber") },
-    { title: "Customer", dataIndex: "customer", sorter: sortString("customer") },
+    {
+      title: "Customer",
+      dataIndex: "customer",
+      sorter: sortString("customer"),
+      render: (customer) => <Link to={`/customers?name=${encodeURIComponent(customer)}`}>{customer}</Link>,
+    },
     {
       title: "Customer PO #",
       dataIndex: "customerPo",
