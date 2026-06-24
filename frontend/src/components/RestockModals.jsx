@@ -63,6 +63,9 @@ export function NewRestockModal({ open, onClose, onCreated, products, warehouses
     try {
       const headerValues = await form.validateFields();
       setSaving(true);
+      // Tag all lines from this submission with a shared shipmentId so the
+      // Restocks page can group them back into one shipment row.
+      const shipmentId = validLines.length > 1 ? crypto.randomUUID() : undefined;
       await Promise.all(
         validLines.map((line) =>
           restocksApi.create({
@@ -71,6 +74,7 @@ export function NewRestockModal({ open, onClose, onCreated, products, warehouses
             quantity: line.quantity,
             expectedDate: headerValues.expectedDate.format("YYYY-MM-DD"),
             supplier: headerValues.supplier,
+            shipmentId,
           })
         )
       );

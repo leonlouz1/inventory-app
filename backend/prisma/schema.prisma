@@ -103,6 +103,9 @@ model Restock {
   expectedDate DateTime @map("expected_date") @db.Date
   supplier     String?  @db.VarChar(200)
   notes        String?
+  // Shared tag for SKUs logged together in one multi-SKU shipment (e.g. one
+  // container). Purely a display-grouping concern — null for legacy/standalone rows.
+  shipmentId   String?  @map("shipment_id") @db.VarChar(40)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   product   Product   @relation(fields: [productId], references: [id])

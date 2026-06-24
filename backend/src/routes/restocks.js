@@ -15,6 +15,7 @@ function serialize(restock) {
     expectedDate: restock.expectedDate.toISOString().slice(0, 10),
     supplier: restock.supplier,
     notes: restock.notes,
+    shipmentId: restock.shipmentId,
   };
 }
 
@@ -34,7 +35,7 @@ router.get(
 router.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { sku, warehouseId, quantity, expectedDate, supplier, notes } = req.body;
+    const { sku, warehouseId, quantity, expectedDate, supplier, notes, shipmentId } = req.body;
     if (!sku || !warehouseId || !quantity || !expectedDate) {
       return res.status(400).json({ message: "sku, warehouseId, quantity, and expectedDate are required" });
     }
@@ -52,6 +53,7 @@ router.post(
         expectedDate: new Date(expectedDate),
         supplier,
         notes,
+        shipmentId,
       },
       include: { product: true, warehouse: true },
     });
