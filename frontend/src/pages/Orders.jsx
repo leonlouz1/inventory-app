@@ -33,17 +33,20 @@ export default function Orders() {
   const highlightId = searchParams.get("highlight") ? Number(searchParams.get("highlight")) : null;
   const [expandedRowKeys, setExpandedRowKeys] = useState(highlightId ? [highlightId] : []);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState([]);
 
   const filteredOrders = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return orders;
-    return orders.filter(
-      (o) =>
+    return orders.filter((o) => {
+      if (statusFilter.length > 0 && !statusFilter.includes(o.status)) return false;
+      if (!term) return true;
+      return (
         o.orderNumber.toLowerCase().includes(term) ||
         o.customer.toLowerCase().includes(term) ||
         (o.customerPo || "").toLowerCase().includes(term)
-    );
-  }, [orders, search]);
+      );
+    });
+  }, [orders, search, statusFilter]);
 
   const loadOrders = useCallback(() => {
     setLoading(true);
@@ -192,6 +195,16 @@ export default function Orders() {
             style={{ width: 260 }}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+          />
+          <Select
+            mode="multiple"
+            placeholder="Filter by status (all)"
+            allowClear
+            style={{ minWidth: 220 }}
+            options={STATUS_OPTIONS}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            maxTagCount="responsive"
           />
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
             Import CSV
