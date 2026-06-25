@@ -48,7 +48,8 @@ export default function Products() {
   }, [loadProducts]);
 
   function handleExportAvailableToSell() {
-    const rows = [...products]
+    const rows = products
+      .filter((p) => p.availableToSell > 0)
       .sort((a, b) => a.sku.localeCompare(b.sku))
       .map((p) => ({
         sku: p.sku,
