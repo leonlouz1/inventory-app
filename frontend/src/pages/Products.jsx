@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Tooltip } from "antd";
+import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Tooltip, Input } from "antd";
 import { PlusOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined } from "@ant-design/icons";
 import Papa from "papaparse";
 import { productsApi, warehousesApi } from "../api/inventory";
@@ -29,6 +29,15 @@ export default function Products() {
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [search, setSearch] = useState("");
+
+  const filteredProducts = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return products;
+    return products.filter(
+      (p) => p.sku.toLowerCase().includes(term) || p.name.toLowerCase().includes(term)
+    );
+  }, [products, search]);
 
   const loadProducts = useCallback(() => {
     setLoading(true);
@@ -173,6 +182,13 @@ export default function Products() {
           Products
         </Typography.Title>
         <Space>
+          <Input.Search
+            placeholder="Search SKU or name"
+            allowClear
+            style={{ width: 240 }}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
           <Button icon={<DownloadOutlined />} onClick={handleExportAvailableToSell}>
             Export Available to Sell
           </Button>
@@ -187,7 +203,7 @@ export default function Products() {
 
       <Table
         columns={columns}
-        dataSource={products}
+        dataSource={filteredProducts}
         rowKey="id"
         pagination={{ pageSize: 20 }}
         onRow={(product) => ({

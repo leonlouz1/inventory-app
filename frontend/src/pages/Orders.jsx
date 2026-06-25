@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal } from "antd";
+import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input } from "antd";
 import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
 import { ordersApi, productsApi, warehousesApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
@@ -32,6 +32,18 @@ export default function Orders() {
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightId = searchParams.get("highlight") ? Number(searchParams.get("highlight")) : null;
   const [expandedRowKeys, setExpandedRowKeys] = useState(highlightId ? [highlightId] : []);
+  const [search, setSearch] = useState("");
+
+  const filteredOrders = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return orders;
+    return orders.filter(
+      (o) =>
+        o.orderNumber.toLowerCase().includes(term) ||
+        o.customer.toLowerCase().includes(term) ||
+        (o.customerPo || "").toLowerCase().includes(term)
+    );
+  }, [orders, search]);
 
   const loadOrders = useCallback(() => {
     setLoading(true);
@@ -174,6 +186,13 @@ export default function Orders() {
           Orders
         </Typography.Title>
         <Space>
+          <Input.Search
+            placeholder="Search order #, customer, or PO"
+            allowClear
+            style={{ width: 260 }}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
             Import CSV
           </Button>
@@ -185,7 +204,7 @@ export default function Orders() {
 
       <Table
         columns={columns}
-        dataSource={orders}
+        dataSource={filteredOrders}
         rowKey="id"
         pagination={{ pageSize: 15 }}
         onRow={(order) => ({ id: `order-row-${order.id}` })}
