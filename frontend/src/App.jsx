@@ -7,6 +7,7 @@ import Restocks from "./pages/Restocks";
 import Products from "./pages/Products";
 import Warehouses from "./pages/Warehouses";
 import Customer from "./pages/Customer";
+import CalendarView from "./pages/CalendarView";
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/products" element={<Products />} />
           <Route path="/warehouses" element={<Warehouses />} />
           <Route path="/customers" element={<Customer />} />
+          <Route path="/calendar" element={<CalendarView />} />
         </Route>
       </Routes>
     </BrowserRouter>
