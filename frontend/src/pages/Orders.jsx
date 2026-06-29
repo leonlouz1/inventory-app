@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined } from "@ant-design/icons";
 import { ordersApi, productsApi, warehousesApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
 import EditOrderLineModal from "../components/EditOrderLineModal";
 import BulkImportOrdersModal from "../components/BulkImportOrdersModal";
 import { ORDER_STATUSES, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants/orderStatuses";
+import { downloadPackingList } from "../utils/packingList";
 
 const STATUS_OPTIONS = ORDER_STATUSES.map((s) => ({ value: s, label: ORDER_STATUS_LABELS[s] }));
 
@@ -171,9 +172,20 @@ export default function Orders() {
       title: "",
       key: "actions",
       render: (_, order) => (
-        <Popconfirm title="Delete this order?" onConfirm={() => handleDelete(order.id)}>
-          <Button icon={<DeleteOutlined />} danger type="text" />
-        </Popconfirm>
+        <>
+          <Button
+            icon={<FileExcelOutlined />}
+            type="text"
+            title="Download packing list"
+            onClick={(e) => {
+              e.stopPropagation();
+              downloadPackingList(order);
+            }}
+          />
+          <Popconfirm title="Delete this order?" onConfirm={() => handleDelete(order.id)}>
+            <Button icon={<DeleteOutlined />} danger type="text" />
+          </Popconfirm>
+        </>
       ),
     },
   ];
