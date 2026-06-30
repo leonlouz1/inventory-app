@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Calendar, Badge, Spin, Alert, Typography, Modal, List, Tag, Empty } from "antd";
+import { Calendar, Badge, Spin, Alert, Typography, Modal, List, Tag, Empty, Collapse } from "antd";
 import dayjs from "dayjs";
 import { ordersApi, restocksApi } from "../api/inventory";
 import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS } from "../constants/orderStatuses";
@@ -123,19 +123,69 @@ export default function CalendarView() {
             <Typography.Title level={5} style={{ marginTop: 16 }}>
               Restocking ({selectedDay.restocks.length})
             </Typography.Title>
-            <List
-              size="small"
-              dataSource={selectedDay.restocks}
-              renderItem={(restock) => (
-                <List.Item>
-                  <Link to={`/timeline?sku=${encodeURIComponent(restock.sku)}`} onClick={() => setSelectedDate(null)}>
-                    {restock.sku}
-                  </Link>
-                  {` x${restock.quantity} — ${restock.warehouseName}`}
-                  {restock.supplier && ` (${restock.supplier})`}
-                </List.Item>
-              )}
-            />
+            {(() => {
+              // Group by shipmentId; single restocks get a unique key
+              const groups = [];
+              const seen = new Map();
+              for (const r of selectedDay.restocks) {
+                const key = r.shipmentId || `single-${r.id}`;
+                if (!seen.has(key)) {
+                  seen.set(key, { key, shipmentId: r.shipmentId, warehouseName: r.warehouseName, supplier: r.supplier, lines: [] });
+                  groups.push(seen.get(key));
+                }
+                seen.get(key).lines.push(r);
+              }
+
+              const singleItems = groups.filter((g) => g.lines.length === 1);
+              const multiGroups = groups.filter((g) => g.lines.length > 1);
+
+              return (
+                <>
+                  {singleItems.length > 0 && (
+                    <List
+                      size="small"
+                      dataSource={singleItems}
+                      renderItem={(g) => {
+                        const r = g.lines[0];
+                        return (
+                          <List.Item>
+                            <Link to={`/timeline?sku=${encodeURIComponent(r.sku)}`} onClick={() => setSelectedDate(null)}>
+                              {r.sku}
+                            </Link>
+                            {` x${r.quantity} — ${r.warehouseName}`}
+                            {r.supplier && ` (${r.supplier})`}
+                          </List.Item>
+                        );
+                      }}
+                    />
+                  )}
+                  {multiGroups.length > 0 && (
+                    <Collapse
+                      size="small"
+                      style={{ marginTop: singleItems.length > 0 ? 8 : 0 }}
+                      items={multiGroups.map((g) => ({
+                        key: g.key,
+                        label: `${g.lines.length} SKUs — ${g.warehouseName}${g.supplier ? ` (${g.supplier})` : ""}`,
+                        children: (
+                          <List
+                            size="small"
+                            dataSource={g.lines}
+                            renderItem={(r) => (
+                              <List.Item>
+                                <Link to={`/timeline?sku=${encodeURIComponent(r.sku)}`} onClick={() => setSelectedDate(null)}>
+                                  {r.sku}
+                                </Link>
+                                {` x${r.quantity}`}
+                              </List.Item>
+                            )}
+                          />
+                        ),
+                      }))}
+                    />
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
 
