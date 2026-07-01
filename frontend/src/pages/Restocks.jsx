@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Table, Button, Tag, Spin, Alert, Typography, Popconfirm, message } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from "@ant-design/icons";
 import { restocksApi, productsApi, warehousesApi, ordersApi } from "../api/inventory";
 import { NewRestockModal, EditRestockModal } from "../components/RestockModals";
+import BulkImportRestocksModal from "../components/BulkImportRestocksModal";
 
 // Groups flat restock rows back into shipments: rows sharing a shipmentId
 // (logged together via "Add SKU" in the modal) become one expandable row;
@@ -35,6 +36,7 @@ export default function Restocks() {
   const [error, setError] = useState(null);
   const [orders, setOrders] = useState([]);
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editingRestock, setEditingRestock] = useState(null);
 
   const loadRestocks = useCallback(() => {
@@ -140,9 +142,14 @@ export default function Restocks() {
         <Typography.Title level={5} style={{ margin: 0 }}>
           Restocks
         </Typography.Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
-          Log Restock
-        </Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
+            Import CSV
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
+            Log Restock
+          </Button>
+        </div>
       </div>
 
       <Table
@@ -200,6 +207,15 @@ export default function Restocks() {
         onClose={() => setEditingRestock(null)}
         onUpdated={loadRestocks}
         restock={editingRestock}
+        warehouses={warehouses}
+        orders={orders}
+      />
+
+      <BulkImportRestocksModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={loadRestocks}
+        products={products}
         warehouses={warehouses}
         orders={orders}
       />
