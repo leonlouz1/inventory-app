@@ -17,7 +17,7 @@ function emptyRestockLine() {
 // Logs a restock shipment that may contain multiple SKUs arriving together
 // (e.g. several SKUs on the same shipping container) — one warehouse,
 // expected date, and supplier/PO shared across all line items.
-export function NewRestockModal({ open, onClose, onCreated, products, warehouses }) {
+export function NewRestockModal({ open, onClose, onCreated, products, warehouses, orders }) {
   const [form] = Form.useForm();
   const [lines, setLines] = useState([emptyRestockLine()]);
   const [saving, setSaving] = useState(false);
@@ -27,6 +27,10 @@ export function NewRestockModal({ open, onClose, onCreated, products, warehouses
     [products]
   );
   const warehouseOptions = useMemo(() => warehouses.map((w) => ({ value: w.id, label: w.name })), [warehouses]);
+  const orderOptions = useMemo(
+    () => (orders || []).filter((o) => o.status !== "CANCELLED").map((o) => ({ value: o.id, label: `${o.orderNumber} — ${o.customer}` })),
+    [orders]
+  );
 
   function updateLine(key, patch) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -75,6 +79,7 @@ export function NewRestockModal({ open, onClose, onCreated, products, warehouses
             expectedDate: headerValues.expectedDate.format("YYYY-MM-DD"),
             supplier: headerValues.supplier,
             shipmentId,
+            linkedOrderId: line.linkedOrderId || null,
           })
         )
       );
@@ -120,6 +125,22 @@ export function NewRestockModal({ open, onClose, onCreated, products, warehouses
       ),
     },
     {
+      title: "Link to Order (optional)",
+      dataIndex: "linkedOrderId",
+      render: (_, line) => (
+        <Select
+          allowClear
+          showSearch
+          placeholder="None"
+          style={{ width: 220 }}
+          options={orderOptions}
+          value={line.linkedOrderId}
+          filterOption={(input, option) => option.label.toLowerCase().includes(input.toLowerCase())}
+          onChange={(value) => updateLine(line.key, { linkedOrderId: value })}
+        />
+      ),
+    },
+    {
       title: "",
       key: "actions",
       render: (_, line) => (
@@ -139,7 +160,7 @@ export function NewRestockModal({ open, onClose, onCreated, products, warehouses
       title="Log Restock"
       open={open}
       onCancel={resetAndClose}
-      width={640}
+      width={900}
       footer={[
         <Button key="cancel" onClick={resetAndClose}>
           Cancel
@@ -169,9 +190,13 @@ export function NewRestockModal({ open, onClose, onCreated, products, warehouses
   );
 }
 
-export function EditRestockModal({ open, onClose, onUpdated, restock, warehouses }) {
+export function EditRestockModal({ open, onClose, onUpdated, restock, warehouses, orders }) {
   const [form] = Form.useForm();
   const warehouseOptions = useMemo(() => warehouses.map((w) => ({ value: w.id, label: w.name })), [warehouses]);
+  const orderOptions = useMemo(
+    () => (orders || []).filter((o) => o.status !== "CANCELLED").map((o) => ({ value: o.id, label: `${o.orderNumber} — ${o.customer}` })),
+    [orders]
+  );
 
   useEffect(() => {
     if (restock) {
@@ -180,6 +205,7 @@ export function EditRestockModal({ open, onClose, onUpdated, restock, warehouses
         quantity: restock.quantity,
         expectedDate: dayjs(restock.expectedDate),
         supplier: restock.supplier,
+        linkedOrderId: restock.linkedOrderId ?? null,
       });
     }
   }, [restock, form]);
@@ -192,6 +218,7 @@ export function EditRestockModal({ open, onClose, onUpdated, restock, warehouses
         quantity: values.quantity,
         expectedDate: values.expectedDate.format("YYYY-MM-DD"),
         supplier: values.supplier,
+        linkedOrderId: values.linkedOrderId || null,
       });
       message.success("Restock updated");
       onClose();
@@ -223,6 +250,10 @@ export function EditRestockModal({ open, onClose, onUpdated, restock, warehouses
         </Form.Item>
         <Form.Item name="supplier" label="Supplier / PO">
           <Input />
+        </Form.Item>
+        <Form.Item name="linkedOrderId" label="Link to Order (optional)">
+          <Select allowClear showSearch placeholder="None" options={orderOptions}
+            filterOption={(input, option) => option.label.toLowerCase().includes(input.toLowerCase())} />
         </Form.Item>
       </Form>
     </Modal>

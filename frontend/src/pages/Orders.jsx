@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input } from "antd";
 import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined } from "@ant-design/icons";
-import { ordersApi, productsApi, warehousesApi } from "../api/inventory";
+import { ordersApi, productsApi, warehousesApi, restocksApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
 import EditOrderLineModal from "../components/EditOrderLineModal";
 import BulkImportOrdersModal from "../components/BulkImportOrdersModal";
@@ -22,6 +22,7 @@ function ProjectionTag({ projection }) {
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
+  const [restocks, setRestocks] = useState([]);
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +36,16 @@ export default function Orders() {
   const [expandedRowKeys, setExpandedRowKeys] = useState(highlightId ? [highlightId] : []);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState([]);
+
+  const restocksByOrderId = useMemo(() => {
+    const map = new Map();
+    for (const r of restocks) {
+      if (!r.linkedOrderId) continue;
+      if (!map.has(r.linkedOrderId)) map.set(r.linkedOrderId, []);
+      map.get(r.linkedOrderId).push(r);
+    }
+    return map;
+  }, [restocks]);
 
   const filteredOrders = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -63,9 +74,10 @@ export default function Orders() {
 
   useEffect(() => {
     loadOrders();
-    Promise.all([productsApi.list(), warehousesApi.list()]).then(([p, w]) => {
+    Promise.all([productsApi.list(), warehousesApi.list(), restocksApi.list()]).then(([p, w, r]) => {
       setProducts(p);
       setWarehouses(w);
+      setRestocks(r);
     });
   }, [loadOrders]);
 
@@ -264,7 +276,32 @@ export default function Orders() {
                 ),
               },
             ];
-            return <Table columns={lineColumns} dataSource={order.lines} rowKey="id" pagination={false} size="small" />;
+            const linkedRestocks = restocksByOrderId.get(order.id) || [];
+            return (
+              <>
+                <Table columns={lineColumns} dataSource={order.lines} rowKey="id" pagination={false} size="small" />
+                {linkedRestocks.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <Typography.Text strong style={{ fontSize: 13 }}>Linked Containers ({linkedRestocks.length} line{linkedRestocks.length > 1 ? "s" : ""})</Typography.Text>
+                    <Table
+                      size="small"
+                      pagination={false}
+                      style={{ marginTop: 6 }}
+                      rowKey="id"
+                      dataSource={linkedRestocks}
+                      columns={[
+                        { title: "SKU", dataIndex: "sku", render: (sku) => <Link to={`/timeline?sku=${encodeURIComponent(sku)}`}>{sku}</Link> },
+                        { title: "Product", dataIndex: "productName" },
+                        { title: "Warehouse", dataIndex: "warehouseName" },
+                        { title: "Qty Incoming", dataIndex: "quantity" },
+                        { title: "Expected Date", dataIndex: "expectedDate" },
+                        { title: "Supplier / PO", dataIndex: "supplier", render: (v) => v || "—" },
+                      ]}
+                    />
+                  </div>
+                )}
+              </>
+            );
           },
         }}
       />

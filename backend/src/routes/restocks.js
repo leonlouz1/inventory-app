@@ -16,6 +16,8 @@ function serialize(restock) {
     supplier: restock.supplier,
     notes: restock.notes,
     shipmentId: restock.shipmentId,
+    linkedOrderId: restock.linkedOrderId,
+    linkedOrderNumber: restock.linkedOrder?.orderNumber ?? null,
   };
 }
 
@@ -25,7 +27,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const restocks = await prisma.restock.findMany({
       orderBy: { expectedDate: "asc" },
-      include: { product: true, warehouse: true },
+      include: { product: true, warehouse: true, linkedOrder: true },
     });
     res.json(restocks.map(serialize));
   })
@@ -35,7 +37,7 @@ router.get(
 router.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { sku, warehouseId, quantity, expectedDate, supplier, notes, shipmentId } = req.body;
+    const { sku, warehouseId, quantity, expectedDate, supplier, notes, shipmentId, linkedOrderId } = req.body;
     if (!sku || !warehouseId || !quantity || !expectedDate) {
       return res.status(400).json({ message: "sku, warehouseId, quantity, and expectedDate are required" });
     }
@@ -54,8 +56,9 @@ router.post(
         supplier,
         notes,
         shipmentId,
+        ...(linkedOrderId !== undefined && { linkedOrderId: linkedOrderId || null }),
       },
-      include: { product: true, warehouse: true },
+      include: { product: true, warehouse: true, linkedOrder: true },
     });
 
     res.status(201).json(serialize(restock));
@@ -67,7 +70,7 @@ router.put(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    const { quantity, expectedDate, warehouseId, supplier, notes } = req.body;
+    const { quantity, expectedDate, warehouseId, supplier, notes, linkedOrderId } = req.body;
 
     try {
       const restock = await prisma.restock.update({
@@ -78,8 +81,9 @@ router.put(
           ...(warehouseId !== undefined && { warehouseId }),
           ...(supplier !== undefined && { supplier }),
           ...(notes !== undefined && { notes }),
+          ...(linkedOrderId !== undefined && { linkedOrderId: linkedOrderId || null }),
         },
-        include: { product: true, warehouse: true },
+        include: { product: true, warehouse: true, linkedOrder: true },
       });
       res.json(serialize(restock));
     } catch (err) {

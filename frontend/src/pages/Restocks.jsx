@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Table, Button, Tag, Spin, Alert, Typography, Popconfirm, message } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
-import { restocksApi, productsApi, warehousesApi } from "../api/inventory";
+import { restocksApi, productsApi, warehousesApi, ordersApi } from "../api/inventory";
 import { NewRestockModal, EditRestockModal } from "../components/RestockModals";
 
 // Groups flat restock rows back into shipments: rows sharing a shipmentId
@@ -33,6 +33,7 @@ export default function Restocks() {
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [orders, setOrders] = useState([]);
   const [addOpen, setAddOpen] = useState(false);
   const [editingRestock, setEditingRestock] = useState(null);
 
@@ -52,6 +53,7 @@ export default function Restocks() {
     loadRestocks();
     productsApi.list().then(setProducts);
     warehousesApi.list().then(setWarehouses);
+    ordersApi.list().then(setOrders);
   }, [loadRestocks]);
 
   async function handleDelete(id) {
@@ -93,6 +95,26 @@ export default function Restocks() {
     },
     { title: "Expected Date", dataIndex: "expectedDate" },
     { title: "Supplier / PO", dataIndex: "supplier", render: (v) => v || "—" },
+    {
+      title: "Linked Order",
+      key: "linkedOrder",
+      render: (_, group) => {
+        if (group.lines.length === 1) {
+          const r = group.lines[0];
+          return r.linkedOrderNumber
+            ? <Link to={`/orders?highlight=${r.linkedOrderId}`} onClick={(e) => e.stopPropagation()}>{r.linkedOrderNumber}</Link>
+            : "—";
+        }
+        const linked = group.lines.filter((l) => l.linkedOrderNumber);
+        if (linked.length === 0) return "—";
+        return linked.map((l) => (
+          <div key={l.id}>
+            <Link to={`/orders?highlight=${l.linkedOrderId}`} onClick={(e) => e.stopPropagation()}>{l.linkedOrderNumber}</Link>
+            {" "}<span style={{ color: "#999", fontSize: 12 }}>({l.sku})</span>
+          </div>
+        ));
+      },
+    },
     {
       title: "",
       key: "actions",
@@ -140,6 +162,13 @@ export default function Restocks() {
               { title: "Product Name", dataIndex: "productName" },
               { title: "Qty", dataIndex: "quantity" },
               {
+                title: "Linked Order",
+                key: "linkedOrder",
+                render: (_, r) => r.linkedOrderNumber
+                  ? <Link to={`/orders?highlight=${r.linkedOrderId}`}>{r.linkedOrderNumber}</Link>
+                  : "—",
+              },
+              {
                 title: "",
                 key: "actions",
                 render: (_, restock) => (
@@ -163,6 +192,7 @@ export default function Restocks() {
         onCreated={loadRestocks}
         products={products}
         warehouses={warehouses}
+        orders={orders}
       />
 
       <EditRestockModal
@@ -171,6 +201,7 @@ export default function Restocks() {
         onUpdated={loadRestocks}
         restock={editingRestock}
         warehouses={warehouses}
+        orders={orders}
       />
     </Spin>
   );
