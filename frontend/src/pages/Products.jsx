@@ -4,6 +4,7 @@ import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Too
 import { PlusOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined } from "@ant-design/icons";
 import Papa from "papaparse";
 import { productsApi, warehousesApi } from "../api/inventory";
+import { downloadInventoryReport } from "../utils/inventoryReport";
 import { NewProductModal, EditProductModal } from "../components/ProductModals";
 import BulkImportProductsModal from "../components/BulkImportProductsModal";
 import { PRODUCT_CATEGORIES } from "../constants/categories";
@@ -189,6 +190,9 @@ export default function Products() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          <Button icon={<DownloadOutlined />} onClick={() => downloadInventoryReport(products)}>
+            Inventory Report
+          </Button>
           <Button icon={<DownloadOutlined />} onClick={handleExportAvailableToSell}>
             Export Available to Sell
           </Button>
