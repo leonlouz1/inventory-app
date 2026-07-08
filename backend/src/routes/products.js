@@ -2,6 +2,7 @@ const express = require("express");
 const prisma = require("../prismaClient");
 const asyncHandler = require("../middleware/asyncHandler");
 const { buildSkuTimeline } = require("../services/timeline");
+const { applyPendingRestocks } = require("../services/autoReceive");
 const { PENDING_STATUSES } = require("../constants/orderStatuses");
 
 const router = express.Router();
@@ -10,6 +11,7 @@ const router = express.Router();
 router.get(
   "/",
   asyncHandler(async (req, res) => {
+    await applyPendingRestocks();
     // Past ship dates are ignored, per the projection scope business rule
     // (same convention as alerts.js): a line still counts as "pending" — not
     // yet shipped — through and including today.

@@ -2,6 +2,7 @@ const express = require("express");
 const asyncHandler = require("../middleware/asyncHandler");
 const prisma = require("../prismaClient");
 const { buildSkuTimeline } = require("../services/timeline");
+const { applyPendingRestocks } = require("../services/autoReceive");
 
 const router = express.Router();
 
@@ -16,6 +17,7 @@ router.get(
     }
 
     try {
+      await applyPendingRestocks();
       const timeline = await buildSkuTimeline(sku, grain);
       res.json(timeline);
     } catch (err) {
@@ -35,6 +37,7 @@ router.get(
     const { sku } = req.query;
     if (!sku) return res.status(400).json({ message: "sku query parameter is required" });
 
+    await applyPendingRestocks();
     const product = await prisma.product.findUnique({ where: { sku } });
     if (!product) return res.status(404).json({ message: `Unknown SKU: ${sku}` });
 

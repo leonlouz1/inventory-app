@@ -18,6 +18,7 @@ function serialize(restock) {
     shipmentId: restock.shipmentId,
     linkedOrderId: restock.linkedOrderId,
     linkedOrderNumber: restock.linkedOrder?.orderNumber ?? null,
+    receivedAt: restock.receivedAt ? restock.receivedAt.toISOString() : null,
   };
 }
 
