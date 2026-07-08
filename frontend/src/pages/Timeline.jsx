@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { Select, Segmented, Spin, Alert, Typography, Empty, Modal, Table } from "antd";
+import { Select, Segmented, Spin, Alert, Typography, Empty, Modal, Table, Tag } from "antd";
 import dayjs from "dayjs";
 import { productsApi, timelineApi } from "../api/inventory";
 
@@ -145,6 +145,8 @@ export default function Timeline() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   function showDetail(kind, periodLabel, items) {
     setDetail({ kind, periodLabel, items });
@@ -183,6 +185,16 @@ export default function Timeline() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [sku, grain]);
+
+  useEffect(() => {
+    if (!sku) return;
+    setHistoryLoading(true);
+    timelineApi
+      .history(sku)
+      .then(setHistory)
+      .catch(() => setHistory([]))
+      .finally(() => setHistoryLoading(false));
+  }, [sku]);
 
   const skuOptions = useMemo(
     () => products.map((p) => ({ value: p.sku, label: `${p.sku} — ${p.name}` })),
@@ -245,6 +257,57 @@ export default function Timeline() {
       </Spin>
 
       <DetailModal detail={detail} onClose={() => setDetail(null)} />
+
+      {sku && (
+        <div style={{ marginTop: 40 }}>
+          <Typography.Title level={5}>Stock History</Typography.Title>
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+            Past restocks received and orders shipped for this SKU.
+          </Typography.Paragraph>
+          <Spin spinning={historyLoading}>
+            {history.length > 0 ? (
+              <Table
+                size="small"
+                pagination={{ pageSize: 20 }}
+                rowKey="id"
+                dataSource={history}
+                columns={[
+                  { title: "Date", dataIndex: "date", width: 110 },
+                  {
+                    title: "Type",
+                    dataIndex: "type",
+                    width: 90,
+                    render: (t) => <Tag color={t === "IN" ? "green" : "blue"}>{t === "IN" ? "▲ IN" : "▼ OUT"}</Tag>,
+                  },
+                  { title: "Qty", dataIndex: "qty", width: 80, align: "right" },
+                  { title: "Warehouse", dataIndex: "warehouse" },
+                  { title: "Source", dataIndex: "source", width: 120 },
+                  {
+                    title: "Detail",
+                    dataIndex: "detail",
+                    render: (v, row) => {
+                      if (row.type === "OUT" && row.orderId) {
+                        return <Link to={`/orders?highlight=${row.orderId}`}>{v}</Link>;
+                      }
+                      if (row.type === "IN" && row.linkedOrderNumber) {
+                        return (
+                          <>
+                            {v && <span>{v} · </span>}
+                            <Link to={`/orders?highlight=${row.linkedOrderId}`}>For {row.linkedOrderNumber}</Link>
+                          </>
+                        );
+                      }
+                      return v || "—";
+                    },
+                  },
+                ]}
+              />
+            ) : (
+              !historyLoading && <Empty description="No history yet — restocks and shipped orders will appear here" />
+            )}
+          </Spin>
+        </div>
+      )}
     </div>
   );
 }

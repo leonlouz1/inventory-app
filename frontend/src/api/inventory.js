@@ -35,6 +35,7 @@ export const warehousesApi = {
 
 export const timelineApi = {
   get: (sku, grain) => apiClient.get(`/timeline?sku=${encodeURIComponent(sku)}&grain=${grain}`),
+  history: (sku) => apiClient.get(`/timeline/history?sku=${encodeURIComponent(sku)}`),
 };
 
 export const alertsApi = {
