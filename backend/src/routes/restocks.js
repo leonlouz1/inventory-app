@@ -102,7 +102,21 @@ router.delete(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     try {
-      await prisma.restock.delete({ where: { id } });
+      const restock = await prisma.restock.findUnique({ where: { id } });
+      if (!restock) return res.status(404).json({ message: "Restock not found" });
+
+      await prisma.$transaction(async (tx) => {
+        // If this restock was already auto-received, reverse the stock increment
+        // so deleting it doesn't leave phantom units in the warehouse.
+        if (restock.receivedAt) {
+          await tx.warehouseStock.update({
+            where: { productId_warehouseId: { productId: restock.productId, warehouseId: restock.warehouseId } },
+            data: { onHand: { decrement: restock.quantity } },
+          });
+        }
+        await tx.restock.delete({ where: { id } });
+      });
+
       res.status(204).end();
     } catch (err) {
       if (err.code === "P2025") {
