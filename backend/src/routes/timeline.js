@@ -41,7 +41,7 @@ router.get(
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    const [restocks, orderLines] = await Promise.all([
+    const [restocks, shippedLines, overdueLines] = await Promise.all([
       prisma.restock.findMany({
         where: { productId: product.id, expectedDate: { lte: today } },
         include: { warehouse: true, linkedOrder: true },
@@ -49,6 +49,18 @@ router.get(
       }),
       prisma.orderLine.findMany({
         where: { productId: product.id, order: { status: "SHIPPED" } },
+        include: { order: true, warehouse: true },
+        orderBy: { shipDate: "desc" },
+      }),
+      // Orders still in a pending status whose ship date has already passed —
+      // these are invisible in the projection (past) and history (not shipped)
+      // but still hold reserved stock.
+      prisma.orderLine.findMany({
+        where: {
+          productId: product.id,
+          shipDate: { lt: today },
+          order: { status: { in: ["CONFIRMED", "ROUTED"] } },
+        },
         include: { order: true, warehouse: true },
         orderBy: { shipDate: "desc" },
       }),
@@ -66,7 +78,7 @@ router.get(
         linkedOrderId: r.linkedOrderId,
         linkedOrderNumber: r.linkedOrder?.orderNumber ?? null,
       })),
-      ...orderLines.map((l) => ({
+      ...shippedLines.map((l) => ({
         id: `o-${l.id}`,
         date: l.shipDate.toISOString().slice(0, 10),
         type: "OUT",
@@ -76,6 +88,18 @@ router.get(
         detail: `${l.order.orderNumber} — ${l.order.customer}`,
         orderId: l.orderId,
         orderNumber: l.order.orderNumber,
+      })),
+      ...overdueLines.map((l) => ({
+        id: `ov-${l.id}`,
+        date: l.shipDate.toISOString().slice(0, 10),
+        type: "OVERDUE",
+        qty: l.quantity,
+        warehouse: l.warehouse?.name ?? "Unassigned",
+        source: "Overdue Order",
+        detail: `${l.order.orderNumber} — ${l.order.customer}`,
+        orderId: l.orderId,
+        orderNumber: l.order.orderNumber,
+        orderStatus: l.order.status,
       })),
     ].sort((a, b) => b.date.localeCompare(a.date));
 

@@ -276,8 +276,11 @@ export default function Timeline() {
                   {
                     title: "Type",
                     dataIndex: "type",
-                    width: 90,
-                    render: (t) => <Tag color={t === "IN" ? "green" : "blue"}>{t === "IN" ? "▲ IN" : "▼ OUT"}</Tag>,
+                    width: 100,
+                    render: (t) =>
+                      t === "IN" ? <Tag color="green">▲ IN</Tag>
+                      : t === "OVERDUE" ? <Tag color="red">⚠ OVERDUE</Tag>
+                      : <Tag color="blue">▼ OUT</Tag>,
                   },
                   { title: "Qty", dataIndex: "qty", width: 80, align: "right" },
                   { title: "Warehouse", dataIndex: "warehouse" },
