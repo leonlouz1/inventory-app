@@ -356,6 +356,55 @@ router.delete(
   })
 );
 
+// POST /api/orders/:id/lines — add a new line to an existing order
+router.post(
+  "/:id/lines",
+  asyncHandler(async (req, res) => {
+    const orderId = Number(req.params.id);
+    const { sku, warehouse_id, quantity, ship_date } = req.body;
+
+    if (!sku || !quantity || !ship_date) {
+      return res.status(400).json({ message: "sku, quantity, and ship_date are required" });
+    }
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+    if (order.status === "SHIPPED" || order.status === "CANCELLED") {
+      return res.status(409).json({ message: `Cannot add a line to a ${order.status.toLowerCase()} order` });
+    }
+
+    const product = await prisma.product.findUnique({ where: { sku } });
+    if (!product) return res.status(400).json({ message: `Unknown SKU "${sku}"` });
+
+    let warehouseId = warehouse_id ?? null;
+    if (warehouseId) {
+      const wh = await prisma.warehouse.findUnique({ where: { id: warehouseId } });
+      if (!wh) return res.status(400).json({ message: "Unknown warehouse" });
+    }
+
+    const line = await prisma.orderLine.create({
+      data: {
+        orderId,
+        productId: product.id,
+        warehouseId,
+        quantity,
+        shipDate: new Date(ship_date),
+      },
+      include: { product: true, warehouse: true },
+    });
+
+    res.status(201).json({
+      id: line.id,
+      sku: line.product.sku,
+      productName: line.product.name,
+      warehouseId: line.warehouseId,
+      warehouseName: line.warehouse?.name ?? null,
+      quantity: line.quantity,
+      shipDate: line.shipDate.toISOString().slice(0, 10),
+    });
+  })
+);
+
 // PUT /api/orders/:id/lines/:lineId — update a single line item
 router.put(
   "/:id/lines/:lineId",

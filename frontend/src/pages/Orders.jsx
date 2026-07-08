@@ -5,6 +5,7 @@ import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOu
 import { ordersApi, productsApi, warehousesApi, restocksApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
 import EditOrderLineModal from "../components/EditOrderLineModal";
+import AddOrderLineModal from "../components/AddOrderLineModal";
 import BulkImportOrdersModal from "../components/BulkImportOrdersModal";
 import { ORDER_STATUSES, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants/orderStatuses";
 import { downloadPackingList } from "../utils/packingList";
@@ -30,6 +31,7 @@ export default function Orders() {
   const [modalOpen, setModalOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingLine, setEditingLine] = useState(null); // { orderId, line }
+  const [addingLineToOrder, setAddingLineToOrder] = useState(null); // order
   const [alertOrder, setAlertOrder] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightId = searchParams.get("highlight") ? Number(searchParams.get("highlight")) : null;
@@ -280,6 +282,16 @@ export default function Orders() {
             return (
               <>
                 <Table columns={lineColumns} dataSource={order.lines} rowKey="id" pagination={false} size="small" />
+                {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                  <Button
+                    icon={<PlusOutlined />}
+                    size="small"
+                    style={{ marginTop: 8 }}
+                    onClick={() => setAddingLineToOrder(order)}
+                  >
+                    Add SKU
+                  </Button>
+                )}
                 {linkedRestocks.length > 0 && (
                   <div style={{ marginTop: 12 }}>
                     <Typography.Text strong style={{ fontSize: 13 }}>Linked Containers ({linkedRestocks.length} line{linkedRestocks.length > 1 ? "s" : ""})</Typography.Text>
@@ -310,6 +322,15 @@ export default function Orders() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onCreated={loadOrders}
+        products={products}
+        warehouses={warehouses}
+      />
+
+      <AddOrderLineModal
+        open={!!addingLineToOrder}
+        onClose={() => setAddingLineToOrder(null)}
+        onAdded={loadOrders}
+        orderId={addingLineToOrder?.id}
         products={products}
         warehouses={warehouses}
       />
