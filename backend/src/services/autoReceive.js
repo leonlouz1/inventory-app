@@ -1,22 +1,28 @@
 const prisma = require("../prismaClient");
 
 /**
- * Finds all restocks whose expectedDate has passed and receivedAt is null,
- * applies each one to warehouseStock (upsert), and stamps receivedAt = now.
- * Safe to call on every request — does nothing when there's nothing to process.
+ * Atomically claims all restocks whose expectedDate has passed by stamping
+ * receivedAt in a single UPDATE...RETURNING, then increments warehouseStock.
+ * The atomic claim prevents concurrent requests from double-applying the same
+ * restock when multiple endpoints call this simultaneously on page load.
  */
 async function applyPendingRestocks() {
   const now = new Date();
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-  const pending = await prisma.restock.findMany({
-    where: { expectedDate: { lte: today }, receivedAt: null },
-  });
+  // Single atomic operation: stamp receivedAt and return the claimed rows.
+  // Any concurrent call will find these rows already stamped and skip them.
+  const claimed = await prisma.$queryRaw`
+    UPDATE restocks
+    SET received_at = ${now}
+    WHERE expected_date <= ${today} AND received_at IS NULL
+    RETURNING id, product_id AS "productId", warehouse_id AS "warehouseId", quantity
+  `;
 
-  if (pending.length === 0) return;
+  if (claimed.length === 0) return;
 
   await prisma.$transaction(
-    pending.map((r) =>
+    claimed.map((r) =>
       prisma.warehouseStock.upsert({
         where: { productId_warehouseId: { productId: r.productId, warehouseId: r.warehouseId } },
         update: { onHand: { increment: r.quantity } },
@@ -24,11 +30,6 @@ async function applyPendingRestocks() {
       })
     )
   );
-
-  await prisma.restock.updateMany({
-    where: { id: { in: pending.map((r) => r.id) } },
-    data: { receivedAt: now },
-  });
 }
 
 module.exports = { applyPendingRestocks };
