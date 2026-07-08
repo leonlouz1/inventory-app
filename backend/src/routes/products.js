@@ -28,7 +28,7 @@ router.get(
       // reflected directly in on-hand, Draft/Cancelled never counted.
       prisma.orderLine.groupBy({
         by: ["productId"],
-        where: { shipDate: { gte: today }, order: { status: { in: PENDING_STATUSES } } },
+        where: { order: { status: { in: PENDING_STATUSES } } },
         _sum: { quantity: true },
       }),
     ]);
