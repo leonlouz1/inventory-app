@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Tooltip, Input } from "antd";
-import { PlusOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined } from "@ant-design/icons";
+import { PlusOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined, SwapOutlined } from "@ant-design/icons";
 import Papa from "papaparse";
 import { productsApi, warehousesApi } from "../api/inventory";
 import { downloadInventoryReport } from "../utils/inventoryReport";
 import { NewProductModal, EditProductModal } from "../components/ProductModals";
 import BulkImportProductsModal from "../components/BulkImportProductsModal";
+import WarehouseTransferModal from "../components/WarehouseTransferModal";
 import { PRODUCT_CATEGORIES } from "../constants/categories";
 import { PRODUCT_BRANDS } from "../constants/brands";
 
@@ -29,6 +30,7 @@ export default function Products() {
   const [error, setError] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [search, setSearch] = useState("");
 
@@ -190,6 +192,9 @@ export default function Products() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          <Button icon={<SwapOutlined />} onClick={() => setTransferOpen(true)}>
+            Transfer Stock
+          </Button>
           <Button icon={<DownloadOutlined />} onClick={() => downloadInventoryReport(products)}>
             Inventory Report
           </Button>
@@ -235,6 +240,14 @@ export default function Products() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onImported={loadProducts}
+        warehouses={warehouses}
+      />
+
+      <WarehouseTransferModal
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        onTransferred={loadProducts}
+        products={products}
         warehouses={warehouses}
       />
     </Spin>

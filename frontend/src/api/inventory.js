@@ -32,6 +32,7 @@ export const warehousesApi = {
   create: (data) => apiClient.post("/warehouses", data),
   update: (id, data) => apiClient.put(`/warehouses/${id}`, data),
   delete: (id) => apiClient.delete(`/warehouses/${id}`),
+  transfer: (data) => apiClient.post("/warehouses/transfer", data),
 };
 
 export const timelineApi = {

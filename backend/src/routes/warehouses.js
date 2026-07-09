@@ -96,4 +96,46 @@ router.delete(
   })
 );
 
+// POST /api/warehouses/transfer — move stock from one warehouse to another
+router.post(
+  "/transfer",
+  asyncHandler(async (req, res) => {
+    const { sku, fromWarehouseId, toWarehouseId, quantity } = req.body;
+
+    if (!sku || !fromWarehouseId || !toWarehouseId || !quantity) {
+      return res.status(400).json({ message: "sku, fromWarehouseId, toWarehouseId, and quantity are required" });
+    }
+    if (fromWarehouseId === toWarehouseId) {
+      return res.status(400).json({ message: "Source and destination warehouses must be different" });
+    }
+
+    const product = await prisma.product.findUnique({ where: { sku } });
+    if (!product) return res.status(404).json({ message: `Unknown SKU "${sku}"` });
+
+    const fromStock = await prisma.warehouseStock.findUnique({
+      where: { productId_warehouseId: { productId: product.id, warehouseId: fromWarehouseId } },
+    });
+    const available = fromStock?.onHand ?? 0;
+    if (available < quantity) {
+      return res.status(409).json({
+        message: `Insufficient stock — only ${available} units available in source warehouse`,
+      });
+    }
+
+    await prisma.$transaction([
+      prisma.warehouseStock.update({
+        where: { productId_warehouseId: { productId: product.id, warehouseId: fromWarehouseId } },
+        data: { onHand: { decrement: quantity } },
+      }),
+      prisma.warehouseStock.upsert({
+        where: { productId_warehouseId: { productId: product.id, warehouseId: toWarehouseId } },
+        update: { onHand: { increment: quantity } },
+        create: { productId: product.id, warehouseId: toWarehouseId, onHand: quantity },
+      }),
+    ]);
+
+    res.json({ message: `Transferred ${quantity} units of ${sku} successfully` });
+  })
+);
+
 module.exports = router;
