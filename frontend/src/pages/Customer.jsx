@@ -20,6 +20,7 @@ function flattenLines(orders) {
 
 const LINE_COLUMNS = (showStatus) => [
   { title: "Order #", dataIndex: "orderNumber" },
+  { title: "Customer PO #", dataIndex: "customerPo", render: (v) => v || "—" },
   { title: "SKU", dataIndex: "sku" },
   { title: "Product", dataIndex: "productName" },
   { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned" },
