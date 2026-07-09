@@ -4,8 +4,10 @@ import {
   Table, Button, Tag, Spin, Alert, Typography, Space, Input, Select,
   Modal, Form, Popconfirm, message,
 } from "antd";
-import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, UploadOutlined } from "@ant-design/icons";
 import { crmApi } from "../../api/inventory";
+import ImportRetailersModal from "../../components/crm/ImportRetailersModal";
+import ImportContactsModal from "../../components/crm/ImportContactsModal";
 
 const CRM_CATEGORIES = ["Travel", "Bedding", "Pet", "Bath", "Slippers", "Storage"];
 const RETAILER_TYPES = [
@@ -73,6 +75,8 @@ export default function CrmAccounts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importRetailersOpen, setImportRetailersOpen] = useState(false);
+  const [importContactsOpen, setImportContactsOpen] = useState(false);
   const [search, setSearch] = useState(searchParams.get("name") || "");
   const [typeFilter, setTypeFilter] = useState([]);
   const [priorityFilter, setPriorityFilter] = useState([]);
@@ -228,6 +232,12 @@ export default function CrmAccounts() {
             options={STATUSES.map((s) => ({ value: s, label: s }))}
             value={statusFilter} onChange={setStatusFilter} maxTagCount="responsive"
           />
+          <Button icon={<UploadOutlined />} onClick={() => setImportRetailersOpen(true)}>
+            Import Retailers
+          </Button>
+          <Button icon={<UploadOutlined />} onClick={() => setImportContactsOpen(true)}>
+            Import Contacts
+          </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
             Add Retailer
           </Button>
@@ -244,6 +254,17 @@ export default function CrmAccounts() {
       />
 
       <NewRetailerModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={load} />
+      <ImportRetailersModal
+        open={importRetailersOpen}
+        onClose={() => setImportRetailersOpen(false)}
+        onImported={load}
+      />
+      <ImportContactsModal
+        open={importContactsOpen}
+        onClose={() => setImportContactsOpen(false)}
+        onImported={load}
+        retailers={retailers}
+      />
     </Spin>
   );
 }
