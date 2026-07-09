@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Row, Col, Card, Statistic, Table, Tag, Spin, Alert, Typography, Button, message } from "antd";
-import { DownloadOutlined } from "@ant-design/icons";
+import { DownloadOutlined, UploadOutlined } from "@ant-design/icons";
 import { productsApi, ordersApi, alertsApi } from "../api/inventory";
 import { downloadFullExport } from "../utils/fullExport";
+import ImportBackupModal from "../components/ImportBackupModal";
 
 const FLAG_META = {
   warehouse_shortage: { label: "⚠ Warehouse shortage", color: "red" },
@@ -41,6 +42,7 @@ const COLUMNS = [
 
 export default function Dashboard() {
   const [exporting, setExporting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [products, setProducts] = useState([]);
@@ -91,11 +93,15 @@ export default function Dashboard() {
 
   return (
     <Spin spinning={loading}>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 16 }}>
+        <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
+          Restore from Backup
+        </Button>
         <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
           Export All Data
         </Button>
       </div>
+      <ImportBackupModal open={importOpen} onClose={() => setImportOpen(false)} />
       <Row gutter={16}>
         <Col span={6}>
           <Card>
