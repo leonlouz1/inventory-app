@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Row, Col, Card, Statistic, Table, Tag, Spin, Alert, Typography } from "antd";
+import { Row, Col, Card, Statistic, Table, Tag, Spin, Alert, Typography, Button, message } from "antd";
+import { DownloadOutlined } from "@ant-design/icons";
 import { productsApi, ordersApi, alertsApi } from "../api/inventory";
+import { downloadFullExport } from "../utils/fullExport";
 
 const FLAG_META = {
   warehouse_shortage: { label: "⚠ Warehouse shortage", color: "red" },
@@ -38,6 +40,7 @@ const COLUMNS = [
 ];
 
 export default function Dashboard() {
+  const [exporting, setExporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [products, setProducts] = useState([]);
@@ -75,8 +78,24 @@ export default function Dashboard() {
   const openOrders = orders.length;
   const activeAlerts = alerts.length;
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await downloadFullExport();
+    } catch (err) {
+      message.error(`Export failed: ${err.message}`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <Spin spinning={loading}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+        <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
+          Export All Data
+        </Button>
+      </div>
       <Row gutter={16}>
         <Col span={6}>
           <Card>
