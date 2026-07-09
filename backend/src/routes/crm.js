@@ -43,6 +43,7 @@ function serializeContact(c) {
     title: c.title,
     email: c.email,
     directPhone: c.directPhone,
+    mobilePhone: c.mobilePhone,
     hqPhone: c.hqPhone,
     category: c.category,
     notes: c.notes,
@@ -211,7 +212,7 @@ router.get("/contacts", async (req, res) => {
 // POST /api/crm/contacts
 router.post("/contacts", async (req, res) => {
   try {
-    const { retailerId, name, title, email, directPhone, hqPhone, category, notes } = req.body;
+    const { retailerId, name, title, email, directPhone, mobilePhone, hqPhone, category, notes } = req.body;
     const contact = await prisma.crmContact.create({
       data: {
         retailerId: Number(retailerId),
@@ -219,6 +220,7 @@ router.post("/contacts", async (req, res) => {
         title: title || null,
         email: email || null,
         directPhone: directPhone || null,
+        mobilePhone: mobilePhone || null,
         hqPhone: hqPhone || null,
         category: category || null,
         notes: notes || null,
@@ -233,7 +235,7 @@ router.post("/contacts", async (req, res) => {
 // PUT /api/crm/contacts/:id
 router.put("/contacts/:id", async (req, res) => {
   try {
-    const { name, title, email, directPhone, hqPhone, category, notes } = req.body;
+    const { name, title, email, directPhone, mobilePhone, hqPhone, category, notes } = req.body;
     const contact = await prisma.crmContact.update({
       where: { id: Number(req.params.id) },
       data: {
@@ -241,6 +243,7 @@ router.put("/contacts/:id", async (req, res) => {
         ...(title !== undefined && { title: title || null }),
         ...(email !== undefined && { email: email || null }),
         ...(directPhone !== undefined && { directPhone: directPhone || null }),
+        ...(mobilePhone !== undefined && { mobilePhone: mobilePhone || null }),
         ...(hqPhone !== undefined && { hqPhone: hqPhone || null }),
         ...(category !== undefined && { category: category || null }),
         ...(notes !== undefined && { notes: notes || null }),

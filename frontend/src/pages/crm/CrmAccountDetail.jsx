@@ -59,8 +59,9 @@ function ContactModal({ open, onClose, onSaved, contact, retailerId }) {
         </Form.Item>
         <Form.Item name="email" label="Email"><Input /></Form.Item>
         <Row gutter={12}>
-          <Col span={12}><Form.Item name="directPhone" label="Direct Phone"><Input /></Form.Item></Col>
-          <Col span={12}><Form.Item name="hqPhone" label="HQ Phone"><Input /></Form.Item></Col>
+          <Col span={8}><Form.Item name="directPhone" label="Direct #"><Input /></Form.Item></Col>
+          <Col span={8}><Form.Item name="mobilePhone" label="Mobile #"><Input /></Form.Item></Col>
+          <Col span={8}><Form.Item name="hqPhone" label="HQ #"><Input /></Form.Item></Col>
         </Row>
         <Form.Item name="notes" label="Notes"><Input.TextArea rows={2} /></Form.Item>
       </Form>
@@ -331,8 +332,9 @@ export default function CrmAccountDetail() {
                         { title: "Title", dataIndex: "title", render: (v) => v || "—" },
                         { title: "Category", dataIndex: "category", render: (v) => v || "—" },
                         { title: "Email", dataIndex: "email", render: (v) => v ? <a href={`mailto:${v}`}>{v}</a> : "—" },
-                        { title: "Direct Phone", dataIndex: "directPhone", render: (v) => v || "—" },
-                        { title: "HQ Phone", dataIndex: "hqPhone", render: (v) => v || "—" },
+                        { title: "Direct #", dataIndex: "directPhone", render: (v) => v || "—" },
+                        { title: "Mobile #", dataIndex: "mobilePhone", render: (v) => v || "—" },
+                        { title: "HQ #", dataIndex: "hqPhone", render: (v) => v || "—" },
                         { title: "Notes", dataIndex: "notes", render: (v) => v || "—" },
                         {
                           title: "",

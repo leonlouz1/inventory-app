@@ -180,6 +180,7 @@ model CrmContact {
   title       String?  @db.VarChar(200)
   email       String?  @db.VarChar(200)
   directPhone String?  @map("direct_phone") @db.VarChar(50)
+  mobilePhone String?  @map("mobile_phone") @db.VarChar(50)
   hqPhone     String?  @map("hq_phone") @db.VarChar(50)
   category    String?  @db.VarChar(50)
   notes       String?
