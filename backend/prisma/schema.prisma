@@ -60,18 +60,35 @@ enum OrderStatus {
   CANCELLED
 }
 
+model Shipment {
+  id             Int       @id @default(autoincrement())
+  shipmentNumber String    @unique @map("shipment_number") @db.VarChar(50)
+  pickupDate     DateTime  @map("pickup_date") @db.Timestamptz
+  carrier        String?   @db.VarChar(200)
+  csNumber       String?   @map("cs_number") @db.VarChar(100)
+  status         String    @default("SCHEDULED") @db.VarChar(20)
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  orders Order[]
+
+  @@map("shipments")
+}
+
 model Order {
-  id          Int         @id @default(autoincrement())
-  orderNumber String      @unique @map("order_number") @db.VarChar(50)
-  customer    String      @db.VarChar(200)
-  customerPo  String?     @map("customer_po") @db.VarChar(50)
-  orderDate   DateTime    @map("order_date") @db.Date
-  status      OrderStatus @default(CONFIRMED)
-  notes       String?
-  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  id           Int         @id @default(autoincrement())
+  orderNumber  String      @unique @map("order_number") @db.VarChar(50)
+  customer     String      @db.VarChar(200)
+  customerPo   String?     @map("customer_po") @db.VarChar(50)
+  orderDate    DateTime    @map("order_date") @db.Date
+  status       OrderStatus @default(CONFIRMED)
+  notes        String?
+  shipmentId   Int?        @map("shipment_id")
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
 
   lines           OrderLine[]
   linkedRestocks  Restock[]
+  shipment        Shipment?   @relation(fields: [shipmentId], references: [id])
 
   @@map("orders")
 }

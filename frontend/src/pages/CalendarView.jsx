@@ -2,17 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Calendar, Badge, Spin, Alert, Typography, Modal, List, Tag, Empty, Collapse } from "antd";
 import dayjs from "dayjs";
-import { ordersApi, restocksApi } from "../api/inventory";
+import { ordersApi, restocksApi, shipmentsApi } from "../api/inventory";
 import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS } from "../constants/orderStatuses";
 
-// Builds a map of "YYYY-MM-DD" -> { shipments: [...], restocks: [...] }.
-// Shipments are individual order lines (not whole orders) since a single
-// order can ship across several dates; cancelled lines are excluded since
-// they will never actually ship.
-function buildDayMap(orders, restocks) {
+function buildDayMap(orders, restocks, outboundShipments) {
   const map = new Map();
   function get(dateKey) {
-    if (!map.has(dateKey)) map.set(dateKey, { shipments: [], restocks: [] });
+    if (!map.has(dateKey)) map.set(dateKey, { shipments: [], restocks: [], pickups: [] });
     return map.get(dateKey);
   }
 
@@ -27,38 +23,50 @@ function buildDayMap(orders, restocks) {
     get(restock.expectedDate).restocks.push(restock);
   }
 
+  for (const s of outboundShipments) {
+    const key = dayjs(s.pickupDate).format("YYYY-MM-DD");
+    get(key).pickups.push(s);
+  }
+
   return map;
 }
 
 export default function CalendarView() {
   const [orders, setOrders] = useState([]);
   const [restocks, setRestocks] = useState([]);
+  const [outboundShipments, setOutboundShipments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([ordersApi.list(), restocksApi.list()])
-      .then(([ordersRes, restocksRes]) => {
+    Promise.all([ordersApi.list(), restocksApi.list(), shipmentsApi.list()])
+      .then(([ordersRes, restocksRes, shipmentsRes]) => {
         setOrders(ordersRes);
         setRestocks(restocksRes);
+        setOutboundShipments(shipmentsRes);
         setError(null);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
-  const dayMap = useMemo(() => buildDayMap(orders, restocks), [orders, restocks]);
+  const dayMap = useMemo(() => buildDayMap(orders, restocks, outboundShipments), [orders, restocks, outboundShipments]);
 
   function cellRender(date, info) {
     if (info.type !== "date") return info.originNode;
     const key = date.format("YYYY-MM-DD");
     const day = dayMap.get(key);
-    if (!day || (day.shipments.length === 0 && day.restocks.length === 0)) return null;
+    if (!day || (day.shipments.length === 0 && day.restocks.length === 0 && day.pickups.length === 0)) return null;
 
     return (
       <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: 12 }}>
+        {day.pickups.length > 0 && (
+          <li>
+            <Badge status="processing" color="#52c41a" text={`${day.pickups.length} pickup${day.pickups.length > 1 ? "s" : ""}`} />
+          </li>
+        )}
         {day.shipments.length > 0 && (
           <li>
             <Badge status="processing" color="#fa8c16" text={`${day.shipments.length} shipping`} />
@@ -95,6 +103,35 @@ export default function CalendarView() {
         footer={null}
         width={640}
       >
+        {selectedDay && selectedDay.pickups.length > 0 && (
+          <>
+            <Typography.Title level={5}>Pickup Appointments ({selectedDay.pickups.length})</Typography.Title>
+            <List
+              size="small"
+              dataSource={selectedDay.pickups}
+              renderItem={(s) => (
+                <List.Item>
+                  <Link to="/shipments" onClick={() => setSelectedDate(null)}>
+                    {s.shipmentNumber}
+                  </Link>
+                  {` — ${dayjs(s.pickupDate).format("h:mm A")}`}
+                  {s.carrier && ` · ${s.carrier}`}
+                  {s.csNumber && ` · CS: ${s.csNumber}`}
+                  {" "}
+                  <Tag color={s.status === "PICKED_UP" ? "green" : s.status === "DELIVERED" ? "purple" : "blue"}>
+                    {s.status.replace("_", " ")}
+                  </Tag>
+                  {s.orders.length > 0 && (
+                    <span style={{ marginLeft: 8, color: "#888" }}>
+                      Orders: {s.orders.map((o) => o.orderNumber).join(", ")}
+                    </span>
+                  )}
+                </List.Item>
+              )}
+            />
+          </>
+        )}
+
         {selectedDay && selectedDay.shipments.length > 0 && (
           <>
             <Typography.Title level={5}>Shipping ({selectedDay.shipments.length})</Typography.Title>
@@ -189,7 +226,7 @@ export default function CalendarView() {
           </>
         )}
 
-        {(!selectedDay || (selectedDay.shipments.length === 0 && selectedDay.restocks.length === 0)) && (
+        {(!selectedDay || (selectedDay.shipments.length === 0 && selectedDay.restocks.length === 0 && selectedDay.pickups.length === 0)) && (
           <Empty description="Nothing scheduled" />
         )}
       </Modal>

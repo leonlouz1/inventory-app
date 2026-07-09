@@ -126,6 +126,7 @@ router.get(
         orderDate: isoDate(order.orderDate),
         status: order.status,
         notes: order.notes,
+        shipmentId: order.shipmentId,
         lineCount: order.lines.length,
         earliestShipDate,
         latestShipDate,

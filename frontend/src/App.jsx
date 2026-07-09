@@ -8,6 +8,7 @@ import Products from "./pages/Products";
 import Warehouses from "./pages/Warehouses";
 import Customer from "./pages/Customer";
 import CalendarView from "./pages/CalendarView";
+import Shipments from "./pages/Shipments";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/shipments" element={<Shipments />} />
           <Route path="/timeline" element={<Timeline />} />
           <Route path="/restocks" element={<Restocks />} />
           <Route path="/products" element={<Products />} />

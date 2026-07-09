@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import dayjs from "dayjs";
 import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined } from "@ant-design/icons";
-import { ordersApi, productsApi, warehousesApi, restocksApi } from "../api/inventory";
+import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined, TruckOutlined } from "@ant-design/icons";
+import { ordersApi, productsApi, warehousesApi, restocksApi, shipmentsApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
 import EditOrderLineModal from "../components/EditOrderLineModal";
 import AddOrderLineModal from "../components/AddOrderLineModal";
@@ -24,6 +25,7 @@ function ProjectionTag({ projection }) {
 export default function Orders() {
   const [orders, setOrders] = useState([]);
   const [restocks, setRestocks] = useState([]);
+  const [shipments, setShipments] = useState([]);
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,10 +78,11 @@ export default function Orders() {
 
   useEffect(() => {
     loadOrders();
-    Promise.all([productsApi.list(), warehousesApi.list(), restocksApi.list()]).then(([p, w, r]) => {
+    Promise.all([productsApi.list(), warehousesApi.list(), restocksApi.list(), shipmentsApi.list()]).then(([p, w, r, s]) => {
       setProducts(p);
       setWarehouses(w);
       setRestocks(r);
+      setShipments(s);
     });
   }, [loadOrders]);
 
@@ -282,16 +285,51 @@ export default function Orders() {
             return (
               <>
                 <Table columns={lineColumns} dataSource={order.lines} rowKey="id" pagination={false} size="small" />
-                {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
-                  <Button
-                    icon={<PlusOutlined />}
-                    size="small"
-                    style={{ marginTop: 8 }}
-                    onClick={() => setAddingLineToOrder(order)}
-                  >
-                    Add SKU
-                  </Button>
-                )}
+                <Space style={{ marginTop: 8 }}>
+                  {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                    <Button
+                      icon={<PlusOutlined />}
+                      size="small"
+                      onClick={() => setAddingLineToOrder(order)}
+                    >
+                      Add SKU
+                    </Button>
+                  )}
+                  {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                    <Select
+                      size="small"
+                      placeholder={<><TruckOutlined /> Add to shipment</>}
+                      style={{ minWidth: 180 }}
+                      value={order.shipmentId || undefined}
+                      options={shipments
+                        .filter((s) => s.status !== "DELIVERED")
+                        .map((s) => ({ value: s.id, label: `${s.shipmentNumber} · ${dayjs(s.pickupDate).format("MMM D")}` }))}
+                      onChange={async (shipmentId) => {
+                        try {
+                          await shipmentsApi.addOrder(shipmentId, order.id);
+                          message.success(`Added to shipment`);
+                          loadOrders();
+                          const [, , , s] = await Promise.all([productsApi.list(), warehousesApi.list(), restocksApi.list(), shipmentsApi.list()]);
+                          setShipments(s);
+                        } catch (err) {
+                          message.error(err.message);
+                        }
+                      }}
+                      allowClear
+                      onClear={async () => {
+                        if (!order.shipmentId) return;
+                        try {
+                          await shipmentsApi.removeOrder(order.shipmentId, order.id);
+                          message.success("Removed from shipment");
+                          loadOrders();
+                          shipmentsApi.list().then(setShipments);
+                        } catch (err) {
+                          message.error(err.message);
+                        }
+                      }}
+                    />
+                  )}
+                </Space>
                 {linkedRestocks.length > 0 && (
                   <div style={{ marginTop: 12 }}>
                     <Typography.Text strong style={{ fontSize: 13 }}>Linked Containers ({linkedRestocks.length} line{linkedRestocks.length > 1 ? "s" : ""})</Typography.Text>

@@ -43,3 +43,12 @@ export const timelineApi = {
 export const alertsApi = {
   list: () => apiClient.get("/alerts"),
 };
+
+export const shipmentsApi = {
+  list: () => apiClient.get("/shipments"),
+  create: (data) => apiClient.post("/shipments", data),
+  update: (id, data) => apiClient.put(`/shipments/${id}`, data),
+  delete: (id) => apiClient.delete(`/shipments/${id}`),
+  addOrder: (shipmentId, orderId) => apiClient.post(`/shipments/${shipmentId}/orders/${orderId}`, {}),
+  removeOrder: (shipmentId, orderId) => apiClient.delete(`/shipments/${shipmentId}/orders/${orderId}`),
+};

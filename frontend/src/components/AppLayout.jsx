@@ -8,6 +8,7 @@ import {
   BankOutlined,
   TeamOutlined,
   CalendarOutlined,
+  TruckOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 
@@ -16,6 +17,7 @@ const { Sider, Content, Header } = Layout;
 const NAV_ITEMS = [
   { key: "/", label: "Dashboard", icon: <DashboardOutlined /> },
   { key: "/orders", label: "Orders", icon: <ShoppingCartOutlined /> },
+  { key: "/shipments", label: "Shipments", icon: <TruckOutlined /> },
   { key: "/customers", label: "Customers", icon: <TeamOutlined /> },
   { key: "/calendar", label: "Calendar", icon: <CalendarOutlined /> },
   { key: "/timeline", label: "Timeline", icon: <FieldTimeOutlined /> },
