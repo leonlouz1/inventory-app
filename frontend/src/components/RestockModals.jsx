@@ -190,8 +190,12 @@ export function NewRestockModal({ open, onClose, onCreated, products, warehouses
   );
 }
 
-export function EditRestockModal({ open, onClose, onUpdated, restock, warehouses, orders }) {
+export function EditRestockModal({ open, onClose, onUpdated, restock, warehouses, orders, products }) {
   const [form] = Form.useForm();
+  const skuOptions = useMemo(
+    () => (products || []).map((p) => ({ value: p.sku, label: `${p.sku} — ${p.name}` })),
+    [products]
+  );
   const warehouseOptions = useMemo(() => warehouses.map((w) => ({ value: w.id, label: w.name })), [warehouses]);
   const orderOptions = useMemo(
     () => (orders || []).filter((o) => o.status !== "CANCELLED").map((o) => ({ value: o.id, label: `${o.orderNumber} — ${o.customer}` })),
@@ -201,6 +205,7 @@ export function EditRestockModal({ open, onClose, onUpdated, restock, warehouses
   useEffect(() => {
     if (restock) {
       form.setFieldsValue({
+        sku: restock.sku,
         warehouseId: restock.warehouseId,
         quantity: restock.quantity,
         expectedDate: dayjs(restock.expectedDate),
@@ -214,6 +219,7 @@ export function EditRestockModal({ open, onClose, onUpdated, restock, warehouses
     try {
       const values = await form.validateFields();
       await restocksApi.update(restock.id, {
+        sku: values.sku,
         warehouseId: values.warehouseId,
         quantity: values.quantity,
         expectedDate: values.expectedDate.format("YYYY-MM-DD"),
@@ -231,7 +237,7 @@ export function EditRestockModal({ open, onClose, onUpdated, restock, warehouses
 
   return (
     <Modal
-      title={`Edit Restock — ${restock?.sku ?? ""}`}
+      title="Edit Restock Line"
       open={open}
       onCancel={onClose}
       onOk={handleOk}
@@ -239,6 +245,13 @@ export function EditRestockModal({ open, onClose, onUpdated, restock, warehouses
       destroyOnHidden
     >
       <Form form={form} layout="vertical">
+        <Form.Item name="sku" label="SKU" rules={[{ required: true, message: "Required" }]}>
+          <Select
+            showSearch
+            options={skuOptions}
+            filterOption={(input, option) => option.label.toLowerCase().includes(input.toLowerCase())}
+          />
+        </Form.Item>
         <Form.Item name="warehouseId" label="Warehouse" rules={[{ required: true, message: "Required" }]}>
           <Select options={warehouseOptions} />
         </Form.Item>
@@ -250,6 +263,88 @@ export function EditRestockModal({ open, onClose, onUpdated, restock, warehouses
         </Form.Item>
         <Form.Item name="supplier" label="Supplier / PO">
           <Input />
+        </Form.Item>
+        <Form.Item name="linkedOrderId" label="Link to Order (optional)">
+          <Select allowClear showSearch placeholder="None" options={orderOptions}
+            filterOption={(input, option) => option.label.toLowerCase().includes(input.toLowerCase())} />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}
+
+// Modal to add a new SKU line to an existing restock shipment group
+export function AddRestockSkuModal({ open, onClose, onCreated, group, products, orders }) {
+  const [form] = Form.useForm();
+  const [saving, setSaving] = useState(false);
+
+  const existingSkus = useMemo(() => new Set((group?.lines || []).map((l) => l.sku)), [group]);
+  const skuOptions = useMemo(
+    () => (products || [])
+      .filter((p) => !existingSkus.has(p.sku))
+      .map((p) => ({ value: p.sku, label: `${p.sku} — ${p.name}` })),
+    [products, existingSkus]
+  );
+  const orderOptions = useMemo(
+    () => (orders || []).filter((o) => o.status !== "CANCELLED").map((o) => ({ value: o.id, label: `${o.orderNumber} — ${o.customer}` })),
+    [orders]
+  );
+
+  useEffect(() => {
+    if (!open) form.resetFields();
+  }, [open, form]);
+
+  async function handleOk() {
+    try {
+      const values = await form.validateFields();
+      setSaving(true);
+      // Use the group's shared shipmentId (or generate one if this was a single-line restock)
+      const shipmentId = group.shipmentId || crypto.randomUUID();
+      // If the group had no shipmentId before, patch the existing line too so they become grouped
+      if (!group.shipmentId && group.lines.length === 1) {
+        await restocksApi.update(group.lines[0].id, { shipmentId });
+      }
+      await restocksApi.create({
+        sku: values.sku,
+        warehouseId: group.lines[0].warehouseId,
+        quantity: values.quantity,
+        expectedDate: group.lines[0].expectedDate,
+        supplier: group.lines[0].supplier,
+        shipmentId,
+        linkedOrderId: values.linkedOrderId || null,
+      });
+      message.success("SKU added to restock");
+      onClose();
+      onCreated();
+    } catch (err) {
+      if (err.errorFields) return;
+      message.error(`Failed to add SKU: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Add SKU to Restock"
+      open={open}
+      onCancel={onClose}
+      onOk={handleOk}
+      okText="Add"
+      confirmLoading={saving}
+      destroyOnHidden
+    >
+      <Form form={form} layout="vertical">
+        <Form.Item name="sku" label="SKU" rules={[{ required: true, message: "Required" }]}>
+          <Select
+            showSearch
+            placeholder="Select SKU"
+            options={skuOptions}
+            filterOption={(input, option) => option.label.toLowerCase().includes(input.toLowerCase())}
+          />
+        </Form.Item>
+        <Form.Item name="quantity" label="Qty" rules={[{ required: true, message: "Required" }]}>
+          <InputNumber min={1} style={{ width: "100%" }} />
         </Form.Item>
         <Form.Item name="linkedOrderId" label="Link to Order (optional)">
           <Select allowClear showSearch placeholder="None" options={orderOptions}

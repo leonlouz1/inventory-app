@@ -71,18 +71,27 @@ router.put(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    const { quantity, expectedDate, warehouseId, supplier, notes, linkedOrderId } = req.body;
+    const { sku, quantity, expectedDate, warehouseId, supplier, notes, linkedOrderId, shipmentId } = req.body;
 
     try {
+      let productId;
+      if (sku !== undefined) {
+        const product = await prisma.product.findUnique({ where: { sku } });
+        if (!product) return res.status(404).json({ message: `Unknown SKU: ${sku}` });
+        productId = product.id;
+      }
+
       const restock = await prisma.restock.update({
         where: { id },
         data: {
+          ...(productId !== undefined && { productId }),
           ...(quantity !== undefined && { quantity }),
           ...(expectedDate !== undefined && { expectedDate: new Date(expectedDate) }),
           ...(warehouseId !== undefined && { warehouseId }),
           ...(supplier !== undefined && { supplier }),
           ...(notes !== undefined && { notes }),
           ...(linkedOrderId !== undefined && { linkedOrderId: linkedOrderId || null }),
+          ...(shipmentId !== undefined && { shipmentId }),
         },
         include: { product: true, warehouse: true, linkedOrder: true },
       });

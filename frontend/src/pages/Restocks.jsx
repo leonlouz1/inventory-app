@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Table, Button, Tag, Spin, Alert, Typography, Popconfirm, message } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from "@ant-design/icons";
 import { restocksApi, productsApi, warehousesApi, ordersApi } from "../api/inventory";
-import { NewRestockModal, EditRestockModal } from "../components/RestockModals";
+import { NewRestockModal, EditRestockModal, AddRestockSkuModal } from "../components/RestockModals";
 import BulkImportRestocksModal from "../components/BulkImportRestocksModal";
 
 // Groups flat restock rows back into shipments: rows sharing a shipmentId
@@ -38,6 +38,7 @@ export default function Restocks() {
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingRestock, setEditingRestock] = useState(null);
+  const [addingSkuToGroup, setAddingSkuToGroup] = useState(null);
 
   const loadRestocks = useCallback(() => {
     setLoading(true);
@@ -158,7 +159,7 @@ export default function Restocks() {
         rowKey="key"
         pagination={{ pageSize: 20 }}
         expandable={{
-          rowExpandable: (group) => group.lines.length > 1,
+          rowExpandable: () => true,
           expandedRowRender: (group) => {
             const lineColumns = [
               {
@@ -188,7 +189,19 @@ export default function Restocks() {
                 ),
               },
             ];
-            return <Table columns={lineColumns} dataSource={group.lines} rowKey="id" pagination={false} size="small" />;
+            return (
+              <>
+                <Table columns={lineColumns} dataSource={group.lines} rowKey="id" pagination={false} size="small" />
+                <Button
+                  icon={<PlusOutlined />}
+                  size="small"
+                  style={{ marginTop: 8 }}
+                  onClick={() => setAddingSkuToGroup(group)}
+                >
+                  Add SKU
+                </Button>
+              </>
+            );
           },
         }}
       />
@@ -208,6 +221,16 @@ export default function Restocks() {
         onUpdated={loadRestocks}
         restock={editingRestock}
         warehouses={warehouses}
+        orders={orders}
+        products={products}
+      />
+
+      <AddRestockSkuModal
+        open={!!addingSkuToGroup}
+        onClose={() => setAddingSkuToGroup(null)}
+        onCreated={loadRestocks}
+        group={addingSkuToGroup}
+        products={products}
         orders={orders}
       />
 
