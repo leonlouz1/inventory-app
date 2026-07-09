@@ -9,6 +9,10 @@ import {
   TeamOutlined,
   CalendarOutlined,
   TruckOutlined,
+  ContactsOutlined,
+  BarChartOutlined,
+  AuditOutlined,
+  SendOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 
@@ -18,6 +22,17 @@ const NAV_ITEMS = [
   { key: "/", label: "Dashboard", icon: <DashboardOutlined /> },
   { key: "/orders", label: "Orders", icon: <ShoppingCartOutlined /> },
   { key: "/shipments", label: "Shipments", icon: <TruckOutlined /> },
+  {
+    key: "crm-group",
+    label: "CRM",
+    icon: <ContactsOutlined />,
+    children: [
+      { key: "/crm", label: "Dashboard", icon: <BarChartOutlined /> },
+      { key: "/crm/accounts", label: "Accounts", icon: <TeamOutlined /> },
+      { key: "/crm/activity", label: "Activity Log", icon: <AuditOutlined /> },
+      { key: "/crm/sent", label: "Sent Tracker", icon: <SendOutlined /> },
+    ],
+  },
   { key: "/customers", label: "Customers", icon: <TeamOutlined /> },
   { key: "/calendar", label: "Calendar", icon: <CalendarOutlined /> },
   { key: "/timeline", label: "Timeline", icon: <FieldTimeOutlined /> },
@@ -40,8 +55,9 @@ export default function AppLayout() {
           theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
+          defaultOpenKeys={["crm-group"]}
           items={NAV_ITEMS}
-          onClick={({ key }) => navigate(key)}
+          onClick={({ key }) => { if (!key.includes("group")) navigate(key); }}
         />
       </Sider>
       <Layout>

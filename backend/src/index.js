@@ -9,6 +9,7 @@ const warehousesRouter = require("./routes/warehouses");
 const timelineRouter = require("./routes/timeline");
 const alertsRouter = require("./routes/alerts");
 const shipmentsRouter = require("./routes/shipments");
+const crmRouter = require("./routes/crm");
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use("/api/warehouses", warehousesRouter);
 app.use("/api/timeline", timelineRouter);
 app.use("/api/alerts", alertsRouter);
 app.use("/api/shipments", shipmentsRouter);
+app.use("/api/crm", crmRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {

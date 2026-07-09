@@ -141,3 +141,91 @@ model Restock {
   @@index([expectedDate])
   @@map("restocks")
 }
+
+// ─── CRM ───────────────────────────────────────────────────────────────────
+
+model Retailer {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(200)
+  type      String?  @db.VarChar(100)
+  priority  String   @default("1 - Low") @db.VarChar(20)
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  categories   RetailerCategory[]
+  contacts     CrmContact[]
+  activityLogs ActivityLog[]
+  sentItems    SentItem[]
+
+  @@map("retailers")
+}
+
+model RetailerCategory {
+  id         Int    @id @default(autoincrement())
+  retailerId Int    @map("retailer_id")
+  category   String @db.VarChar(50)
+  buyerName  String? @map("buyer_name") @db.VarChar(200)
+  status     String  @default("Not Contacted") @db.VarChar(50)
+
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+
+  @@unique([retailerId, category])
+  @@map("retailer_categories")
+}
+
+model CrmContact {
+  id          Int      @id @default(autoincrement())
+  retailerId  Int      @map("retailer_id")
+  name        String   @db.VarChar(200)
+  title       String?  @db.VarChar(200)
+  email       String?  @db.VarChar(200)
+  directPhone String?  @map("direct_phone") @db.VarChar(50)
+  hqPhone     String?  @map("hq_phone") @db.VarChar(50)
+  category    String?  @db.VarChar(50)
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+
+  @@map("crm_contacts")
+}
+
+model ActivityLog {
+  id           Int      @id @default(autoincrement())
+  retailerId   Int      @map("retailer_id")
+  category     String?  @db.VarChar(50)
+  rep          String?  @db.VarChar(100)
+  date         DateTime @db.Date
+  actionTaken  String   @map("action_taken") @db.VarChar(100)
+  notes        String?
+  nextStep     String?  @map("next_step") @db.VarChar(200)
+  nextStepDate DateTime? @map("next_step_date") @db.Date
+  done         Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+
+  @@index([retailerId, date])
+  @@index([nextStepDate, done])
+  @@map("activity_logs")
+}
+
+model SentItem {
+  id               Int      @id @default(autoincrement())
+  retailerId       Int      @map("retailer_id")
+  category         String?  @db.VarChar(50)
+  buyerName        String?  @map("buyer_name") @db.VarChar(200)
+  dateSent         DateTime @map("date_sent") @db.Date
+  itemSent         String   @map("item_sent") @db.VarChar(100)
+  notes            String?
+  responseReceived String?  @map("response_received") @db.VarChar(50)
+  followUpDate     DateTime? @map("follow_up_date") @db.Date
+  done             Boolean  @default(false)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+
+  @@index([retailerId])
+  @@index([followUpDate, done])
+  @@map("sent_items")
+}
