@@ -16,6 +16,7 @@ model Warehouse {
   stock      WarehouseStock[]
   orderLines OrderLine[]
   restocks   Restock[]
+  shipments  Shipment[]
 
   @@map("warehouses")
 }
@@ -68,9 +69,11 @@ model Shipment {
   csNumber       String?   @map("cs_number") @db.VarChar(100)
   status         String    @default("SCHEDULED") @db.VarChar(20)
   notes          String?
+  warehouseId    Int?      @map("warehouse_id")
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  orders Order[]
+  orders    Order[]
+  warehouse Warehouse? @relation(fields: [warehouseId], references: [id])
 
   @@map("shipments")
 }

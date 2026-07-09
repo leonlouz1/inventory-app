@@ -5,7 +5,7 @@ import {
 } from "antd";
 import { PlusOutlined, DeleteOutlined, EditOutlined, MinusCircleOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { shipmentsApi, ordersApi } from "../api/inventory";
+import { shipmentsApi, ordersApi, warehousesApi } from "../api/inventory";
 
 const STATUS_COLORS = { SCHEDULED: "blue", PICKED_UP: "green", DELIVERED: "purple" };
 const STATUS_OPTIONS = [
@@ -14,7 +14,7 @@ const STATUS_OPTIONS = [
   { value: "DELIVERED", label: "Delivered" },
 ];
 
-function ShipmentModal({ open, onClose, onSaved, shipment, allOrders }) {
+function ShipmentModal({ open, onClose, onSaved, shipment, allOrders, warehouses }) {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
 
@@ -27,6 +27,7 @@ function ShipmentModal({ open, onClose, onSaved, shipment, allOrders }) {
           csNumber: shipment.csNumber || "",
           status: shipment.status,
           notes: shipment.notes || "",
+          warehouseId: shipment.warehouseId || undefined,
           orderIds: shipment.orders.map((o) => o.id),
         });
       } else {
@@ -46,6 +47,7 @@ function ShipmentModal({ open, onClose, onSaved, shipment, allOrders }) {
         csNumber: values.csNumber || null,
         status: values.status,
         notes: values.notes || null,
+        warehouseId: values.warehouseId || null,
         orderIds: values.orderIds || [],
       };
       if (shipment) {
@@ -104,6 +106,17 @@ function ShipmentModal({ open, onClose, onSaved, shipment, allOrders }) {
         <Form.Item name="notes" label="Notes">
           <Input.TextArea rows={2} />
         </Form.Item>
+        <Form.Item
+          name="warehouseId"
+          label="Shipping From Warehouse"
+          extra="Unassigned order lines will be auto-assigned to this warehouse when added to the shipment"
+        >
+          <Select
+            placeholder="Select warehouse (optional)"
+            allowClear
+            options={(warehouses || []).map((w) => ({ value: w.id, label: w.name }))}
+          />
+        </Form.Item>
         <Divider />
         <Form.Item name="orderIds" label="Orders on this truck">
           <Select
@@ -122,6 +135,7 @@ function ShipmentModal({ open, onClose, onSaved, shipment, allOrders }) {
 export default function Shipments() {
   const [shipments, setShipments] = useState([]);
   const [allOrders, setAllOrders] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -129,10 +143,11 @@ export default function Shipments() {
 
   const load = useCallback(() => {
     setLoading(true);
-    return Promise.all([shipmentsApi.list(), ordersApi.list()])
-      .then(([s, o]) => {
+    return Promise.all([shipmentsApi.list(), ordersApi.list(), warehousesApi.list()])
+      .then(([s, o, w]) => {
         setShipments(s);
         setAllOrders(o);
+        setWarehouses(w);
         setError(null);
       })
       .catch((err) => setError(err.message))
@@ -159,6 +174,7 @@ export default function Shipments() {
       render: (v) => dayjs(v).format("MMM D, YYYY h:mm A"),
       sorter: (a, b) => a.pickupDate.localeCompare(b.pickupDate),
     },
+    { title: "From Warehouse", dataIndex: "warehouseName", render: (v) => v || "—" },
     { title: "Carrier", dataIndex: "carrier", render: (v) => v || "—" },
     { title: "CS #", dataIndex: "csNumber", render: (v) => v || "—" },
     {
@@ -260,6 +276,7 @@ export default function Shipments() {
         onSaved={load}
         shipment={editingShipment}
         allOrders={allOrders}
+        warehouses={warehouses}
       />
     </Spin>
   );
