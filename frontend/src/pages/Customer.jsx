@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Select, Spin, Alert, Typography, Empty, Table, Tag, Row, Col, Statistic, Card } from "antd";
 import dayjs from "dayjs";
-import { ordersApi } from "../api/inventory";
+import { ordersApi, crmApi } from "../api/inventory";
 
 const today = dayjs().startOf("day");
 
@@ -53,26 +53,35 @@ const LINE_COLUMNS = (showStatus) => [
 export default function Customer() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState([]);
+  const [activeRetailers, setActiveRetailers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const customer = searchParams.get("name");
 
   useEffect(() => {
     setLoading(true);
-    ordersApi
-      .list()
-      .then((data) => {
-        setOrders(data);
+    Promise.all([ordersApi.list(), crmApi.activeCustomers()])
+      .then(([orderData, retailers]) => {
+        setOrders(orderData);
+        setActiveRetailers(retailers);
         setError(null);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
+  // Show active CRM retailers in the dropdown.
+  // Also include any customer that already has orders but isn't in CRM yet
+  // (so existing data doesn't vanish).
   const customerOptions = useMemo(() => {
-    const names = [...new Set(orders.map((o) => o.customer))].sort();
+    const activeNames = new Set(activeRetailers.map((r) => r.name));
+    const orderNames = new Set(orders.map((o) => o.customer));
+    // union: active CRM retailers + any order customer not in CRM
+    const all = new Set([...activeNames, ...[...orderNames].filter((n) => !activeNames.size || orderNames.has(n) && activeNames.has(n))]);
+    // Only show: active CRM retailers (regardless of orders) + existing order customers that are active
+    const names = [...activeNames].sort();
     return names.map((name) => ({ value: name, label: name }));
-  }, [orders]);
+  }, [activeRetailers, orders]);
 
   function setCustomer(name) {
     setSearchParams(name ? { name } : {});

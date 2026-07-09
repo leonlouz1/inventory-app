@@ -14,7 +14,7 @@ import {
 } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { ordersApi } from "../api/inventory";
+import { ordersApi, crmApi } from "../api/inventory";
 import { ORDER_STATUSES, ORDER_STATUS_LABELS } from "../constants/orderStatuses";
 
 const STATUS_OPTIONS = ORDER_STATUSES.map((s) => ({ value: s, label: ORDER_STATUS_LABELS[s] }));
@@ -60,6 +60,7 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
   const [projectionsByKey, setProjectionsByKey] = useState({});
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [activeCustomers, setActiveCustomers] = useState([]);
   const debounceRef = useRef(null);
   const requestIdRef = useRef(0);
 
@@ -78,6 +79,7 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
       .nextNumber()
       .then(({ orderNumber }) => form.setFieldValue("order_number", orderNumber))
       .catch(() => {});
+    crmApi.activeCustomers().then(setActiveCustomers).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -289,7 +291,13 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
             <Input placeholder="SO-1001" style={{ width: 160 }} />
           </Form.Item>
           <Form.Item name="customer" label="Customer" rules={[{ required: true, message: "Required" }]}>
-            <Input placeholder="Acme Corp" style={{ width: 220 }} />
+            <Select
+              showSearch
+              placeholder="Select active customer"
+              style={{ width: 260 }}
+              options={activeCustomers.map((r) => ({ value: r.name, label: r.name }))}
+              filterOption={(input, opt) => opt.label.toLowerCase().includes(input.toLowerCase())}
+            />
           </Form.Item>
           <Form.Item name="customer_po" label="Customer PO #">
             <Input placeholder="PO-44213" style={{ width: 160 }} />

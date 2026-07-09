@@ -87,6 +87,24 @@ function serializeSentItem(s) {
 
 // ─── RETAILERS ───────────────────────────────────────────────────────────────
 
+// GET /api/crm/active-customers — retailers with at least one Active or Order Placed category
+router.get("/active-customers", async (req, res) => {
+  try {
+    const retailers = await prisma.retailer.findMany({
+      where: {
+        categories: {
+          some: { status: { in: ["Active", "Order Placed"] } },
+        },
+      },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    });
+    res.json(retailers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/crm/retailers
 router.get("/retailers", async (req, res) => {
   try {
