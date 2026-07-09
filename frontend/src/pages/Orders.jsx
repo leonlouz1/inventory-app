@@ -13,6 +13,60 @@ import { downloadPackingList } from "../utils/packingList";
 
 const STATUS_OPTIONS = ORDER_STATUSES.map((s) => ({ value: s, label: ORDER_STATUS_LABELS[s] }));
 
+function OrderNotes({ order, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(order.notes || "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await ordersApi.updateNotes(order.id, value || null);
+      onSaved(value || null);
+      setEditing(false);
+    } catch (err) {
+      message.error(`Failed to save notes: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "flex-start" }}>
+        <Input.TextArea
+          autoFocus
+          rows={2}
+          style={{ maxWidth: 500 }}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Add notes…"
+        />
+        <Button type="primary" size="small" loading={saving} onClick={save}>Save</Button>
+        <Button size="small" onClick={() => { setValue(order.notes || ""); setEditing(false); }}>Cancel</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 10, display: "flex", alignItems: "flex-start", gap: 6 }}>
+      <Typography.Text type="secondary" style={{ fontSize: 13 }}>Notes:</Typography.Text>
+      {order.notes ? (
+        <Typography.Text style={{ fontSize: 13 }}>{order.notes}</Typography.Text>
+      ) : (
+        <Typography.Text type="secondary" style={{ fontSize: 13, fontStyle: "italic" }}>None</Typography.Text>
+      )}
+      <Button
+        type="link"
+        size="small"
+        icon={<EditOutlined />}
+        style={{ padding: "0 4px", height: "auto", lineHeight: 1 }}
+        onClick={() => { setValue(order.notes || ""); setEditing(true); }}
+      />
+    </div>
+  );
+}
+
 function ProjectionTag({ projection }) {
   if (!projection) return null;
   return projection.ok ? (
@@ -330,6 +384,12 @@ export default function Orders() {
                     />
                   )}
                 </Space>
+                <OrderNotes
+                  order={order}
+                  onSaved={(notes) =>
+                    setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, notes } : o))
+                  }
+                />
                 {linkedRestocks.length > 0 && (
                   <div style={{ marginTop: 12 }}>
                     <Typography.Text strong style={{ fontSize: 13 }}>Linked Containers ({linkedRestocks.length} line{linkedRestocks.length > 1 ? "s" : ""})</Typography.Text>

@@ -17,6 +17,7 @@ export const ordersApi = {
   addLine: (orderId, data) => apiClient.post(`/orders/${orderId}/lines`, data),
   updateLine: (orderId, lineId, data) => apiClient.put(`/orders/${orderId}/lines/${lineId}`, data),
   updateStatus: (id, status) => apiClient.put(`/orders/${id}/status`, { status }),
+  updateNotes: (id, notes) => apiClient.patch(`/orders/${id}/notes`, { notes }),
   nextNumber: () => apiClient.get("/orders/next-number"),
 };
 

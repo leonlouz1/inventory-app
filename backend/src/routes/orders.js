@@ -463,4 +463,18 @@ router.put(
   })
 );
 
+// PATCH /api/orders/:id/notes — update the notes field only
+router.patch(
+  "/:id/notes",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { notes } = req.body;
+    const order = await prisma.order.update({
+      where: { id },
+      data: { notes: notes ?? null },
+    });
+    res.json({ notes: order.notes });
+  })
+);
+
 module.exports = router;
