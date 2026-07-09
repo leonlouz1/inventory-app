@@ -55,6 +55,7 @@ export const crmApi = {
   updateRetailer: (id, data) => apiClient.put(`/crm/retailers/${id}`, data),
   deleteRetailer: (id) => apiClient.delete(`/crm/retailers/${id}`),
   updateCategory: (retailerId, data) => apiClient.patch(`/crm/retailers/${retailerId}/categories`, data),
+  deleteCategory: (retailerId, category) => apiClient.delete(`/crm/retailers/${retailerId}/categories/${encodeURIComponent(category)}`),
   // contacts
   listContacts: (retailerId) => apiClient.get(`/crm/contacts${retailerId ? `?retailerId=${retailerId}` : ""}`),
   createContact: (data) => apiClient.post("/crm/contacts", data),

@@ -4,7 +4,7 @@ import {
   Spin, Alert, Typography, Tabs, Button, Table, Tag, Space, Form,
   Input, Select, DatePicker, Modal, Popconfirm, message, Row, Col, Card, Checkbox,
 } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined, ArrowLeftOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, EditOutlined, ArrowLeftOutlined, CloseOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
 
@@ -279,39 +279,45 @@ export default function CrmAccountDetail() {
             </Tag>
           </div>
 
-          {/* Category status grid */}
-          <Row gutter={10} style={{ marginBottom: 20 }}>
-            {CRM_CATEGORIES.map((cat) => {
-              const c = retailer.categories.find((x) => x.category === cat) || null;
+          {/* Category status grid — only show categories that exist */}
+          <Row gutter={10} style={{ marginBottom: 20 }} wrap>
+            {CRM_CATEGORIES.filter((cat) => retailer.categories.find((x) => x.category === cat)).map((cat) => {
+              const c = retailer.categories.find((x) => x.category === cat);
               return (
-                <Col key={cat} flex="1">
+                <Col key={cat} style={{ marginBottom: 8 }}>
                   <Card
                     size="small"
                     title={cat}
-                    style={{ minWidth: 130, opacity: c ? 1 : 0.45 }}
+                    style={{ minWidth: 150 }}
+                    extra={
+                      <Popconfirm
+                        title={`Remove ${cat} from this retailer?`}
+                        onConfirm={async () => {
+                          await crmApi.deleteCategory(retailer.id, cat);
+                          setRetailer((prev) => ({
+                            ...prev,
+                            categories: prev.categories.filter((x) => x.category !== cat),
+                          }));
+                        }}
+                      >
+                        <Button type="text" size="small" icon={<CloseOutlined />} danger />
+                      </Popconfirm>
+                    }
                   >
                     <Select
                       size="small"
-                      value={c?.status ?? null}
-                      placeholder="N/A"
+                      value={c.status}
                       style={{ width: "100%", marginBottom: 6 }}
                       options={STATUSES.map((s) => ({ value: s, label: s }))}
                       onChange={(val) => handleCategoryUpdate(cat, "status", val)}
-                      labelRender={() =>
-                        c ? (
-                          <Tag color={STATUS_COLORS[c.status]} style={{ margin: 0 }}>{c.status}</Tag>
-                        ) : (
-                          <Tag color="default" style={{ margin: 0 }}>N/A</Tag>
-                        )
-                      }
+                      labelRender={() => <Tag color={STATUS_COLORS[c.status]} style={{ margin: 0 }}>{c.status}</Tag>}
                     />
                     <Input
                       size="small"
                       placeholder="Buyer name"
-                      defaultValue={c?.buyerName || ""}
-                      disabled={!c}
+                      defaultValue={c.buyerName || ""}
                       onBlur={(e) => {
-                        if (c && e.target.value !== (c.buyerName || "")) {
+                        if (e.target.value !== (c.buyerName || "")) {
                           handleCategoryUpdate(cat, "buyerName", e.target.value);
                         }
                       }}
@@ -320,6 +326,26 @@ export default function CrmAccountDetail() {
                 </Col>
               );
             })}
+            {/* Add category button for missing ones */}
+            {CRM_CATEGORIES.filter((cat) => !retailer.categories.find((x) => x.category === cat)).length > 0 && (
+              <Col style={{ marginBottom: 8 }}>
+                <Select
+                  placeholder="+ Add category"
+                  style={{ width: 160, marginTop: 4 }}
+                  options={CRM_CATEGORIES
+                    .filter((cat) => !retailer.categories.find((x) => x.category === cat))
+                    .map((c) => ({ value: c, label: c }))}
+                  onChange={async (cat) => {
+                    await crmApi.updateCategory(retailer.id, { category: cat, status: "Not Contacted" });
+                    setRetailer((prev) => ({
+                      ...prev,
+                      categories: [...prev.categories, { category: cat, status: "Not Contacted", buyerName: null }],
+                    }));
+                  }}
+                  value={null}
+                />
+              </Col>
+            )}
           </Row>
 
           <Tabs

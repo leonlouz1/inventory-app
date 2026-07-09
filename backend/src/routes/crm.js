@@ -210,6 +210,18 @@ router.patch("/retailers/:id/categories", async (req, res) => {
   }
 });
 
+// DELETE /api/crm/retailers/:id/categories/:category — remove a category from a retailer
+router.delete("/retailers/:id/categories/:category", async (req, res) => {
+  try {
+    const retailerId = Number(req.params.id);
+    const { category } = req.params;
+    await prisma.retailerCategory.deleteMany({ where: { retailerId, category } });
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── CONTACTS ────────────────────────────────────────────────────────────────
 
 // GET /api/crm/contacts?retailerId=
