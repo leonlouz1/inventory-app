@@ -302,7 +302,7 @@ export default function Orders() {
         columns={columns}
         dataSource={filteredOrders}
         rowKey="id"
-        pagination={{ pageSize: 15 }}
+        pagination={{ defaultPageSize: 15, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
         onRow={(order) => ({ id: `order-row-${order.id}` })}
         expandable={{
           expandedRowKeys,

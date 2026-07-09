@@ -268,7 +268,7 @@ export default function Timeline() {
             {history.length > 0 ? (
               <Table
                 size="small"
-                pagination={{ pageSize: 20 }}
+                pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
                 rowKey="id"
                 dataSource={history}
                 columns={[

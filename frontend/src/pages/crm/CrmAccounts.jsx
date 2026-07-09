@@ -259,7 +259,7 @@ export default function CrmAccounts() {
         dataSource={filtered}
         rowKey="id"
         scroll={{ x: "max-content" }}
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
         size="small"
       />
 

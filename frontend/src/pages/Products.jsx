@@ -214,7 +214,7 @@ export default function Products() {
         columns={columns}
         dataSource={filteredProducts}
         rowKey="id"
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
         onRow={(product) => ({
           onClick: () => setEditingProduct(product),
           style: { cursor: "pointer" },

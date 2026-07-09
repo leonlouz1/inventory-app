@@ -159,7 +159,7 @@ export default function Customer() {
               columns={LINE_COLUMNS(true)}
               dataSource={upcomingLines}
               rowKey="key"
-              pagination={{ pageSize: 10 }}
+              pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
               size="small"
               style={{ marginBottom: 32 }}
               locale={{ emptyText: "No upcoming orders" }}
@@ -170,7 +170,7 @@ export default function Customer() {
               columns={LINE_COLUMNS(false)}
               dataSource={pastLines}
               rowKey="key"
-              pagination={{ pageSize: 10 }}
+              pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
               size="small"
               locale={{ emptyText: "No shipped orders yet" }}
             />

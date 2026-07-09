@@ -136,7 +136,7 @@ export default function Dashboard() {
         columns={COLUMNS}
         dataSource={alerts}
         rowKey="orderLineId"
-        pagination={{ pageSize: 10 }}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
         locale={{ emptyText: "No active alerts" }}
       />
     </Spin>

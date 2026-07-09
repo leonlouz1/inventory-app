@@ -176,7 +176,7 @@ export default function CrmActivity() {
           Log Activity
         </Button>
       </div>
-      <Table columns={columns} dataSource={logs} rowKey="id" pagination={{ pageSize: 20 }} size="small" />
+      <Table columns={columns} dataSource={logs} rowKey="id" pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }} size="small" />
       <ActivityModal
         open={modalOpen}
         onClose={() => { setModalOpen(false); setEditingLog(null); }}

@@ -165,7 +165,7 @@ export default function CrmDashboard() {
       <Card title="📬 Recently Sent — Linesheets, Samples & Follow-ups" size="small">
         <Table
           size="small"
-          pagination={{ pageSize: 10 }}
+          pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
           rowKey="id"
           dataSource={data?.recentSent ?? []}
           columns={[

@@ -222,7 +222,7 @@ export default function Shipments() {
         columns={columns}
         dataSource={shipments}
         rowKey="id"
-        pagination={{ pageSize: 15 }}
+        pagination={{ defaultPageSize: 15, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
         expandable={{
           expandedRowRender: (shipment) => (
             <div>

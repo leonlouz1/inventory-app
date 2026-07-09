@@ -403,7 +403,7 @@ export default function CrmAccountDetail() {
                     <Table
                       size="small"
                       rowKey="id"
-                      pagination={{ pageSize: 15 }}
+                      pagination={{ defaultPageSize: 15, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
                       dataSource={retailer.activityLogs || []}
                       columns={[
                         { title: "Date", dataIndex: "date", render: (v) => dayjs(v).format("MMM D, YYYY") },
@@ -463,7 +463,7 @@ export default function CrmAccountDetail() {
                     <Table
                       size="small"
                       rowKey="id"
-                      pagination={{ pageSize: 15 }}
+                      pagination={{ defaultPageSize: 15, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
                       dataSource={retailer.sentItems || []}
                       columns={[
                         { title: "Date", dataIndex: "dateSent", render: (v) => dayjs(v).format("MMM D, YYYY") },

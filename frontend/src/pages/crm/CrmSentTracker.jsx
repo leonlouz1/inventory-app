@@ -187,7 +187,7 @@ export default function CrmSentTracker() {
           Log Sent Item
         </Button>
       </div>
-      <Table columns={columns} dataSource={items} rowKey="id" pagination={{ pageSize: 20 }} size="small" />
+      <Table columns={columns} dataSource={items} rowKey="id" pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }} size="small" />
       <SentModal
         open={modalOpen}
         onClose={() => { setModalOpen(false); setEditingItem(null); }}

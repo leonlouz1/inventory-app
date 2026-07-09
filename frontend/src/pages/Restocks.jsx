@@ -157,7 +157,7 @@ export default function Restocks() {
         columns={columns}
         dataSource={shipments}
         rowKey="key"
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
         expandable={{
           rowExpandable: () => true,
           expandedRowRender: (group) => {
