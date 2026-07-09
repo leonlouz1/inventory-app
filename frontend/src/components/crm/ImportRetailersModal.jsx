@@ -5,7 +5,6 @@ import Papa from "papaparse";
 import { crmApi } from "../../api/inventory";
 
 const TEMPLATE_HEADERS = ["name", "type", "priority", "notes"];
-const VALID_TYPES = ["Off-Price", "Department Store", "Airport Retail", "Furniture", "Ecommerce", "Farm Store", "Promotional", "Sporting Goods", "Grocery", "Drug Store", "Club", "Other"];
 const VALID_PRIORITIES = ["3 - High", "2 - Medium", "1 - Low"];
 
 function downloadTemplate() {
@@ -49,7 +48,6 @@ export default function ImportRetailersModal({ open, onClose, onImported }) {
           const notes = (row.notes || row.Notes || "").trim();
 
           if (!name) { errs.push(`Row ${i + 2}: missing name`); return; }
-          if (type && !VALID_TYPES.includes(type)) errs.push(`Row ${i + 2}: unknown type "${type}" (will still import)`);
           if (!VALID_PRIORITIES.includes(priority)) errs.push(`Row ${i + 2}: unknown priority "${priority}", defaulting to "1 - Low"`);
 
           parsed.push({

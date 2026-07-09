@@ -491,4 +491,64 @@ router.get("/dashboard", async (req, res) => {
   }
 });
 
+// ─── RETAILER TYPES ──────────────────────────────────────────────────────────
+
+const DEFAULT_TYPES = [
+  "Off-Price", "Department Store", "Airport Retail", "Furniture", "Ecommerce",
+  "Farm Store", "Promotional", "Sporting Goods", "Grocery", "Drug Store",
+  "Club", "Hardware", "Supermarket", "Other",
+];
+
+// GET /api/crm/retailer-types — returns sorted list, seeds defaults if empty
+router.get("/retailer-types", async (req, res) => {
+  try {
+    let types = await prisma.retailerType.findMany({ orderBy: { name: "asc" } });
+    if (types.length === 0) {
+      await prisma.retailerType.createMany({
+        data: DEFAULT_TYPES.map((name) => ({ name })),
+        skipDuplicates: true,
+      });
+      types = await prisma.retailerType.findMany({ orderBy: { name: "asc" } });
+    }
+    res.json(types.map((t) => ({ id: t.id, name: t.name })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/retailer-types
+router.post("/retailer-types", async (req, res) => {
+  try {
+    const { name } = req.body;
+    const type = await prisma.retailerType.create({ data: { name: name.trim() } });
+    res.status(201).json({ id: type.id, name: type.name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/crm/retailer-types/:id
+router.put("/retailer-types/:id", async (req, res) => {
+  try {
+    const { name } = req.body;
+    const type = await prisma.retailerType.update({
+      where: { id: Number(req.params.id) },
+      data: { name: name.trim() },
+    });
+    res.json({ id: type.id, name: type.name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/crm/retailer-types/:id
+router.delete("/retailer-types/:id", async (req, res) => {
+  try {
+    await prisma.retailerType.delete({ where: { id: Number(req.params.id) } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

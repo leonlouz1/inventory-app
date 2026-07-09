@@ -8,12 +8,9 @@ import { PlusOutlined, DeleteOutlined, UploadOutlined } from "@ant-design/icons"
 import { crmApi } from "../../api/inventory";
 import ImportRetailersModal from "../../components/crm/ImportRetailersModal";
 import ImportContactsModal from "../../components/crm/ImportContactsModal";
+import ManageRetailerTypesModal from "../../components/crm/ManageRetailerTypesModal";
 
 const CRM_CATEGORIES = ["Travel", "Bedding", "Pet", "Bath", "Slippers", "Storage"];
-const RETAILER_TYPES = [
-  "Off-Price", "Department Store", "Airport Retail", "Furniture", "Ecommerce",
-  "Farm Store", "Promotional", "Sporting Goods", "Grocery", "Drug Store", "Club", "Other",
-];
 const PRIORITIES = ["3 - High", "2 - Medium", "1 - Low"];
 const STATUSES = [
   "Active", "Order Placed", "Warm", "Not Contacted",
@@ -26,7 +23,7 @@ const STATUS_COLORS = {
   "Not Interested": "red", "No Contact Found": "default", "N/A": "default",
 };
 
-function NewRetailerModal({ open, onClose, onCreated }) {
+function NewRetailerModal({ open, onClose, onCreated, retailerTypes }) {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
 
@@ -55,7 +52,7 @@ function NewRetailerModal({ open, onClose, onCreated }) {
           <Input />
         </Form.Item>
         <Form.Item name="type" label="Type">
-          <Select options={RETAILER_TYPES.map((t) => ({ value: t, label: t }))} allowClear placeholder="Select type" />
+          <Select options={(retailerTypes || []).map((t) => ({ value: t, label: t }))} allowClear placeholder="Select type" />
         </Form.Item>
         <Form.Item name="priority" label="Priority" initialValue="1 - Low">
           <Select options={PRIORITIES.map((p) => ({ value: p, label: p }))} />
@@ -74,13 +71,18 @@ export default function CrmAccounts() {
   const [retailers, setRetailers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [retailerTypes, setRetailerTypes] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [manageTypesOpen, setManageTypesOpen] = useState(false);
   const [importRetailersOpen, setImportRetailersOpen] = useState(false);
   const [importContactsOpen, setImportContactsOpen] = useState(false);
   const [search, setSearch] = useState(searchParams.get("name") || "");
   const [typeFilter, setTypeFilter] = useState([]);
   const [priorityFilter, setPriorityFilter] = useState([]);
   const [statusFilter, setStatusFilter] = useState([]);
+
+  const loadTypes = useCallback(() =>
+    crmApi.listRetailerTypes().then((t) => setRetailerTypes(t.map((x) => x.name))), []);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -90,7 +92,7 @@ export default function CrmAccounts() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); loadTypes(); }, [load, loadTypes]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -219,7 +221,7 @@ export default function CrmAccounts() {
           />
           <Select
             mode="multiple" placeholder="Type" allowClear style={{ minWidth: 140 }}
-            options={RETAILER_TYPES.map((t) => ({ value: t, label: t }))}
+            options={retailerTypes.map((t) => ({ value: t, label: t }))}
             value={typeFilter} onChange={setTypeFilter} maxTagCount="responsive"
           />
           <Select
@@ -232,6 +234,9 @@ export default function CrmAccounts() {
             options={STATUSES.map((s) => ({ value: s, label: s }))}
             value={statusFilter} onChange={setStatusFilter} maxTagCount="responsive"
           />
+          <Button onClick={() => setManageTypesOpen(true)}>
+            Manage Types
+          </Button>
           <Button icon={<UploadOutlined />} onClick={() => setImportRetailersOpen(true)}>
             Import Retailers
           </Button>
@@ -253,7 +258,12 @@ export default function CrmAccounts() {
         size="small"
       />
 
-      <NewRetailerModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={load} />
+      <NewRetailerModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={load} retailerTypes={retailerTypes} />
+      <ManageRetailerTypesModal
+        open={manageTypesOpen}
+        onClose={() => setManageTypesOpen(false)}
+        onChanged={loadTypes}
+      />
       <ImportRetailersModal
         open={importRetailersOpen}
         onClose={() => setImportRetailersOpen(false)}

@@ -64,6 +64,11 @@ export const crmApi = {
   createActivity: (data) => apiClient.post("/crm/activity", data),
   updateActivity: (id, data) => apiClient.put(`/crm/activity/${id}`, data),
   deleteActivity: (id) => apiClient.delete(`/crm/activity/${id}`),
+  // retailer types
+  listRetailerTypes: () => apiClient.get("/crm/retailer-types"),
+  createRetailerType: (name) => apiClient.post("/crm/retailer-types", { name }),
+  updateRetailerType: (id, name) => apiClient.put(`/crm/retailer-types/${id}`, { name }),
+  deleteRetailerType: (id) => apiClient.delete(`/crm/retailer-types/${id}`),
   // sent tracker
   listSent: (params = {}) => apiClient.get(`/crm/sent?${new URLSearchParams(params)}`),
   createSent: (data) => apiClient.post("/crm/sent", data),
