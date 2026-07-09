@@ -9,6 +9,7 @@ import { crmApi } from "../../api/inventory";
 import ImportRetailersModal from "../../components/crm/ImportRetailersModal";
 import ImportContactsModal from "../../components/crm/ImportContactsModal";
 import ManageRetailerTypesModal from "../../components/crm/ManageRetailerTypesModal";
+import ImportCrmSheetModal from "../../components/crm/ImportCrmSheetModal";
 
 const CRM_CATEGORIES = ["Travel", "Bedding", "Pet", "Bath", "Slippers", "Storage"];
 const PRIORITIES = ["3 - High", "2 - Medium", "1 - Low"];
@@ -76,6 +77,7 @@ export default function CrmAccounts() {
   const [manageTypesOpen, setManageTypesOpen] = useState(false);
   const [importRetailersOpen, setImportRetailersOpen] = useState(false);
   const [importContactsOpen, setImportContactsOpen] = useState(false);
+  const [importSheetOpen, setImportSheetOpen] = useState(false);
   const [search, setSearch] = useState(searchParams.get("name") || "");
   const [typeFilter, setTypeFilter] = useState([]);
   const [priorityFilter, setPriorityFilter] = useState([]);
@@ -237,6 +239,9 @@ export default function CrmAccounts() {
           <Button onClick={() => setManageTypesOpen(true)}>
             Manage Types
           </Button>
+          <Button icon={<UploadOutlined />} onClick={() => setImportSheetOpen(true)}>
+            Import from Google Sheets
+          </Button>
           <Button icon={<UploadOutlined />} onClick={() => setImportRetailersOpen(true)}>
             Import Retailers
           </Button>
@@ -274,6 +279,11 @@ export default function CrmAccounts() {
         onClose={() => setImportContactsOpen(false)}
         onImported={load}
         retailers={retailers}
+      />
+      <ImportCrmSheetModal
+        open={importSheetOpen}
+        onClose={() => setImportSheetOpen(false)}
+        onImported={load}
       />
     </Spin>
   );
