@@ -149,7 +149,7 @@ router.post("/retailers", async (req, res) => {
         priority: priority || "1 - Low",
         notes: notes || null,
         categories: {
-          create: (categories || CRM_CATEGORIES.map((c) => ({ category: c, status: "Not Contacted" }))),
+          create: (categories || []),
         },
       },
       include: { categories: true },

@@ -282,24 +282,36 @@ export default function CrmAccountDetail() {
           {/* Category status grid */}
           <Row gutter={10} style={{ marginBottom: 20 }}>
             {CRM_CATEGORIES.map((cat) => {
-              const c = retailer.categories.find((x) => x.category === cat) || { category: cat, status: "Not Contacted", buyerName: null };
+              const c = retailer.categories.find((x) => x.category === cat) || null;
               return (
                 <Col key={cat} flex="1">
-                  <Card size="small" title={cat} style={{ minWidth: 130 }}>
+                  <Card
+                    size="small"
+                    title={cat}
+                    style={{ minWidth: 130, opacity: c ? 1 : 0.45 }}
+                  >
                     <Select
                       size="small"
-                      value={c.status}
+                      value={c?.status ?? null}
+                      placeholder="N/A"
                       style={{ width: "100%", marginBottom: 6 }}
                       options={STATUSES.map((s) => ({ value: s, label: s }))}
                       onChange={(val) => handleCategoryUpdate(cat, "status", val)}
-                      labelRender={() => <Tag color={STATUS_COLORS[c.status]} style={{ margin: 0 }}>{c.status}</Tag>}
+                      labelRender={() =>
+                        c ? (
+                          <Tag color={STATUS_COLORS[c.status]} style={{ margin: 0 }}>{c.status}</Tag>
+                        ) : (
+                          <Tag color="default" style={{ margin: 0 }}>N/A</Tag>
+                        )
+                      }
                     />
                     <Input
                       size="small"
                       placeholder="Buyer name"
-                      defaultValue={c.buyerName || ""}
+                      defaultValue={c?.buyerName || ""}
+                      disabled={!c}
                       onBlur={(e) => {
-                        if (e.target.value !== (c.buyerName || "")) {
+                        if (c && e.target.value !== (c.buyerName || "")) {
                           handleCategoryUpdate(cat, "buyerName", e.target.value);
                         }
                       }}
