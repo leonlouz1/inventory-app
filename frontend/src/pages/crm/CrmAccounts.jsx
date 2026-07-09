@@ -82,6 +82,7 @@ export default function CrmAccounts() {
   const [typeFilter, setTypeFilter] = useState([]);
   const [priorityFilter, setPriorityFilter] = useState([]);
   const [statusFilter, setStatusFilter] = useState([]);
+  const [categoryFilter, setCategoryFilter] = useState(null);
 
   const loadTypes = useCallback(() =>
     crmApi.listRetailerTypes().then((t) => setRetailerTypes(t.map((x) => x.name))), []);
@@ -105,6 +106,9 @@ export default function CrmAccounts() {
       if (statusFilter.length) {
         const hasStatus = r.categories.some((c) => statusFilter.includes(c.status));
         if (!hasStatus) return false;
+      }
+      if (categoryFilter) {
+        if (!r.categories.find((c) => c.category === categoryFilter)) return false;
       }
       return true;
     });
@@ -193,7 +197,49 @@ export default function CrmAccounts() {
         return <Tag color={color}>{v}</Tag>;
       },
     },
-    ...categoryColumns,
+    ...(categoryFilter
+      ? [
+          {
+            title: `${categoryFilter} Buyer`,
+            key: `${categoryFilter}-buyer`,
+            width: 160,
+            render: (_, retailer) => {
+              const c = retailer.categories.find((x) => x.category === categoryFilter);
+              return (
+                <Input
+                  size="small"
+                  defaultValue={c?.buyerName || ""}
+                  placeholder="—"
+                  onBlur={(e) => {
+                    if (c && e.target.value !== (c.buyerName || "")) {
+                      handleCategoryUpdate(retailer.id, categoryFilter, "buyerName", e.target.value);
+                    }
+                  }}
+                />
+              );
+            },
+          },
+          {
+            title: `${categoryFilter} Status`,
+            key: `${categoryFilter}-status`,
+            width: 160,
+            render: (_, retailer) => {
+              const c = retailer.categories.find((x) => x.category === categoryFilter);
+              if (!c) return null;
+              return (
+                <Select
+                  size="small"
+                  value={c.status}
+                  style={{ width: "100%" }}
+                  options={STATUSES.map((s) => ({ value: s, label: s }))}
+                  onChange={(val) => handleCategoryUpdate(retailer.id, categoryFilter, "status", val)}
+                  labelRender={() => <Tag color={STATUS_COLORS[c.status]} style={{ margin: 0 }}>{c.status}</Tag>}
+                />
+              );
+            },
+          },
+        ]
+      : categoryColumns),
     {
       title: "",
       key: "actions",
@@ -235,6 +281,11 @@ export default function CrmAccounts() {
             mode="multiple" placeholder="Status (any cat)" allowClear style={{ minWidth: 160 }}
             options={STATUSES.map((s) => ({ value: s, label: s }))}
             value={statusFilter} onChange={setStatusFilter} maxTagCount="responsive"
+          />
+          <Select
+            placeholder="Category" allowClear style={{ minWidth: 130 }}
+            options={CRM_CATEGORIES.map((c) => ({ value: c, label: c }))}
+            value={categoryFilter} onChange={(v) => setCategoryFilter(v ?? null)}
           />
           <Button onClick={() => setManageTypesOpen(true)}>
             Manage Types
