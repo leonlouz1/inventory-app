@@ -24,6 +24,25 @@ const STATUS_COLORS = {
   "Not Interested": "red", "No Contact Found": "default", "N/A": "default",
 };
 
+// Sort order: Active first, N/A / missing last
+const STATUS_ORDER = Object.fromEntries(STATUSES.map((s, i) => [s, i]));
+function statusSort(cat) {
+  return (a, b) => {
+    const ca = a.categories.find((x) => x.category === cat);
+    const cb = b.categories.find((x) => x.category === cat);
+    const oa = ca ? (STATUS_ORDER[ca.status] ?? 99) : 99;
+    const ob = cb ? (STATUS_ORDER[cb.status] ?? 99) : 99;
+    return oa - ob;
+  };
+}
+function buyerSort(cat) {
+  return (a, b) => {
+    const ca = a.categories.find((x) => x.category === cat);
+    const cb = b.categories.find((x) => x.category === cat);
+    return (ca?.buyerName || "").localeCompare(cb?.buyerName || "");
+  };
+}
+
 function NewRetailerModal({ open, onClose, onCreated, retailerTypes }) {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
@@ -148,6 +167,7 @@ export default function CrmAccounts() {
     title: cat,
     key: cat,
     width: 160,
+    sorter: statusSort(cat),
     render: (_, retailer) => {
       const c = retailer.categories.find((x) => x.category === cat);
       if (!c) return <Tag color="default">N/A</Tag>;
@@ -203,6 +223,7 @@ export default function CrmAccounts() {
             title: `${categoryFilter} Buyer`,
             key: `${categoryFilter}-buyer`,
             width: 160,
+            sorter: buyerSort(categoryFilter),
             render: (_, retailer) => {
               const c = retailer.categories.find((x) => x.category === categoryFilter);
               return (
@@ -223,6 +244,7 @@ export default function CrmAccounts() {
             title: `${categoryFilter} Status`,
             key: `${categoryFilter}-status`,
             width: 160,
+            sorter: statusSort(categoryFilter),
             render: (_, retailer) => {
               const c = retailer.categories.find((x) => x.category === categoryFilter);
               if (!c) return null;
