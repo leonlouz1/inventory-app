@@ -1,6 +1,6 @@
 const { Resend } = require("resend");
 const XLSX = require("xlsx");
-const PdfPrinter = require("pdfmake/src/printer");
+const PdfPrinter = require("pdfmake/src/Printer");
 
 const fonts = {
   Helvetica: {
