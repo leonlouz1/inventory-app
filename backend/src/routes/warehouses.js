@@ -17,13 +17,13 @@ router.get(
 router.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { name, location } = req.body;
+    const { name, location, email } = req.body;
     if (!name) {
       return res.status(400).json({ message: "name is required" });
     }
 
     try {
-      const warehouse = await prisma.warehouse.create({ data: { name, location } });
+      const warehouse = await prisma.warehouse.create({ data: { name, location, email: email || null } });
       res.status(201).json(warehouse);
     } catch (err) {
       if (err.code === "P2002") {
@@ -39,7 +39,7 @@ router.put(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    const { name, location } = req.body;
+    const { name, location, email } = req.body;
 
     try {
       const warehouse = await prisma.warehouse.update({
@@ -47,6 +47,7 @@ router.put(
         data: {
           ...(name !== undefined && { name }),
           ...(location !== undefined && { location }),
+          ...(email !== undefined && { email: email || null }),
         },
       });
       res.json(warehouse);

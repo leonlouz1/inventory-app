@@ -2,9 +2,10 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined, TruckOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined, TruckOutlined, MailOutlined } from "@ant-design/icons";
 import { ordersApi, productsApi, warehousesApi, restocksApi, shipmentsApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
+import EmailOrderModal from "../components/EmailOrderModal";
 import EditOrderLineModal from "../components/EditOrderLineModal";
 import AddOrderLineModal from "../components/AddOrderLineModal";
 import BulkImportOrdersModal from "../components/BulkImportOrdersModal";
@@ -89,6 +90,7 @@ export default function Orders() {
   const [editingLine, setEditingLine] = useState(null); // { orderId, line }
   const [addingLineToOrder, setAddingLineToOrder] = useState(null); // order
   const [alertOrder, setAlertOrder] = useState(null);
+  const [emailOrder, setEmailOrder] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightId = searchParams.get("highlight") ? Number(searchParams.get("highlight")) : null;
   const [expandedRowKeys, setExpandedRowKeys] = useState(highlightId ? [highlightId] : []);
@@ -252,6 +254,12 @@ export default function Orders() {
               e.stopPropagation();
               downloadPackingList(order);
             }}
+          />
+          <Button
+            icon={<MailOutlined />}
+            type="text"
+            title="Send email"
+            onClick={(e) => { e.stopPropagation(); setEmailOrder(order); }}
           />
           <Popconfirm title="Delete this order?" onConfirm={() => handleDelete(order.id)}>
             <Button icon={<DeleteOutlined />} danger type="text" />
@@ -449,6 +457,12 @@ export default function Orders() {
         onImported={loadOrders}
         products={products}
         warehouses={warehouses}
+      />
+
+      <EmailOrderModal
+        open={!!emailOrder}
+        onClose={() => setEmailOrder(null)}
+        order={emailOrder}
       />
 
       <Modal

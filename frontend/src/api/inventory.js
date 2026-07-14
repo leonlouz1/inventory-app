@@ -36,6 +36,12 @@ export const warehousesApi = {
   transfer: (data) => apiClient.post("/warehouses/transfer", data),
 };
 
+export const emailsApi = {
+  getOrderDefaults: (orderId) => apiClient.get(`/emails/order-defaults/${orderId}`),
+  sendInvoice: (data) => apiClient.post("/emails/invoice", data),
+  sendRouting: (data) => apiClient.post("/emails/routing", data),
+};
+
 export const timelineApi = {
   get: (sku, grain) => apiClient.get(`/timeline?sku=${encodeURIComponent(sku)}&grain=${grain}`),
   history: (sku) => apiClient.get(`/timeline/history?sku=${encodeURIComponent(sku)}`),
