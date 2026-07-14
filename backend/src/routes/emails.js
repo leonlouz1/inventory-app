@@ -1,6 +1,6 @@
 const { Router } = require("express");
 const { PrismaClient } = require("@prisma/client");
-const { sendEmail, invoiceHtml, routingHtml } = require("../emailService");
+const { sendEmail, invoiceHtml, routingHtml, buildOrderExcel } = require("../emailService");
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -44,10 +44,12 @@ router.post("/invoice", async (req, res) => {
     if (extraNotes) serialized.notes = [serialized.notes, extraNotes].filter(Boolean).join(" — ");
 
     const html = invoiceHtml({ order: serialized, lines: serialized.lines });
+    const attachment = buildOrderExcel({ order: serialized, lines: serialized.lines });
     await sendEmail({
       to,
       subject: `Order Confirmation — ${order.orderNumber} — ${order.customer}`,
       html,
+      attachments: [{ filename: `${order.orderNumber}.xlsx`, content: attachment }],
     });
 
     res.json({ ok: true });
@@ -70,11 +72,14 @@ router.post("/routing", async (req, res) => {
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     const serialized = serializeOrder(order);
+    if (notes) serialized.routingNotes = notes;
     const html = routingHtml({ order: serialized, lines: serialized.lines, notes });
+    const attachment = buildOrderExcel({ order: serialized, lines: serialized.lines });
     await sendEmail({
       to,
       subject: `Routing Instructions — ${order.orderNumber} — ${order.customer}`,
       html,
+      attachments: [{ filename: `${order.orderNumber}-routing.xlsx`, content: attachment }],
     });
 
     res.json({ ok: true });
