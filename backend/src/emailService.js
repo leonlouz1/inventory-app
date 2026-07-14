@@ -1,5 +1,15 @@
 const { Resend } = require("resend");
 const XLSX = require("xlsx");
+const PdfPrinter = require("pdfmake");
+
+const fonts = {
+  Helvetica: {
+    normal: "Helvetica",
+    bold: "Helvetica-Bold",
+    italics: "Helvetica-Oblique",
+    bolditalics: "Helvetica-BoldOblique",
+  },
+};
 
 const FROM = process.env.FROM_EMAIL || "onboarding@resend.dev";
 
@@ -106,6 +116,93 @@ function routingHtml({ order, lines, notes }) {
 </html>`;
 }
 
+function buildInvoicePdf({ order, lines }) {
+  const printer = new PdfPrinter(fonts);
+
+  const tableBody = [
+    [
+      { text: "SKU", style: "tableHeader" },
+      { text: "Product", style: "tableHeader" },
+      { text: "Qty", style: "tableHeader", alignment: "right" },
+      { text: "Ship Date", style: "tableHeader" },
+      { text: "Ship From", style: "tableHeader" },
+    ],
+    ...lines.map((l) => [
+      { text: l.sku, font: "Helvetica" },
+      { text: l.productName, font: "Helvetica" },
+      { text: String(l.quantity), alignment: "right", font: "Helvetica" },
+      { text: l.shipDate, font: "Helvetica" },
+      { text: l.warehouseName || "—", font: "Helvetica" },
+    ]),
+  ];
+
+  const docDef = {
+    defaultStyle: { font: "Helvetica", fontSize: 10 },
+    content: [
+      { text: "ORDER CONFIRMATION", style: "title" },
+      { text: order.orderNumber, style: "orderNum" },
+      { canvas: [{ type: "line", x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: "#1677ff" }], margin: [0, 8, 0, 16] },
+      {
+        columns: [
+          {
+            stack: [
+              { text: "BILL TO", style: "label" },
+              { text: order.customer, style: "value", bold: true },
+              ...(order.customerPo ? [{ text: `PO # ${order.customerPo}`, style: "value" }] : []),
+            ],
+          },
+          {
+            stack: [
+              { text: "ORDER DATE", style: "label" },
+              { text: order.orderDate, style: "value" },
+              { text: "STATUS", style: "label", margin: [0, 8, 0, 0] },
+              { text: order.status, style: "value" },
+            ],
+            alignment: "right",
+          },
+        ],
+        margin: [0, 0, 0, 20],
+      },
+      ...(order.notes ? [{ text: `Notes: ${order.notes}`, italics: true, color: "#555", margin: [0, 0, 0, 12] }] : []),
+      {
+        table: {
+          headerRows: 1,
+          widths: ["auto", "*", "auto", "auto", "auto"],
+          body: tableBody,
+        },
+        layout: {
+          hLineWidth: (i) => (i === 0 || i === 1 ? 1 : 0.5),
+          vLineWidth: () => 0,
+          hLineColor: (i) => (i === 0 || i === 1 ? "#1677ff" : "#e0e0e0"),
+          fillColor: (i) => (i === 0 ? "#f0f5ff" : i % 2 === 0 ? "#fafafa" : null),
+          paddingLeft: () => 8,
+          paddingRight: () => 8,
+          paddingTop: () => 6,
+          paddingBottom: () => 6,
+        },
+      },
+      { text: "Hotel Collection Inc.", style: "footer", margin: [0, 30, 0, 0] },
+    ],
+    styles: {
+      title: { fontSize: 20, bold: true, color: "#1677ff", font: "Helvetica" },
+      orderNum: { fontSize: 13, color: "#333", font: "Helvetica" },
+      label: { fontSize: 8, color: "#888", bold: true, font: "Helvetica", margin: [0, 0, 0, 2] },
+      value: { fontSize: 10, color: "#222", font: "Helvetica" },
+      tableHeader: { bold: true, fontSize: 10, color: "#1677ff", font: "Helvetica" },
+      footer: { fontSize: 9, color: "#aaa", font: "Helvetica", alignment: "center" },
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    const doc = printer.createPdfKitDocument(docDef);
+    const chunks = [];
+    doc.on("data", (c) => chunks.push(c));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+    doc.end();
+  });
+}
+
 function buildOrderExcel({ order, lines }) {
   const wb = XLSX.utils.book_new();
 
@@ -133,4 +230,4 @@ function buildOrderExcel({ order, lines }) {
   return buf;
 }
 
-module.exports = { sendEmail, invoiceHtml, routingHtml, buildOrderExcel };
+module.exports = { sendEmail, invoiceHtml, routingHtml, buildOrderExcel, buildInvoicePdf };

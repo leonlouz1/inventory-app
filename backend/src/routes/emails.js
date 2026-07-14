@@ -1,6 +1,6 @@
 const { Router } = require("express");
 const { PrismaClient } = require("@prisma/client");
-const { sendEmail, invoiceHtml, routingHtml, buildOrderExcel } = require("../emailService");
+const { sendEmail, invoiceHtml, routingHtml, buildOrderExcel, buildInvoicePdf } = require("../emailService");
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -44,12 +44,12 @@ router.post("/invoice", async (req, res) => {
     if (extraNotes) serialized.notes = [serialized.notes, extraNotes].filter(Boolean).join(" — ");
 
     const html = invoiceHtml({ order: serialized, lines: serialized.lines });
-    const attachment = buildOrderExcel({ order: serialized, lines: serialized.lines });
+    const pdfBuffer = await buildInvoicePdf({ order: serialized, lines: serialized.lines });
     await sendEmail({
       to,
       subject: `Order Confirmation — ${order.orderNumber} — ${order.customer}`,
       html,
-      attachments: [{ filename: `${order.orderNumber}.xlsx`, content: attachment }],
+      attachments: [{ filename: `${order.orderNumber}-invoice.pdf`, content: pdfBuffer }],
     });
 
     res.json({ ok: true });
