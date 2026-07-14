@@ -1,10 +1,14 @@
 const { Resend } = require("resend");
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.FROM_EMAIL || "onboarding@resend.dev";
 
+function getResend() {
+  if (!process.env.RESEND_API_KEY) throw new Error("RESEND_API_KEY is not set");
+  return new Resend(process.env.RESEND_API_KEY);
+}
+
 async function sendEmail({ to, subject, html }) {
-  const result = await resend.emails.send({ from: FROM, to, subject, html });
+  const result = await getResend().emails.send({ from: FROM, to, subject, html });
   if (result.error) throw new Error(result.error.message);
   return result;
 }
