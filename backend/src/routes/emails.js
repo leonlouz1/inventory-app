@@ -31,7 +31,7 @@ function serializeOrder(order) {
 // Body: { orderId, to, extraNotes? }
 router.post("/invoice", async (req, res) => {
   try {
-    const { orderId, to, extraNotes } = req.body;
+    const { orderId, to, extraNotes, company } = req.body;
     if (!orderId || !to) return res.status(400).json({ message: "orderId and to are required" });
 
     const order = await prisma.order.findUnique({
@@ -44,7 +44,7 @@ router.post("/invoice", async (req, res) => {
     if (extraNotes) serialized.notes = [serialized.notes, extraNotes].filter(Boolean).join(" — ");
 
     const html = invoiceHtml({ order: serialized, lines: serialized.lines });
-    const pdfBuffer = await buildInvoicePdf({ order: serialized, lines: serialized.lines });
+    const pdfBuffer = await buildInvoicePdf({ order: serialized, lines: serialized.lines, company });
     await sendEmail({
       to,
       subject: `Order Confirmation — ${order.orderNumber} — ${order.customer}`,

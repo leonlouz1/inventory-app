@@ -11,6 +11,7 @@ const TYPES = [
 export default function EmailOrderModal({ open, onClose, order }) {
   const [form] = Form.useForm();
   const [type, setType] = useState("invoice");
+  const [company, setCompany] = useState("Quality Silver Inc");
   const [defaults, setDefaults] = useState(null);
   const [loadingDefaults, setLoadingDefaults] = useState(false);
   const [sending, setSending] = useState(false);
@@ -19,6 +20,7 @@ export default function EmailOrderModal({ open, onClose, order }) {
     if (!open || !order) return;
     form.resetFields();
     setType("invoice");
+    setCompany("Quality Silver Inc");
     setDefaults(null);
     setLoadingDefaults(true);
     emailsApi
@@ -50,7 +52,7 @@ export default function EmailOrderModal({ open, onClose, order }) {
     setSending(true);
     try {
       if (type === "invoice") {
-        await emailsApi.sendInvoice({ orderId: order.id, to: values.to, extraNotes: values.notes || undefined });
+        await emailsApi.sendInvoice({ orderId: order.id, to: values.to, extraNotes: values.notes || undefined, company });
       } else {
         await emailsApi.sendRouting({ orderId: order.id, to: values.to, notes: values.notes || undefined });
       }
@@ -83,13 +85,22 @@ export default function EmailOrderModal({ open, onClose, order }) {
       <Spin spinning={loadingDefaults}>
         <Form form={form} layout="vertical" style={{ marginTop: 8 }}>
           <Form.Item label="Email type">
-            <Select
-              value={type}
-              onChange={setType}
-              options={TYPES}
-              style={{ width: "100%" }}
-            />
+            <Select value={type} onChange={setType} options={TYPES} style={{ width: "100%" }} />
           </Form.Item>
+
+          {type === "invoice" && (
+            <Form.Item label="Billing company">
+              <Select
+                value={company}
+                onChange={setCompany}
+                style={{ width: "100%" }}
+                options={[
+                  { value: "Quality Silver Inc", label: "Quality Silver Inc" },
+                  { value: "Basic Trading Inc", label: "Basic Trading Inc" },
+                ]}
+              />
+            </Form.Item>
+          )}
 
           {type === "routing" && defaults?.warehouseName && (
             <Alert

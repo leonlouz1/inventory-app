@@ -107,7 +107,24 @@ function routingHtml({ order, lines, notes }) {
 </html>`;
 }
 
-function buildInvoicePdf({ order, lines }) {
+const COMPANIES = {
+  "Quality Silver Inc": {
+    name: "Quality Silver Inc",
+    address: "390 5th Ave, STE 906",
+    city: "New York, NY 10018",
+    phone: "646-609-1079",
+  },
+  "Basic Trading Inc": {
+    name: "Basic Trading Inc",
+    address: "390 5th Ave, STE 906",
+    city: "New York, NY 10018",
+    phone: "646-609-1079",
+  },
+};
+
+function buildInvoicePdf({ order, lines, company: companyKey }) {
+  const company = COMPANIES[companyKey] || COMPANIES["Quality Silver Inc"];
+
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: "LETTER" });
     const chunks = [];
@@ -115,68 +132,111 @@ function buildInvoicePdf({ order, lines }) {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    const blue = "#1677ff";
-    const gray = "#888888";
-    const light = "#f5f5f5";
+    const black = "#000000";
+    const gray = "#555555";
+    const lightGray = "#aaaaaa";
+    const rowBg = "#f2f2f2";
 
-    // Header
-    doc.fontSize(20).fillColor(blue).font("Helvetica-Bold").text("ORDER CONFIRMATION", 50, 50);
-    doc.fontSize(13).fillColor("#333").font("Helvetica").text(order.orderNumber, 50, 76);
-    doc.moveTo(50, 98).lineTo(560, 98).strokeColor(blue).lineWidth(1).stroke();
+    const L = 50;   // left margin
+    const R = 560;  // right edge
+    const W = 510;  // total width
 
-    // Bill to / order info columns
-    doc.fontSize(8).fillColor(gray).font("Helvetica-Bold").text("BILL TO", 50, 112);
-    doc.fontSize(11).fillColor("#222").font("Helvetica-Bold").text(order.customer, 50, 124);
+    // ── Company name (top left)
+    doc.fontSize(16).fillColor(black).font("Helvetica-Bold").text(company.name, L, 50);
+    doc.fontSize(9).fillColor(gray).font("Helvetica")
+      .text(company.address, L, 70)
+      .text(company.city, L, 82)
+      .text(company.phone, L, 94);
+
+    // ── INVOICE label (top right)
+    doc.fontSize(28).fillColor(black).font("Helvetica-Bold").text("INVOICE", 380, 50, { width: 180, align: "right" });
+
+    // DATE / INVOICE # (right column, below INVOICE)
+    doc.fontSize(9).fillColor(gray).font("Helvetica-Bold").text("DATE", 430, 90, { width: 60, align: "left" });
+    doc.fontSize(9).fillColor(black).font("Helvetica").text(order.orderDate, 490, 90, { width: 70, align: "right" });
+    doc.fontSize(9).fillColor(gray).font("Helvetica-Bold").text("INVOICE #", 430, 104, { width: 60, align: "left" });
+    doc.fontSize(9).fillColor(black).font("Helvetica").text(order.orderNumber, 490, 104, { width: 70, align: "right" });
     if (order.customerPo) {
-      doc.fontSize(10).font("Helvetica").text(`PO # ${order.customerPo}`, 50, 139);
+      doc.fontSize(9).fillColor(gray).font("Helvetica-Bold").text("PO #", 430, 118, { width: 60, align: "left" });
+      doc.fontSize(9).fillColor(black).font("Helvetica").text(order.customerPo, 490, 118, { width: 70, align: "right" });
     }
 
-    doc.fontSize(8).fillColor(gray).font("Helvetica-Bold").text("ORDER DATE", 400, 112);
-    doc.fontSize(10).fillColor("#222").font("Helvetica").text(order.orderDate, 400, 124);
-    doc.fontSize(8).fillColor(gray).font("Helvetica-Bold").text("STATUS", 400, 142);
-    doc.fontSize(10).fillColor("#222").font("Helvetica").text(order.status, 400, 154);
+    // ── Divider
+    const divY = 118;
+    doc.moveTo(L, divY).lineTo(R, divY).strokeColor("#cccccc").lineWidth(0.5).stroke();
 
-    let y = order.customerPo ? 175 : 162;
-
+    // ── BILL TO box
+    let y = divY + 14;
+    doc.fontSize(9).fillColor(gray).font("Helvetica-Bold").text("BILL TO", L, y);
+    y += 13;
+    doc.fontSize(10).fillColor(black).font("Helvetica-Bold").text(order.customer, L, y);
+    y += 14;
     if (order.notes) {
-      doc.fontSize(9).fillColor("#555").font("Helvetica-Oblique").text(`Notes: ${order.notes}`, 50, y);
-      y += 20;
+      doc.fontSize(9).fillColor(gray).font("Helvetica").text(order.notes, L, y);
+      y += 12;
     }
+
+    y += 20;
+
+    // ── Items table
+    // Columns: DESCRIPTION | SKU | QTY | UNIT PRICE | TOTAL
+    const cols = [
+      { label: "DESCRIPTION", x: L,   w: 210, align: "left"  },
+      { label: "SKU",         x: 265, w: 90,  align: "left"  },
+      { label: "QTY",         x: 360, w: 45,  align: "right" },
+      { label: "UNIT PRICE",  x: 410, w: 70,  align: "right" },
+      { label: "TOTAL",       x: 485, w: 75,  align: "right" },
+    ];
+
+    const ROW_H = 20;
+
+    // Header row
+    doc.rect(L, y, W, ROW_H).fill(rowBg);
+    doc.fontSize(8).fillColor(black).font("Helvetica-Bold");
+    cols.forEach((c) => doc.text(c.label, c.x, y + 6, { width: c.w, align: c.align }));
+    y += ROW_H;
+
+    // Data rows
+    doc.font("Helvetica").fontSize(9).fillColor(black);
+    lines.forEach((l) => {
+      doc.text(l.productName, cols[0].x, y + 5, { width: cols[0].w });
+      doc.text(l.sku,         cols[1].x, y + 5, { width: cols[1].w });
+      doc.text(String(l.quantity), cols[2].x, y + 5, { width: cols[2].w, align: "right" });
+      doc.text("",            cols[3].x, y + 5, { width: cols[3].w, align: "right" }); // unit price blank
+      doc.text("",            cols[4].x, y + 5, { width: cols[4].w, align: "right" }); // total blank
+      doc.moveTo(L, y + ROW_H).lineTo(R, y + ROW_H).strokeColor("#dddddd").lineWidth(0.3).stroke();
+      y += ROW_H;
+    });
 
     y += 10;
 
-    // Table header
-    const colX = [50, 150, 380, 430, 490];
-    const colW = [95, 225, 45, 55, 70];
-    const headers = ["SKU", "Product", "Qty", "Ship Date", "Ship From"];
+    // ── Totals (right-aligned block)
+    const totX = 390;
+    const totLabelW = 90;
+    const totValX = 485;
+    const totValW = 75;
 
-    doc.rect(50, y, 510, 20).fill(light);
-    doc.fontSize(9).fillColor(blue).font("Helvetica-Bold");
-    headers.forEach((h, i) => {
-      const align = i === 2 ? "right" : "left";
-      doc.text(h, colX[i], y + 5, { width: colW[i], align });
-    });
-    y += 20;
+    function totRow(label, value) {
+      doc.fontSize(9).fillColor(gray).font("Helvetica-Bold").text(label, totX, y, { width: totLabelW });
+      doc.fontSize(9).fillColor(black).font("Helvetica").text(value, totValX, y, { width: totValW, align: "right" });
+      y += 14;
+    }
 
-    doc.moveTo(50, y).lineTo(560, y).strokeColor(blue).lineWidth(0.5).stroke();
+    totRow("SUBTOTAL", "");
+    totRow("DISCOUNT", "");
 
-    // Table rows
-    doc.font("Helvetica").fontSize(9).fillColor("#222");
-    lines.forEach((l, idx) => {
-      if (idx % 2 === 1) doc.rect(50, y, 510, 18).fill("#fafafa");
-      doc.fillColor("#222");
-      doc.text(l.sku, colX[0], y + 4, { width: colW[0] });
-      doc.text(l.productName, colX[1], y + 4, { width: colW[1] });
-      doc.text(String(l.quantity), colX[2], y + 4, { width: colW[2], align: "right" });
-      doc.text(l.shipDate, colX[3], y + 4, { width: colW[3] });
-      doc.text(l.warehouseName || "—", colX[4], y + 4, { width: colW[4] });
-      doc.moveTo(50, y + 18).lineTo(560, y + 18).strokeColor("#e0e0e0").lineWidth(0.3).stroke();
-      y += 18;
-    });
+    // Balance Due bold row
+    doc.rect(totX - 5, y - 2, 175, 18).fill(rowBg);
+    doc.fontSize(10).fillColor(black).font("Helvetica-Bold").text("Balance Due", totX, y + 2, { width: totLabelW });
+    doc.fontSize(10).font("Helvetica-Bold").text("", totValX, y + 2, { width: totValW, align: "right" });
+    y += 24;
 
-    // Footer
-    doc.fontSize(9).fillColor(gray).font("Helvetica")
-      .text("Hotel Collection Inc.", 50, y + 30, { align: "center", width: 510 });
+    // ── Remarks
+    if (order.notes) {
+      doc.fontSize(8).fillColor(gray).font("Helvetica-Bold").text("Remarks / Payment Instructions:", L, y);
+      y += 12;
+      doc.fontSize(9).fillColor(black).font("Helvetica").text(order.notes, L, y, { width: 300 });
+    }
 
     doc.end();
   });
