@@ -1,15 +1,6 @@
 const { Resend } = require("resend");
 const XLSX = require("xlsx");
-const PdfPrinter = require("pdfmake/src/Printer");
-
-const fonts = {
-  Helvetica: {
-    normal: "Helvetica",
-    bold: "Helvetica-Bold",
-    italics: "Helvetica-Oblique",
-    bolditalics: "Helvetica-BoldOblique",
-  },
-};
+const PDFDocument = require("pdfkit");
 
 const FROM = process.env.FROM_EMAIL || "onboarding@resend.dev";
 
@@ -117,88 +108,76 @@ function routingHtml({ order, lines, notes }) {
 }
 
 function buildInvoicePdf({ order, lines }) {
-  const printer = new PdfPrinter(fonts);
-
-  const tableBody = [
-    [
-      { text: "SKU", style: "tableHeader" },
-      { text: "Product", style: "tableHeader" },
-      { text: "Qty", style: "tableHeader", alignment: "right" },
-      { text: "Ship Date", style: "tableHeader" },
-      { text: "Ship From", style: "tableHeader" },
-    ],
-    ...lines.map((l) => [
-      { text: l.sku, font: "Helvetica" },
-      { text: l.productName, font: "Helvetica" },
-      { text: String(l.quantity), alignment: "right", font: "Helvetica" },
-      { text: l.shipDate, font: "Helvetica" },
-      { text: l.warehouseName || "—", font: "Helvetica" },
-    ]),
-  ];
-
-  const docDef = {
-    defaultStyle: { font: "Helvetica", fontSize: 10 },
-    content: [
-      { text: "ORDER CONFIRMATION", style: "title" },
-      { text: order.orderNumber, style: "orderNum" },
-      { canvas: [{ type: "line", x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: "#1677ff" }], margin: [0, 8, 0, 16] },
-      {
-        columns: [
-          {
-            stack: [
-              { text: "BILL TO", style: "label" },
-              { text: order.customer, style: "value", bold: true },
-              ...(order.customerPo ? [{ text: `PO # ${order.customerPo}`, style: "value" }] : []),
-            ],
-          },
-          {
-            stack: [
-              { text: "ORDER DATE", style: "label" },
-              { text: order.orderDate, style: "value" },
-              { text: "STATUS", style: "label", margin: [0, 8, 0, 0] },
-              { text: order.status, style: "value" },
-            ],
-            alignment: "right",
-          },
-        ],
-        margin: [0, 0, 0, 20],
-      },
-      ...(order.notes ? [{ text: `Notes: ${order.notes}`, italics: true, color: "#555", margin: [0, 0, 0, 12] }] : []),
-      {
-        table: {
-          headerRows: 1,
-          widths: ["auto", "*", "auto", "auto", "auto"],
-          body: tableBody,
-        },
-        layout: {
-          hLineWidth: (i) => (i === 0 || i === 1 ? 1 : 0.5),
-          vLineWidth: () => 0,
-          hLineColor: (i) => (i === 0 || i === 1 ? "#1677ff" : "#e0e0e0"),
-          fillColor: (i) => (i === 0 ? "#f0f5ff" : i % 2 === 0 ? "#fafafa" : null),
-          paddingLeft: () => 8,
-          paddingRight: () => 8,
-          paddingTop: () => 6,
-          paddingBottom: () => 6,
-        },
-      },
-      { text: "Hotel Collection Inc.", style: "footer", margin: [0, 30, 0, 0] },
-    ],
-    styles: {
-      title: { fontSize: 20, bold: true, color: "#1677ff", font: "Helvetica" },
-      orderNum: { fontSize: 13, color: "#333", font: "Helvetica" },
-      label: { fontSize: 8, color: "#888", bold: true, font: "Helvetica", margin: [0, 0, 0, 2] },
-      value: { fontSize: 10, color: "#222", font: "Helvetica" },
-      tableHeader: { bold: true, fontSize: 10, color: "#1677ff", font: "Helvetica" },
-      footer: { fontSize: 9, color: "#aaa", font: "Helvetica", alignment: "center" },
-    },
-  };
-
   return new Promise((resolve, reject) => {
-    const doc = printer.createPdfKitDocument(docDef);
+    const doc = new PDFDocument({ margin: 50, size: "LETTER" });
     const chunks = [];
     doc.on("data", (c) => chunks.push(c));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
+
+    const blue = "#1677ff";
+    const gray = "#888888";
+    const light = "#f5f5f5";
+
+    // Header
+    doc.fontSize(20).fillColor(blue).font("Helvetica-Bold").text("ORDER CONFIRMATION", 50, 50);
+    doc.fontSize(13).fillColor("#333").font("Helvetica").text(order.orderNumber, 50, 76);
+    doc.moveTo(50, 98).lineTo(560, 98).strokeColor(blue).lineWidth(1).stroke();
+
+    // Bill to / order info columns
+    doc.fontSize(8).fillColor(gray).font("Helvetica-Bold").text("BILL TO", 50, 112);
+    doc.fontSize(11).fillColor("#222").font("Helvetica-Bold").text(order.customer, 50, 124);
+    if (order.customerPo) {
+      doc.fontSize(10).font("Helvetica").text(`PO # ${order.customerPo}`, 50, 139);
+    }
+
+    doc.fontSize(8).fillColor(gray).font("Helvetica-Bold").text("ORDER DATE", 400, 112);
+    doc.fontSize(10).fillColor("#222").font("Helvetica").text(order.orderDate, 400, 124);
+    doc.fontSize(8).fillColor(gray).font("Helvetica-Bold").text("STATUS", 400, 142);
+    doc.fontSize(10).fillColor("#222").font("Helvetica").text(order.status, 400, 154);
+
+    let y = order.customerPo ? 175 : 162;
+
+    if (order.notes) {
+      doc.fontSize(9).fillColor("#555").font("Helvetica-Oblique").text(`Notes: ${order.notes}`, 50, y);
+      y += 20;
+    }
+
+    y += 10;
+
+    // Table header
+    const colX = [50, 150, 380, 430, 490];
+    const colW = [95, 225, 45, 55, 70];
+    const headers = ["SKU", "Product", "Qty", "Ship Date", "Ship From"];
+
+    doc.rect(50, y, 510, 20).fill(light);
+    doc.fontSize(9).fillColor(blue).font("Helvetica-Bold");
+    headers.forEach((h, i) => {
+      const align = i === 2 ? "right" : "left";
+      doc.text(h, colX[i], y + 5, { width: colW[i], align });
+    });
+    y += 20;
+
+    doc.moveTo(50, y).lineTo(560, y).strokeColor(blue).lineWidth(0.5).stroke();
+
+    // Table rows
+    doc.font("Helvetica").fontSize(9).fillColor("#222");
+    lines.forEach((l, idx) => {
+      if (idx % 2 === 1) doc.rect(50, y, 510, 18).fill("#fafafa");
+      doc.fillColor("#222");
+      doc.text(l.sku, colX[0], y + 4, { width: colW[0] });
+      doc.text(l.productName, colX[1], y + 4, { width: colW[1] });
+      doc.text(String(l.quantity), colX[2], y + 4, { width: colW[2], align: "right" });
+      doc.text(l.shipDate, colX[3], y + 4, { width: colW[3] });
+      doc.text(l.warehouseName || "—", colX[4], y + 4, { width: colW[4] });
+      doc.moveTo(50, y + 18).lineTo(560, y + 18).strokeColor("#e0e0e0").lineWidth(0.3).stroke();
+      y += 18;
+    });
+
+    // Footer
+    doc.fontSize(9).fillColor(gray).font("Helvetica")
+      .text("Hotel Collection Inc.", 50, y + 30, { align: "center", width: 510 });
+
     doc.end();
   });
 }
