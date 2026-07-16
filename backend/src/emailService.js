@@ -199,11 +199,12 @@ function buildInvoicePdf({ order, lines, company: companyKey }) {
     // Data rows
     doc.font("Helvetica").fontSize(9).fillColor(black);
     lines.forEach((l) => {
+      const total = l.unitPrice != null ? (l.quantity * l.unitPrice) : null;
       doc.text(l.productName, cols[0].x, y + 5, { width: cols[0].w });
       doc.text(l.sku,         cols[1].x, y + 5, { width: cols[1].w });
       doc.text(String(l.quantity), cols[2].x, y + 5, { width: cols[2].w, align: "right" });
-      doc.text("",            cols[3].x, y + 5, { width: cols[3].w, align: "right" }); // unit price blank
-      doc.text("",            cols[4].x, y + 5, { width: cols[4].w, align: "right" }); // total blank
+      doc.text(l.unitPrice != null ? `$${Number(l.unitPrice).toFixed(2)}` : "", cols[3].x, y + 5, { width: cols[3].w, align: "right" });
+      doc.text(total != null ? `$${total.toFixed(2)}` : "", cols[4].x, y + 5, { width: cols[4].w, align: "right" });
       doc.moveTo(L, y + ROW_H).lineTo(R, y + ROW_H).strokeColor("#dddddd").lineWidth(0.3).stroke();
       y += ROW_H;
     });
@@ -222,13 +223,17 @@ function buildInvoicePdf({ order, lines, company: companyKey }) {
       y += 14;
     }
 
-    totRow("SUBTOTAL", "");
+    const subtotal = lines.reduce((s, l) => s + (l.quantity || 0) * (l.unitPrice || 0), 0);
+    const hasPrices = lines.some((l) => l.unitPrice != null);
+    const fmtMoney = (n) => hasPrices ? `$${n.toFixed(2)}` : "";
+
+    totRow("SUBTOTAL", fmtMoney(subtotal));
     totRow("DISCOUNT", "");
 
     // Balance Due bold row
     doc.rect(totX - 5, y - 2, 175, 18).fill(rowBg);
     doc.fontSize(10).fillColor(black).font("Helvetica-Bold").text("Balance Due", totX, y + 2, { width: totLabelW });
-    doc.fontSize(10).font("Helvetica-Bold").text("", totValX, y + 2, { width: totValW, align: "right" });
+    doc.fontSize(10).font("Helvetica-Bold").text(fmtMoney(subtotal), totValX, y + 2, { width: totValW, align: "right" });
     y += 24;
 
     // ── Remarks
