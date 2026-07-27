@@ -85,7 +85,7 @@ const ORDER_DETAIL_COLUMNS = [
   {
     title: "Order #",
     dataIndex: "orderNumber",
-    render: (v) => <Link to="/orders">{v}</Link>,
+    render: (v, row) => <Link to={`/orders?highlight=${row.orderId}`}>{v}</Link>,
   },
   { title: "Customer", dataIndex: "customer" },
   { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned" },
