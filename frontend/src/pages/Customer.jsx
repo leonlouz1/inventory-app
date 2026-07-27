@@ -53,6 +53,45 @@ const LINE_COLUMNS = (showStatus) => [
     : []),
 ];
 
+function downloadSkuHistoryReport(customer, allLines) {
+  // Build pivot: SKU → { productName, month → qty }
+  const skuMap = {};
+  const monthSet = new Set();
+
+  allLines.forEach((l) => {
+    const month = l.shipDate ? l.shipDate.slice(0, 7) : "Unknown"; // "YYYY-MM"
+    monthSet.add(month);
+    if (!skuMap[l.sku]) skuMap[l.sku] = { productName: l.productName, months: {} };
+    skuMap[l.sku].months[month] = (skuMap[l.sku].months[month] || 0) + l.quantity;
+  });
+
+  // Sort months chronologically
+  const months = [...monthSet].filter((m) => m !== "Unknown").sort();
+  if (monthSet.has("Unknown")) months.push("Unknown");
+
+  // Format month label: "2026-05" → "May 2026"
+  const monthLabel = (m) => {
+    if (m === "Unknown") return "Unknown";
+    const [y, mo] = m.split("-");
+    return `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(mo) - 1]} ${y}`;
+  };
+
+  const header = ["SKU", "Product", ...months.map(monthLabel)];
+  const rows = Object.entries(skuMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([sku, { productName, months: m }]) => [
+      sku,
+      productName,
+      ...months.map((mo) => m[mo] || ""),
+    ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws["!cols"] = [{ wch: 14 }, { wch: 36 }, ...months.map(() => ({ wch: 12 }))];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "SKU History");
+  XLSX.writeFile(wb, `${customer}-sku-history.xlsx`);
+}
+
 function downloadUpcomingReport(customer, lines) {
   const rows = lines.map((l) => ({
     "Order #": l.orderNumber,
@@ -163,6 +202,16 @@ export default function Customer() {
       <Spin spinning={loading}>
         {customer ? (
           <>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={() => downloadSkuHistoryReport(customer, allLines)}
+                disabled={allLines.length === 0}
+              >
+                SKU History Report
+              </Button>
+            </div>
+
             <Row gutter={16} style={{ marginBottom: 24 }}>
               <Col span={6}>
                 <Card>
