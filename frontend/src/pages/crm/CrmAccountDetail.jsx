@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  Spin, Alert, Typography, Button, Table, Tag, Space, Form,
-  Input, Select, DatePicker, Modal, Popconfirm, message, Row, Col, Card, Timeline,
+  Spin, Alert, Typography, Button, Tag, Space, Form, Input, Select,
+  Modal, Popconfirm, message, Row, Col, Card, Timeline,
 } from "antd";
 import {
-  PlusOutlined, DeleteOutlined, EditOutlined, ArrowLeftOutlined,
-  CloseOutlined, PhoneOutlined, MailOutlined, CheckOutlined,
+  ArrowLeftOutlined, PlusOutlined, DeleteOutlined, EditOutlined,
+  PhoneOutlined, MailOutlined, UserOutlined, ClockCircleOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -15,101 +15,76 @@ import { crmApi } from "../../api/inventory";
 dayjs.extend(relativeTime);
 
 const CRM_CATEGORIES = ["Travel", "Bedding", "Pet", "Bath", "Slippers", "Storage"];
-
 const STATUSES = [
-  "Active", "Order Placed", "Warm", "Following Up",
-  "Reached Out", "Not Contacted", "No Response", "Not Interested",
+  "Active", "Order Placed", "Warm", "Not Contacted",
+  "No Response", "Not Interested", "No Contact Found",
 ];
-
 const STATUS_COLORS = {
   "Active": "green", "Order Placed": "blue", "Warm": "orange",
-  "Following Up": "gold", "Reached Out": "cyan",
-  "Not Contacted": "default", "No Response": "purple", "Not Interested": "red",
+  "Not Contacted": "default", "No Response": "purple",
+  "Not Interested": "red", "No Contact Found": "default",
 };
+const CONTACT_TYPES = ["Call", "Email", "Meeting", "Follow-up", "Sent Samples", "Sent Linesheet", "Sent ATS", "Other"];
 
-const ACTION_OPTIONS = [
-  "Called - reached", "Called - no answer", "Email sent", "Meeting",
-  "Sent linesheet", "Sent ATS", "Sent samples", "Sent catalog",
-  "Sent proposal", "Follow-up", "Other",
-];
-
-// ── Quick Log Contact Modal ─────────────────────────────────────────────────
-function LogContactModal({ open, onClose, onSaved, retailerId, log }) {
+function LogContactModal({ open, onClose, onSaved, retailerId }) {
   const [form] = Form.useForm();
+  const [saving, setSaving] = useState(false);
+
   useEffect(() => {
     if (open) {
       form.resetFields();
-      if (log) {
-        form.setFieldsValue({ ...log, date: log.date ? dayjs(log.date) : dayjs(), nextStepDate: log.nextStepDate ? dayjs(log.nextStepDate) : null });
-      } else {
-        form.setFieldsValue({ date: dayjs() });
-      }
+      form.setFieldsValue({ date: dayjs().format("YYYY-MM-DD"), actionTaken: "Call" });
     }
-  }, [open, log, form]);
+  }, [open, form]);
 
   async function handleOk() {
     try {
       const values = await form.validateFields();
-      const payload = {
-        ...values,
-        date: values.date?.format("YYYY-MM-DD"),
-        nextStepDate: values.nextStepDate?.format("YYYY-MM-DD") || null,
-      };
-      if (log) {
-        await crmApi.updateActivity(log.id, payload);
-      } else {
-        await crmApi.createActivity({ ...payload, retailerId });
-      }
+      setSaving(true);
+      await crmApi.createActivity({
+        retailerId,
+        date: values.date,
+        actionTaken: values.actionTaken,
+        notes: values.notes || null,
+        nextStep: values.nextStep || null,
+      });
+      message.success("Contact logged");
       onSaved();
       onClose();
     } catch (err) {
       if (err.errorFields) return;
       message.error(err.message);
+    } finally {
+      setSaving(false);
     }
   }
 
   return (
-    <Modal title={log ? "Edit Activity" : "Log Contact"} open={open} onCancel={onClose} onOk={handleOk} destroyOnHidden width={480}>
+    <Modal title="Log Contact" open={open} onCancel={onClose} onOk={handleOk} confirmLoading={saving} destroyOnHidden width={440}>
       <Form form={form} layout="vertical" style={{ marginTop: 8 }}>
         <Row gutter={12}>
           <Col span={12}>
-            <Form.Item name="date" label="Date" rules={[{ required: true }]}>
-              <DatePicker style={{ width: "100%" }} />
+            <Form.Item name="actionTaken" label="Type" rules={[{ required: true }]}>
+              <Select options={CONTACT_TYPES.map((t) => ({ value: t, label: t }))} />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="category" label="Category (optional)">
-              <Select options={CRM_CATEGORIES.map((c) => ({ value: c, label: c }))} allowClear placeholder="All" />
+            <Form.Item name="date" label="Date" rules={[{ required: true }]}>
+              <Input type="date" />
             </Form.Item>
           </Col>
         </Row>
-        <Form.Item name="actionTaken" label="What did you do?" rules={[{ required: true }]}>
-          <Select options={ACTION_OPTIONS.map((a) => ({ value: a, label: a }))} placeholder="Select action" />
-        </Form.Item>
-        <Form.Item name="rep" label="Rep">
-          <Input placeholder="Your name" />
-        </Form.Item>
         <Form.Item name="notes" label="Notes">
-          <Input.TextArea rows={2} placeholder="Any details, responses, or context…" />
+          <Input.TextArea rows={3} placeholder="What happened? What did they say?" />
         </Form.Item>
-        <Row gutter={12}>
-          <Col span={14}>
-            <Form.Item name="nextStep" label="Next step">
-              <Input placeholder="e.g. Follow up in 2 weeks" />
-            </Form.Item>
-          </Col>
-          <Col span={10}>
-            <Form.Item name="nextStepDate" label="Follow-up date">
-              <DatePicker style={{ width: "100%" }} />
-            </Form.Item>
-          </Col>
-        </Row>
+        <Form.Item name="nextStep" label="Next step (optional)">
+          <Input placeholder="e.g. Follow up in 2 weeks" />
+        </Form.Item>
       </Form>
     </Modal>
   );
 }
 
-// ── Contact Modal ───────────────────────────────────────────────────────────
 function ContactModal({ open, onClose, onSaved, contact, retailerId }) {
   const [form] = Form.useForm();
   useEffect(() => {
@@ -119,11 +94,8 @@ function ContactModal({ open, onClose, onSaved, contact, retailerId }) {
   async function handleOk() {
     try {
       const values = await form.validateFields();
-      if (contact) {
-        await crmApi.updateContact(contact.id, values);
-      } else {
-        await crmApi.createContact({ ...values, retailerId });
-      }
+      if (contact) await crmApi.updateContact(contact.id, values);
+      else await crmApi.createContact({ ...values, retailerId });
       onSaved();
       onClose();
     } catch (err) {
@@ -139,16 +111,14 @@ function ContactModal({ open, onClose, onSaved, contact, retailerId }) {
           <Col span={14}><Form.Item name="name" label="Name" rules={[{ required: true }]}><Input /></Form.Item></Col>
           <Col span={10}><Form.Item name="title" label="Title"><Input /></Form.Item></Col>
         </Row>
+        <Form.Item name="category" label="Category">
+          <Select options={CRM_CATEGORIES.map((c) => ({ value: c, label: c }))} allowClear placeholder="Category they buy" />
+        </Form.Item>
+        <Form.Item name="email" label="Email"><Input /></Form.Item>
         <Row gutter={12}>
-          <Col span={12}><Form.Item name="category" label="Category">
-            <Select options={CRM_CATEGORIES.map((c) => ({ value: c, label: c }))} allowClear placeholder="All categories" />
-          </Form.Item></Col>
-          <Col span={12}><Form.Item name="email" label="Email"><Input /></Form.Item></Col>
-        </Row>
-        <Row gutter={12}>
-          <Col span={8}><Form.Item name="directPhone" label="Direct #"><Input /></Form.Item></Col>
-          <Col span={8}><Form.Item name="mobilePhone" label="Mobile #"><Input /></Form.Item></Col>
-          <Col span={8}><Form.Item name="hqPhone" label="HQ #"><Input /></Form.Item></Col>
+          <Col span={8}><Form.Item name="directPhone" label="Direct"><Input /></Form.Item></Col>
+          <Col span={8}><Form.Item name="mobilePhone" label="Mobile"><Input /></Form.Item></Col>
+          <Col span={8}><Form.Item name="hqPhone" label="HQ"><Input /></Form.Item></Col>
         </Row>
         <Form.Item name="notes" label="Notes"><Input.TextArea rows={2} /></Form.Item>
       </Form>
@@ -156,245 +126,238 @@ function ContactModal({ open, onClose, onSaved, contact, retailerId }) {
   );
 }
 
-// ── Main Component ──────────────────────────────────────────────────────────
 export default function CrmAccountDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [retailer, setRetailer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [logModal, setLogModal] = useState(false);
-  const [editingLog, setEditingLog] = useState(null);
-  const [contactModal, setContactModal] = useState(false);
-  const [editingContact, setEditingContact] = useState(null);
+  const [logOpen, setLogOpen] = useState(false);
+  const [contactModal, setContactModal] = useState({ open: false, contact: null });
 
-  const load = useCallback(() =>
-    crmApi.getRetailer(id)
+  const load = useCallback(() => {
+    setLoading(true);
+    return crmApi.getRetailer(id)
       .then(setRetailer)
       .catch((err) => setError(err.message))
-      .finally(() => setLoading(false)), [id]);
+      .finally(() => setLoading(false));
+  }, [id]);
 
   useEffect(() => { load(); }, [load]);
 
   async function handleCategoryUpdate(category, field, value) {
-    await crmApi.updateCategory(Number(id), { category, [field]: value });
-    setRetailer((prev) => ({
-      ...prev,
-      categories: prev.categories.map((c) => c.category === category ? { ...c, [field]: value } : c),
-    }));
+    try {
+      await crmApi.updateCategory(retailer.id, { category, [field]: value });
+      setRetailer((prev) => ({
+        ...prev,
+        categories: prev.categories.map((c) =>
+          c.category === category ? { ...c, [field]: value } : c
+        ),
+      }));
+    } catch (err) {
+      message.error(err.message);
+    }
   }
 
-  if (error) return <Alert type="error" message={error} showIcon />;
-  if (!retailer && !loading) return <Alert type="warning" message="Account not found" />;
+  async function addCategory(category) {
+    try {
+      await crmApi.updateCategory(retailer.id, { category, status: "Not Contacted" });
+      load();
+    } catch (err) {
+      message.error(err.message);
+    }
+  }
 
-  const activityLogs = [...(retailer?.activityLogs || [])].sort((a, b) => b.date.localeCompare(a.date));
-  const pendingFollowUps = activityLogs.filter((l) => l.nextStepDate && !l.done && dayjs(l.nextStepDate).isBefore(dayjs(), "day"));
+  async function deleteCategory(category) {
+    try {
+      await crmApi.deleteCategory(retailer.id, category);
+      load();
+    } catch (err) {
+      message.error(err.message);
+    }
+  }
+
+  async function deleteContact(contactId) {
+    try {
+      await crmApi.deleteContact(contactId);
+      load();
+    } catch (err) {
+      message.error(err.message);
+    }
+  }
+
+  async function deleteActivity(activityId) {
+    try {
+      await crmApi.deleteActivity(activityId);
+      load();
+    } catch (err) {
+      message.error(err.message);
+    }
+  }
+
+  if (loading) return <Spin spinning style={{ display: "block", marginTop: 80 }} />;
+  if (error) return <Alert type="error" message={error} showIcon />;
+  if (!retailer) return null;
+
+  const existingCategories = new Set(retailer.categories.map((c) => c.category));
+  const missingCategories = CRM_CATEGORIES.filter((c) => !existingCategories.has(c));
+
+  const timelineItems = (retailer.activityLogs || []).map((a) => ({
+    key: a.id,
+    color: a.actionTaken?.toLowerCase().includes("call") ? "blue"
+      : a.actionTaken?.toLowerCase().includes("email") ? "green"
+      : a.actionTaken?.toLowerCase().includes("meeting") ? "purple"
+      : "gray",
+    children: (
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <strong>{a.actionTaken}</strong>
+          {a.notes && <div style={{ color: "#555", marginTop: 2 }}>{a.notes}</div>}
+          {a.nextStep && <div style={{ color: "#888", fontSize: 12, marginTop: 2 }}>↳ Next: {a.nextStep}</div>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 16 }}>
+          <span style={{ color: "#aaa", fontSize: 12, whiteSpace: "nowrap" }}>{a.date} · {dayjs(a.date).fromNow()}</span>
+          <Popconfirm title="Delete this log?" onConfirm={() => deleteActivity(a.id)}>
+            <Button type="text" icon={<DeleteOutlined />} size="small" danger />
+          </Popconfirm>
+        </div>
+      </div>
+    ),
+  }));
 
   return (
-    <Spin spinning={loading}>
-      {retailer && (
-        <div style={{ maxWidth: 900 }}>
-          {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate("/crm/accounts")} />
-            <Typography.Title level={4} style={{ margin: 0 }}>{retailer.name}</Typography.Title>
-            {retailer.type && <Tag>{retailer.type}</Tag>}
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => { setEditingLog(null); setLogModal(true); }}
-              style={{ marginLeft: "auto" }}
-            >
-              Log Contact
-            </Button>
-          </div>
-
-          {/* Overdue follow-ups banner */}
-          {pendingFollowUps.length > 0 && (
-            <Alert
-              type="warning"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message={`${pendingFollowUps.length} overdue follow-up${pendingFollowUps.length > 1 ? "s" : ""}`}
-              description={pendingFollowUps.map((l) => `${l.nextStep || l.actionTaken} (due ${dayjs(l.nextStepDate).format("MMM D")})`).join(" · ")}
-            />
+    <div style={{ maxWidth: 920, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+        <Space>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/crm/accounts")} type="text" />
+          <Typography.Title level={4} style={{ margin: 0 }}>{retailer.name}</Typography.Title>
+          {retailer.type && <Tag>{retailer.type}</Tag>}
+          {retailer.priority && (
+            <Tag color={retailer.priority === "3 - High" ? "red" : retailer.priority === "2 - Medium" ? "orange" : "default"}>
+              {retailer.priority}
+            </Tag>
           )}
+        </Space>
+        <Button type="primary" icon={<ClockCircleOutlined />} onClick={() => setLogOpen(true)}>
+          Log Contact
+        </Button>
+      </div>
 
-          {/* Category cards */}
-          <div style={{ marginBottom: 20 }}>
-            <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 8 }}>CATEGORIES</Typography.Text>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {CRM_CATEGORIES.filter((cat) => retailer.categories.find((x) => x.category === cat)).map((cat) => {
-                const c = retailer.categories.find((x) => x.category === cat);
-                return (
-                  <Card
-                    key={cat}
-                    size="small"
-                    style={{ minWidth: 155, flex: "0 0 auto" }}
-                    title={<span style={{ fontSize: 12 }}>{cat}</span>}
-                    extra={
-                      <Popconfirm title={`Remove ${cat}?`} onConfirm={async () => {
-                        await crmApi.deleteCategory(retailer.id, cat);
-                        setRetailer((prev) => ({ ...prev, categories: prev.categories.filter((x) => x.category !== cat) }));
-                      }}>
-                        <Button type="text" size="small" icon={<CloseOutlined />} danger />
-                      </Popconfirm>
-                    }
-                  >
-                    <Select
-                      size="small"
-                      value={c.status}
-                      style={{ width: "100%", marginBottom: 6 }}
-                      options={STATUSES.map((s) => ({ value: s, label: s }))}
-                      onChange={(val) => handleCategoryUpdate(cat, "status", val)}
-                      labelRender={() => <Tag color={STATUS_COLORS[c.status]} style={{ margin: 0 }}>{c.status}</Tag>}
-                    />
-                    <Input
-                      size="small"
-                      placeholder="Buyer name"
-                      defaultValue={c.buyerName || ""}
-                      onBlur={(e) => {
-                        if (e.target.value !== (c.buyerName || "")) handleCategoryUpdate(cat, "buyerName", e.target.value);
-                      }}
-                    />
-                  </Card>
-                );
-              })}
-              {/* Add missing category */}
-              {CRM_CATEGORIES.filter((cat) => !retailer.categories.find((x) => x.category === cat)).length > 0 && (
+      <Row gutter={24}>
+        <Col span={14}>
+          <Card size="small" title="Categories & Status" style={{ marginBottom: 16 }}>
+            {retailer.categories.length === 0 && (
+              <Typography.Text type="secondary">No categories yet.</Typography.Text>
+            )}
+            {retailer.categories.map((cat) => (
+              <div key={cat.category} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ width: 70, fontWeight: 500, flexShrink: 0 }}>{cat.category}</span>
                 <Select
-                  placeholder="+ Add category"
-                  style={{ width: 155, alignSelf: "center" }}
-                  options={CRM_CATEGORIES
-                    .filter((cat) => !retailer.categories.find((x) => x.category === cat))
-                    .map((c) => ({ value: c, label: c }))}
-                  onChange={async (cat) => {
-                    await crmApi.updateCategory(retailer.id, { category: cat, status: "Not Contacted" });
-                    setRetailer((prev) => ({ ...prev, categories: [...prev.categories, { category: cat, status: "Not Contacted", buyerName: null }] }));
+                  size="small"
+                  value={cat.status}
+                  style={{ width: 165 }}
+                  options={STATUSES.map((s) => ({ value: s, label: s }))}
+                  onChange={(val) => handleCategoryUpdate(cat.category, "status", val)}
+                  labelRender={() => <Tag color={STATUS_COLORS[cat.status]} style={{ margin: 0 }}>{cat.status}</Tag>}
+                />
+                <Input
+                  size="small"
+                  placeholder="Buyer name"
+                  defaultValue={cat.buyerName || ""}
+                  style={{ flex: 1 }}
+                  onBlur={(e) => {
+                    if (e.target.value !== (cat.buyerName || ""))
+                      handleCategoryUpdate(cat.category, "buyerName", e.target.value);
                   }}
+                />
+                <Popconfirm title={`Remove ${cat.category}?`} onConfirm={() => deleteCategory(cat.category)}>
+                  <Button type="text" icon={<DeleteOutlined />} size="small" danger />
+                </Popconfirm>
+              </div>
+            ))}
+            {missingCategories.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <Select
+                  size="small"
+                  placeholder="+ Add category"
+                  style={{ width: 160 }}
+                  options={missingCategories.map((c) => ({ value: c, label: c }))}
                   value={null}
+                  onChange={addCategory}
                 />
-              )}
-            </div>
-          </div>
-
-          <Row gutter={24}>
-            {/* Activity timeline */}
-            <Col span={14}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>ACTIVITY HISTORY</Typography.Text>
               </div>
-              {activityLogs.length === 0 ? (
-                <div style={{ color: "#aaa", fontSize: 13, textAlign: "center", padding: "32px 0" }}>
-                  No activity yet — hit Log Contact to add the first one.
-                </div>
-              ) : (
-                <Timeline
-                  items={activityLogs.map((l) => ({
-                    key: l.id,
-                    color: l.done ? "green" : "blue",
-                    children: (
-                      <div style={{ marginBottom: 4 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                          <div>
-                            <strong style={{ fontSize: 13 }}>{l.actionTaken}</strong>
-                            {l.category && <Tag style={{ marginLeft: 6, fontSize: 11 }}>{l.category}</Tag>}
-                            {l.rep && <span style={{ color: "#aaa", fontSize: 11, marginLeft: 6 }}>{l.rep}</span>}
-                          </div>
-                          <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                            <Button type="text" size="small" icon={<EditOutlined />} onClick={() => { setEditingLog(l); setLogModal(true); }} />
-                            <Popconfirm title="Delete?" onConfirm={async () => { await crmApi.deleteActivity(l.id); load(); }}>
-                              <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-                            </Popconfirm>
-                          </div>
-                        </div>
-                        <div style={{ color: "#888", fontSize: 12 }}>{dayjs(l.date).format("MMM D, YYYY")} · {dayjs(l.date).fromNow()}</div>
-                        {l.notes && <div style={{ fontSize: 12, marginTop: 2 }}>{l.notes}</div>}
-                        {l.nextStep && (
-                          <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontSize: 11, color: l.done ? "#52c41a" : (l.nextStepDate && dayjs(l.nextStepDate).isBefore(dayjs(), "day") ? "#cf1322" : "#1677ff") }}>
-                              → {l.nextStep}
-                              {l.nextStepDate && ` (${dayjs(l.nextStepDate).format("MMM D")})`}
-                            </span>
-                            {!l.done && (
-                              <Button
-                                size="small" type="text" icon={<CheckOutlined />}
-                                style={{ color: "#52c41a", padding: 0, height: "auto", fontSize: 11 }}
-                                onClick={async () => { await crmApi.updateActivity(l.id, { done: true }); load(); }}
-                              >
-                                Done
-                              </Button>
-                            )}
-                          </div>
-                        )}
+            )}
+          </Card>
+
+          <Card
+            size="small"
+            title="Activity"
+            extra={<Button size="small" icon={<PlusOutlined />} onClick={() => setLogOpen(true)}>Log</Button>}
+          >
+            {timelineItems.length === 0
+              ? <Typography.Text type="secondary">No activity logged yet — hit "Log Contact" to start.</Typography.Text>
+              : <Timeline items={timelineItems} style={{ marginTop: 12 }} />
+            }
+          </Card>
+        </Col>
+
+        <Col span={10}>
+          <Card
+            size="small"
+            title="Contacts"
+            extra={<Button size="small" icon={<PlusOutlined />} onClick={() => setContactModal({ open: true, contact: null })}>Add</Button>}
+            style={{ marginBottom: 16 }}
+          >
+            {retailer.contacts.length === 0
+              ? <Typography.Text type="secondary">No contacts yet.</Typography.Text>
+              : retailer.contacts.map((c, i) => (
+                <div key={c.id} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: i < retailer.contacts.length - 1 ? "1px solid #f0f0f0" : "none" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <div>
+                      <div style={{ fontWeight: 600 }}><UserOutlined style={{ marginRight: 6 }} />{c.name}</div>
+                      {c.title && <div style={{ color: "#888", fontSize: 12 }}>{c.title}</div>}
+                      {c.category && <Tag style={{ marginTop: 4 }} color="blue">{c.category}</Tag>}
+                    </div>
+                    <Space size={4}>
+                      <Button type="text" icon={<EditOutlined />} size="small"
+                        onClick={() => setContactModal({ open: true, contact: c })} />
+                      <Popconfirm title="Delete contact?" onConfirm={() => deleteContact(c.id)}>
+                        <Button type="text" icon={<DeleteOutlined />} size="small" danger />
+                      </Popconfirm>
+                    </Space>
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 13 }}>
+                    {(c.directPhone || c.mobilePhone || c.hqPhone) && (
+                      <div><PhoneOutlined style={{ marginRight: 6, color: "#888" }} />{c.directPhone || c.mobilePhone || c.hqPhone}</div>
+                    )}
+                    {c.email && (
+                      <div><MailOutlined style={{ marginRight: 6, color: "#888" }} />
+                        <a href={`mailto:${c.email}`}>{c.email}</a>
                       </div>
-                    ),
-                  }))}
-                />
-              )}
-            </Col>
+                    )}
+                    {c.notes && <div style={{ color: "#888", marginTop: 4, fontSize: 12 }}>{c.notes}</div>}
+                  </div>
+                </div>
+              ))
+            }
+          </Card>
 
-            {/* Contacts */}
-            <Col span={10}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>CONTACTS</Typography.Text>
-                <Button size="small" icon={<PlusOutlined />} onClick={() => { setEditingContact(null); setContactModal(true); }}>
-                  Add
-                </Button>
-              </div>
-              {(retailer.contacts || []).length === 0 ? (
-                <div style={{ color: "#aaa", fontSize: 13 }}>No contacts yet.</div>
-              ) : (
-                <Space direction="vertical" style={{ width: "100%" }} size={10}>
-                  {retailer.contacts.map((c) => (
-                    <Card key={c.id} size="small" style={{ fontSize: 13 }}
-                      extra={
-                        <Space size={2}>
-                          <Button type="text" size="small" icon={<EditOutlined />} onClick={() => { setEditingContact(c); setContactModal(true); }} />
-                          <Popconfirm title="Delete contact?" onConfirm={async () => { await crmApi.deleteContact(c.id); load(); }}>
-                            <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-                          </Popconfirm>
-                        </Space>
-                      }
-                    >
-                      <div style={{ fontWeight: 600 }}>{c.name}</div>
-                      {c.title && <div style={{ color: "#888", fontSize: 12 }}>{c.title}{c.category ? ` · ${c.category}` : ""}</div>}
-                      {(c.directPhone || c.mobilePhone || c.hqPhone) && (
-                        <div style={{ marginTop: 4 }}>
-                          <PhoneOutlined style={{ marginRight: 4, color: "#888" }} />
-                          {c.directPhone || c.mobilePhone || c.hqPhone}
-                        </div>
-                      )}
-                      {c.email && (
-                        <div>
-                          <MailOutlined style={{ marginRight: 4, color: "#888" }} />
-                          <a href={`mailto:${c.email}`}>{c.email}</a>
-                        </div>
-                      )}
-                      {c.notes && <div style={{ color: "#888", fontSize: 12, marginTop: 4 }}>{c.notes}</div>}
-                    </Card>
-                  ))}
-                </Space>
-              )}
-            </Col>
-          </Row>
-        </div>
-      )}
+          {retailer.notes && (
+            <Card size="small" title="Notes">
+              <Typography.Text>{retailer.notes}</Typography.Text>
+            </Card>
+          )}
+        </Col>
+      </Row>
 
-      <LogContactModal
-        open={logModal}
-        onClose={() => { setLogModal(false); setEditingLog(null); }}
-        onSaved={load}
-        log={editingLog}
-        retailerId={Number(id)}
-      />
+      <LogContactModal open={logOpen} onClose={() => setLogOpen(false)} onSaved={load} retailerId={retailer.id} />
       <ContactModal
-        open={contactModal}
-        onClose={() => { setContactModal(false); setEditingContact(null); }}
+        open={contactModal.open}
+        contact={contactModal.contact}
+        retailerId={retailer.id}
+        onClose={() => setContactModal({ open: false, contact: null })}
         onSaved={load}
-        contact={editingContact}
-        retailerId={Number(id)}
       />
-    </Spin>
+    </div>
   );
 }

@@ -109,10 +109,19 @@ router.get("/active-customers", async (req, res) => {
 router.get("/retailers", async (req, res) => {
   try {
     const retailers = await prisma.retailer.findMany({
-      include: { categories: true },
+      include: {
+        categories: true,
+        contacts: { orderBy: { createdAt: "asc" }, take: 5 },
+        activityLogs: { orderBy: { date: "desc" }, take: 1 },
+      },
       orderBy: [{ priority: "desc" }, { name: "asc" }],
     });
-    res.json(retailers.map((r) => serializeRetailer(r)));
+    res.json(retailers.map((r) => {
+      const base = serializeRetailer(r);
+      base.contacts = (r.contacts || []).map(serializeContact);
+      base.lastContactDate = r.activityLogs?.[0]?.date ? isoDate(r.activityLogs[0].date) : null;
+      return base;
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
