@@ -105,10 +105,12 @@ router.get("/active-customers", async (req, res) => {
   }
 });
 
-// GET /api/crm/retailers
+// GET /api/crm/retailers?archived=true
 router.get("/retailers", async (req, res) => {
   try {
+    const showArchived = req.query.archived === "true";
     const retailers = await prisma.retailer.findMany({
+      where: { archived: showArchived },
       include: {
         categories: true,
         contacts: { orderBy: { createdAt: "asc" }, take: 5 },
@@ -122,6 +124,18 @@ router.get("/retailers", async (req, res) => {
       base.lastContactDate = r.activityLogs?.[0]?.date ? isoDate(r.activityLogs[0].date) : null;
       return base;
     }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/crm/retailers/:id/archive
+router.patch("/retailers/:id/archive", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { archived } = req.body;
+    const retailer = await prisma.retailer.update({ where: { id }, data: { archived: !!archived } });
+    res.json({ id: retailer.id, archived: retailer.archived });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

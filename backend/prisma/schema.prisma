@@ -151,6 +151,7 @@ model Retailer {
   type      String?  @db.VarChar(100)
   priority  String   @default("1 - Low") @db.VarChar(20)
   notes     String?
+  archived  Boolean  @default(false)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   categories   RetailerCategory[]

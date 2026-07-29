@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Button, Tag, Spin, Alert, Typography, Space, Input, Select, Modal, Form, Popconfirm, message } from "antd";
-import { PlusOutlined, DeleteOutlined, UploadOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, UploadOutlined, InboxOutlined, RollbackOutlined } from "@ant-design/icons";
 import { crmApi } from "../../api/inventory";
 import ImportCrmSheetModal from "../../components/crm/ImportCrmSheetModal";
 import ImportRetailersModal from "../../components/crm/ImportRetailersModal";
@@ -86,14 +86,18 @@ export default function CrmAccounts() {
   const [importRetailersOpen, setImportRetailersOpen] = useState(false);
   const [importContactsOpen, setImportContactsOpen] = useState(false);
   const [importSheetOpen, setImportSheetOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
-    return Promise.all([crmApi.listRetailers(), crmApi.listRetailerTypes()])
+    return Promise.all([
+      crmApi.listRetailers(showArchived),
+      crmApi.listRetailerTypes(),
+    ])
       .then(([r, t]) => { setRetailers(r); setRetailerTypes(t.map((x) => x.name)); })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [showArchived]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -199,11 +203,29 @@ export default function CrmAccounts() {
     {
       title: "",
       key: "actions",
-      width: 48,
+      width: 80,
       render: (_, r) => (
-        <Popconfirm title={`Delete ${r.name}?`} onConfirm={() => handleDelete(r.id, r.name)}>
-          <Button icon={<DeleteOutlined />} danger type="text" size="small" />
-        </Popconfirm>
+        <Space size={2} onClick={(e) => e.stopPropagation()}>
+          <Popconfirm
+            title={showArchived ? `Restore ${r.name}?` : `Archive ${r.name}?`}
+            description={showArchived ? "This will move them back to your active list." : "They'll be hidden from your main list."}
+            onConfirm={async () => {
+              await crmApi.archiveRetailer(r.id, !showArchived);
+              message.success(showArchived ? `${r.name} restored` : `${r.name} archived`);
+              load();
+            }}
+          >
+            <Button
+              icon={showArchived ? <RollbackOutlined /> : <InboxOutlined />}
+              type="text"
+              size="small"
+              title={showArchived ? "Restore" : "Archive"}
+            />
+          </Popconfirm>
+          <Popconfirm title={`Delete ${r.name}?`} onConfirm={() => handleDelete(r.id, r.name)}>
+            <Button icon={<DeleteOutlined />} danger type="text" size="small" />
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -221,8 +243,8 @@ export default function CrmAccounts() {
 
   return (
     <Spin spinning={loading}>
-      {/* Pipeline bar */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+      {/* Pipeline bar — hidden when viewing archived */}
+      {!showArchived && <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {STATUSES.map((s) => {
           const active = statusFilter.includes(s);
           return (
@@ -249,7 +271,7 @@ export default function CrmAccounts() {
             Clear
           </div>
         )}
-      </div>
+      </div>}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <Typography.Title level={5} style={{ margin: 0 }}>
@@ -281,9 +303,14 @@ export default function CrmAccounts() {
             value={typeFilter}
             onChange={(v) => setTypeFilter(v ?? null)}
           />
-          <Button onClick={() => setManageTypesOpen(true)}>Manage Types</Button>
+          <Button
+            icon={<InboxOutlined />}
+            onClick={() => setShowArchived((v) => !v)}
+            type={showArchived ? "primary" : "default"}
+          >
+            {showArchived ? "Back to Active" : "Archived"}
+          </Button>
           <Button icon={<UploadOutlined />} onClick={() => setImportSheetOpen(true)}>Import Sheet</Button>
-          <Button icon={<UploadOutlined />} onClick={() => setImportRetailersOpen(true)}>Import</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>Add Account</Button>
         </Space>
       </div>

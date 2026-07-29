@@ -55,12 +55,13 @@ export const crmApi = {
   // dashboard
   dashboard: () => apiClient.get("/crm/dashboard"),
   // retailers
-  listRetailers: () => apiClient.get("/crm/retailers"),
+  listRetailers: (archived = false) => apiClient.get(`/crm/retailers${archived ? "?archived=true" : ""}`),
   getRetailer: (id) => apiClient.get(`/crm/retailers/${id}`),
   createRetailer: (data) => apiClient.post("/crm/retailers", data),
   updateRetailer: (id, data) => apiClient.put(`/crm/retailers/${id}`, data),
   deleteRetailer: (id) => apiClient.delete(`/crm/retailers/${id}`),
   updateCategory: (retailerId, data) => apiClient.patch(`/crm/retailers/${retailerId}/categories`, data),
+  archiveRetailer: (id, archived) => apiClient.patch(`/crm/retailers/${id}/archive`, { archived }),
   deleteCategory: (retailerId, category) => apiClient.delete(`/crm/retailers/${retailerId}/categories/${encodeURIComponent(category)}`),
   // contacts
   listContacts: (retailerId) => apiClient.get(`/crm/contacts${retailerId ? `?retailerId=${retailerId}` : ""}`),
