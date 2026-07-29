@@ -1,52 +1,43 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import {
-  Table, Button, Tag, Spin, Alert, Typography, Space, Input, Select,
-  Modal, Form, Popconfirm, message,
-} from "antd";
+import { useNavigate } from "react-router-dom";
+import { Table, Button, Tag, Spin, Alert, Typography, Space, Input, Select, Modal, Form, Popconfirm, message } from "antd";
 import { PlusOutlined, DeleteOutlined, UploadOutlined } from "@ant-design/icons";
 import { crmApi } from "../../api/inventory";
+import ImportCrmSheetModal from "../../components/crm/ImportCrmSheetModal";
 import ImportRetailersModal from "../../components/crm/ImportRetailersModal";
 import ImportContactsModal from "../../components/crm/ImportContactsModal";
 import ManageRetailerTypesModal from "../../components/crm/ManageRetailerTypesModal";
-import ImportCrmSheetModal from "../../components/crm/ImportCrmSheetModal";
 
-const CRM_CATEGORIES = ["Travel", "Bedding", "Pet", "Bath", "Slippers", "Storage"];
-const PRIORITIES = ["3 - High", "2 - Medium", "1 - Low"];
 const STATUSES = [
   "Active", "Order Placed", "Warm", "Not Contacted",
-  "No Response", "Not Interested", "No Contact Found", "N/A",
+  "No Response", "Not Interested", "No Contact Found",
 ];
-
+const STATUS_ORDER = Object.fromEntries(STATUSES.map((s, i) => [s, i]));
 const STATUS_COLORS = {
   "Active": "green", "Order Placed": "blue", "Warm": "orange",
   "Not Contacted": "default", "No Response": "purple",
-  "Not Interested": "red", "No Contact Found": "default", "N/A": "default",
+  "Not Interested": "red", "No Contact Found": "default",
 };
+const PRIORITIES = ["3 - High", "2 - Medium", "1 - Low"];
 
-// Sort order: Active first, N/A / missing last
-const STATUS_ORDER = Object.fromEntries(STATUSES.map((s, i) => [s, i]));
-function statusSort(cat) {
-  return (a, b) => {
-    const ca = a.categories.find((x) => x.category === cat);
-    const cb = b.categories.find((x) => x.category === cat);
-    const oa = ca ? (STATUS_ORDER[ca.status] ?? 99) : 99;
-    const ob = cb ? (STATUS_ORDER[cb.status] ?? 99) : 99;
-    return oa - ob;
-  };
+// Best status across all categories (lowest index = most advanced)
+function bestStatus(retailer) {
+  let best = null;
+  let bestOrder = 999;
+  for (const c of retailer.categories || []) {
+    const o = STATUS_ORDER[c.status] ?? 999;
+    if (o < bestOrder) { bestOrder = o; best = c.status; }
+  }
+  return best;
 }
-function buyerSort(cat) {
-  return (a, b) => {
-    const ca = a.categories.find((x) => x.category === cat);
-    const cb = b.categories.find((x) => x.category === cat);
-    return (ca?.buyerName || "").localeCompare(cb?.buyerName || "");
-  };
+
+function primaryContact(retailer) {
+  return retailer.contacts?.[0] || null;
 }
 
 function NewRetailerModal({ open, onClose, onCreated, retailerTypes }) {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
-
   useEffect(() => { if (open) form.resetFields(); }, [open, form]);
 
   async function handleOk() {
@@ -66,20 +57,16 @@ function NewRetailerModal({ open, onClose, onCreated, retailerTypes }) {
   }
 
   return (
-    <Modal title="New Retailer" open={open} onCancel={onClose} onOk={handleOk} confirmLoading={saving} destroyOnHidden>
+    <Modal title="New Account" open={open} onCancel={onClose} onOk={handleOk} confirmLoading={saving} destroyOnHidden>
       <Form form={form} layout="vertical">
-        <Form.Item name="name" label="Company Name" rules={[{ required: true }]}>
-          <Input />
-        </Form.Item>
+        <Form.Item name="name" label="Company Name" rules={[{ required: true }]}><Input /></Form.Item>
         <Form.Item name="type" label="Type">
           <Select options={(retailerTypes || []).map((t) => ({ value: t, label: t }))} allowClear placeholder="Select type" />
         </Form.Item>
         <Form.Item name="priority" label="Priority" initialValue="1 - Low">
           <Select options={PRIORITIES.map((p) => ({ value: p, label: p }))} />
         </Form.Item>
-        <Form.Item name="notes" label="Notes">
-          <Input.TextArea rows={2} />
-        </Form.Item>
+        <Form.Item name="notes" label="Notes"><Input.TextArea rows={2} /></Form.Item>
       </Form>
     </Modal>
   );
@@ -87,51 +74,42 @@ function NewRetailerModal({ open, onClose, onCreated, retailerTypes }) {
 
 export default function CrmAccounts() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [retailers, setRetailers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [retailerTypes, setRetailerTypes] = useState([]);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState([]);
+  const [typeFilter, setTypeFilter] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [manageTypesOpen, setManageTypesOpen] = useState(false);
   const [importRetailersOpen, setImportRetailersOpen] = useState(false);
   const [importContactsOpen, setImportContactsOpen] = useState(false);
   const [importSheetOpen, setImportSheetOpen] = useState(false);
-  const [search, setSearch] = useState(searchParams.get("name") || "");
-  const [typeFilter, setTypeFilter] = useState([]);
-  const [priorityFilter, setPriorityFilter] = useState([]);
-  const [statusFilter, setStatusFilter] = useState([]);
-  const [categoryFilter, setCategoryFilter] = useState(null);
-
-  const loadTypes = useCallback(() =>
-    crmApi.listRetailerTypes().then((t) => setRetailerTypes(t.map((x) => x.name))), []);
 
   const load = useCallback(() => {
     setLoading(true);
-    return crmApi.listRetailers()
-      .then(setRetailers)
+    return Promise.all([crmApi.listRetailers(), crmApi.listRetailerTypes()])
+      .then(([r, t]) => { setRetailers(r); setRetailerTypes(t.map((x) => x.name)); })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(); loadTypes(); }, [load, loadTypes]);
+  useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     return retailers.filter((r) => {
-      if (term && !r.name.toLowerCase().includes(term)) return false;
-      if (typeFilter.length && !typeFilter.includes(r.type)) return false;
-      if (priorityFilter.length && !priorityFilter.includes(r.priority)) return false;
+      if (term && !r.name.toLowerCase().includes(term) &&
+        !(primaryContact(r)?.name || "").toLowerCase().includes(term)) return false;
+      if (typeFilter && r.type !== typeFilter) return false;
       if (statusFilter.length) {
-        const hasStatus = r.categories.some((c) => statusFilter.includes(c.status));
-        if (!hasStatus) return false;
-      }
-      if (categoryFilter) {
-        if (!r.categories.find((c) => c.category === categoryFilter)) return false;
+        const best = bestStatus(r);
+        if (!best || !statusFilter.includes(best)) return false;
       }
       return true;
     });
-  }, [retailers, search, typeFilter, priorityFilter, statusFilter]);
+  }, [retailers, search, statusFilter, typeFilter]);
 
   async function handleDelete(id, name) {
     try {
@@ -143,130 +121,85 @@ export default function CrmAccounts() {
     }
   }
 
-  // Inline status/buyer update
-  async function handleCategoryUpdate(retailerId, category, field, value) {
-    try {
-      await crmApi.updateCategory(retailerId, { category, [field]: value });
-      setRetailers((prev) =>
-        prev.map((r) => {
-          if (r.id !== retailerId) return r;
-          return {
-            ...r,
-            categories: r.categories.map((c) =>
-              c.category === category ? { ...c, [field]: value } : c
-            ),
-          };
-        })
-      );
-    } catch (err) {
-      message.error(err.message);
-    }
-  }
-
-  const categoryColumns = CRM_CATEGORIES.map((cat) => ({
-    title: cat,
-    key: cat,
-    width: 160,
-    sorter: statusSort(cat),
-    render: (_, retailer) => {
-      const c = retailer.categories.find((x) => x.category === cat);
-      if (!c) return <Tag color="default">N/A</Tag>;
-      return (
-        <div style={{ fontSize: 12 }}>
-          <Select
-            size="small"
-            value={c.status}
-            style={{ width: "100%", marginBottom: 2 }}
-            options={STATUSES.map((s) => ({ value: s, label: s }))}
-            onChange={(val) => handleCategoryUpdate(retailer.id, cat, "status", val)}
-            variant="borderless"
-            popupMatchSelectWidth={false}
-            labelRender={() => <Tag color={STATUS_COLORS[c.status]} style={{ margin: 0 }}>{c.status}</Tag>}
-          />
-          <div style={{ color: "#888", paddingLeft: 4 }}>{c.buyerName || "—"}</div>
-        </div>
-      );
-    },
-  }));
-
   const columns = [
     {
       title: "Company",
       dataIndex: "name",
       sorter: (a, b) => a.name.localeCompare(b.name),
       render: (name, r) => (
-        <a onClick={() => navigate(`/crm/accounts/${r.id}`)} style={{ cursor: "pointer" }}>{name}</a>
+        <a onClick={() => navigate(`/crm/accounts/${r.id}`)} style={{ fontWeight: 500 }}>{name}</a>
       ),
-      fixed: "left",
-      width: 180,
+      width: 200,
+    },
+    {
+      title: "Buyer",
+      key: "buyer",
+      width: 160,
+      render: (_, r) => primaryContact(r)?.name || <span style={{ color: "#bbb" }}>—</span>,
+      sorter: (a, b) => (primaryContact(a)?.name || "").localeCompare(primaryContact(b)?.name || ""),
+    },
+    {
+      title: "Status",
+      key: "status",
+      width: 140,
+      render: (_, r) => {
+        const s = bestStatus(r);
+        return s ? <Tag color={STATUS_COLORS[s]}>{s}</Tag> : <Tag>—</Tag>;
+      },
+      sorter: (a, b) => (STATUS_ORDER[bestStatus(a)] ?? 999) - (STATUS_ORDER[bestStatus(b)] ?? 999),
+    },
+    {
+      title: "Last Contact",
+      key: "lastContact",
+      width: 130,
+      render: (_, r) => r.lastContactDate || <span style={{ color: "#bbb" }}>Never</span>,
+      sorter: (a, b) => (a.lastContactDate || "").localeCompare(b.lastContactDate || ""),
+    },
+    {
+      title: "Phone",
+      key: "phone",
+      width: 140,
+      render: (_, r) => {
+        const c = primaryContact(r);
+        const phone = c?.directPhone || c?.mobilePhone || c?.hqPhone;
+        return phone || <span style={{ color: "#bbb" }}>—</span>;
+      },
+    },
+    {
+      title: "Email",
+      key: "email",
+      width: 200,
+      render: (_, r) => {
+        const email = primaryContact(r)?.email;
+        return email
+          ? <a href={`mailto:${email}`} onClick={(e) => e.stopPropagation()}>{email}</a>
+          : <span style={{ color: "#bbb" }}>—</span>;
+      },
+    },
+    {
+      title: "Categories",
+      key: "categories",
+      render: (_, r) => (
+        <Space size={3} wrap>
+          {r.categories.map((c) => (
+            <Tag key={c.category} color={STATUS_COLORS[c.status] || "default"} style={{ fontSize: 11, margin: 0 }}>
+              {c.category}
+            </Tag>
+          ))}
+        </Space>
+      ),
     },
     {
       title: "Type",
       dataIndex: "type",
-      width: 130,
-      render: (v) => v || "—",
+      width: 120,
+      render: (v) => v || <span style={{ color: "#bbb" }}>—</span>,
       sorter: (a, b) => (a.type || "").localeCompare(b.type || ""),
     },
     {
-      title: "Priority",
-      dataIndex: "priority",
-      width: 110,
-      sorter: (a, b) => b.priority.localeCompare(a.priority),
-      render: (v) => {
-        const color = v === "3 - High" ? "red" : v === "2 - Medium" ? "orange" : "default";
-        return <Tag color={color}>{v}</Tag>;
-      },
-    },
-    ...(categoryFilter
-      ? [
-          {
-            title: `${categoryFilter} Buyer`,
-            key: `${categoryFilter}-buyer`,
-            width: 160,
-            sorter: buyerSort(categoryFilter),
-            render: (_, retailer) => {
-              const c = retailer.categories.find((x) => x.category === categoryFilter);
-              return (
-                <Input
-                  size="small"
-                  defaultValue={c?.buyerName || ""}
-                  placeholder="—"
-                  onBlur={(e) => {
-                    if (c && e.target.value !== (c.buyerName || "")) {
-                      handleCategoryUpdate(retailer.id, categoryFilter, "buyerName", e.target.value);
-                    }
-                  }}
-                />
-              );
-            },
-          },
-          {
-            title: `${categoryFilter} Status`,
-            key: `${categoryFilter}-status`,
-            width: 160,
-            sorter: statusSort(categoryFilter),
-            render: (_, retailer) => {
-              const c = retailer.categories.find((x) => x.category === categoryFilter);
-              if (!c) return null;
-              return (
-                <Select
-                  size="small"
-                  value={c.status}
-                  style={{ width: "100%" }}
-                  options={STATUSES.map((s) => ({ value: s, label: s }))}
-                  onChange={(val) => handleCategoryUpdate(retailer.id, categoryFilter, "status", val)}
-                  labelRender={() => <Tag color={STATUS_COLORS[c.status]} style={{ margin: 0 }}>{c.status}</Tag>}
-                />
-              );
-            },
-          },
-        ]
-      : categoryColumns),
-    {
       title: "",
       key: "actions",
-      fixed: "right",
-      width: 60,
+      width: 48,
       render: (_, r) => (
         <Popconfirm title={`Delete ${r.name}?`} onConfirm={() => handleDelete(r.id, r.name)}>
           <Button icon={<DeleteOutlined />} danger type="text" size="small" />
@@ -275,55 +208,83 @@ export default function CrmAccounts() {
     },
   ];
 
+  const pipelineCounts = useMemo(() => {
+    const counts = {};
+    retailers.forEach((r) => {
+      const s = bestStatus(r) || "Not Contacted";
+      counts[s] = (counts[s] || 0) + 1;
+    });
+    return counts;
+  }, [retailers]);
+
   if (error) return <Alert type="error" message={error} showIcon />;
 
   return (
     <Spin spinning={loading}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-        <Typography.Title level={5} style={{ margin: 0 }}>Accounts</Typography.Title>
+      {/* Pipeline bar */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        {STATUSES.map((s) => {
+          const active = statusFilter.includes(s);
+          return (
+            <div
+              key={s}
+              onClick={() => setStatusFilter(active ? statusFilter.filter((x) => x !== s) : [...statusFilter, s])}
+              style={{
+                cursor: "pointer", padding: "5px 14px", borderRadius: 6, fontSize: 13,
+                background: active ? "#1677ff" : "#f5f5f5",
+                color: active ? "#fff" : "#333",
+                fontWeight: active ? 600 : 400,
+                border: `1px solid ${active ? "#1677ff" : "#e8e8e8"}`,
+              }}
+            >
+              {s} <strong>{pipelineCounts[s] || 0}</strong>
+            </div>
+          );
+        })}
+        {statusFilter.length > 0 && (
+          <div
+            onClick={() => setStatusFilter([])}
+            style={{ cursor: "pointer", padding: "5px 12px", borderRadius: 6, fontSize: 12, color: "#888", background: "#fff", border: "1px solid #e8e8e8" }}
+          >
+            Clear
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <Typography.Title level={5} style={{ margin: 0 }}>
+          Accounts <span style={{ color: "#aaa", fontWeight: 400, fontSize: 14 }}>({filtered.length})</span>
+        </Typography.Title>
         <Space wrap>
           <Input.Search
-            placeholder="Search company"
+            placeholder="Search company or buyer"
             allowClear
-            style={{ width: 200 }}
+            style={{ width: 220 }}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <Select
-            mode="multiple" placeholder="Type" allowClear style={{ minWidth: 140 }}
-            options={retailerTypes.map((t) => ({ value: t, label: t }))}
-            value={typeFilter} onChange={setTypeFilter} maxTagCount="responsive"
-          />
-          <Select
-            mode="multiple" placeholder="Priority" allowClear style={{ minWidth: 130 }}
-            options={PRIORITIES.map((p) => ({ value: p, label: p }))}
-            value={priorityFilter} onChange={setPriorityFilter} maxTagCount="responsive"
-          />
-          <Select
-            mode="multiple" placeholder="Status (any cat)" allowClear style={{ minWidth: 160 }}
+            mode="multiple"
+            placeholder="Filter by status"
+            allowClear
+            style={{ minWidth: 180 }}
             options={STATUSES.map((s) => ({ value: s, label: s }))}
-            value={statusFilter} onChange={setStatusFilter} maxTagCount="responsive"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            maxTagCount="responsive"
           />
           <Select
-            placeholder="Category" allowClear style={{ minWidth: 130 }}
-            options={CRM_CATEGORIES.map((c) => ({ value: c, label: c }))}
-            value={categoryFilter} onChange={(v) => setCategoryFilter(v ?? null)}
+            placeholder="Type"
+            allowClear
+            style={{ minWidth: 130 }}
+            options={retailerTypes.map((t) => ({ value: t, label: t }))}
+            value={typeFilter}
+            onChange={(v) => setTypeFilter(v ?? null)}
           />
-          <Button onClick={() => setManageTypesOpen(true)}>
-            Manage Types
-          </Button>
-          <Button icon={<UploadOutlined />} onClick={() => setImportSheetOpen(true)}>
-            Import from Google Sheets
-          </Button>
-          <Button icon={<UploadOutlined />} onClick={() => setImportRetailersOpen(true)}>
-            Import Retailers
-          </Button>
-          <Button icon={<UploadOutlined />} onClick={() => setImportContactsOpen(true)}>
-            Import Contacts
-          </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-            Add Retailer
-          </Button>
+          <Button onClick={() => setManageTypesOpen(true)}>Manage Types</Button>
+          <Button icon={<UploadOutlined />} onClick={() => setImportSheetOpen(true)}>Import Sheet</Button>
+          <Button icon={<UploadOutlined />} onClick={() => setImportRetailersOpen(true)}>Import</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>Add Account</Button>
         </Space>
       </div>
 
@@ -331,33 +292,16 @@ export default function CrmAccounts() {
         columns={columns}
         dataSource={filtered}
         rowKey="id"
-        scroll={{ x: "max-content" }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
         size="small"
+        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ["20", "50", "100"] }}
+        onRow={(r) => ({ onClick: () => navigate(`/crm/accounts/${r.id}`), style: { cursor: "pointer" } })}
       />
 
       <NewRetailerModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={load} retailerTypes={retailerTypes} />
-      <ManageRetailerTypesModal
-        open={manageTypesOpen}
-        onClose={() => setManageTypesOpen(false)}
-        onChanged={loadTypes}
-      />
-      <ImportRetailersModal
-        open={importRetailersOpen}
-        onClose={() => setImportRetailersOpen(false)}
-        onImported={load}
-      />
-      <ImportContactsModal
-        open={importContactsOpen}
-        onClose={() => setImportContactsOpen(false)}
-        onImported={load}
-        retailers={retailers}
-      />
-      <ImportCrmSheetModal
-        open={importSheetOpen}
-        onClose={() => setImportSheetOpen(false)}
-        onImported={load}
-      />
+      <ManageRetailerTypesModal open={manageTypesOpen} onClose={() => setManageTypesOpen(false)} onChanged={() => load()} />
+      <ImportRetailersModal open={importRetailersOpen} onClose={() => setImportRetailersOpen(false)} onImported={load} />
+      <ImportContactsModal open={importContactsOpen} onClose={() => setImportContactsOpen(false)} onImported={load} retailers={retailers} />
+      <ImportCrmSheetModal open={importSheetOpen} onClose={() => setImportSheetOpen(false)} onImported={load} />
     </Spin>
   );
 }

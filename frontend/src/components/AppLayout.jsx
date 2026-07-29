@@ -29,8 +29,6 @@ const NAV_ITEMS = [
     children: [
       { key: "/crm", label: "Dashboard", icon: <BarChartOutlined /> },
       { key: "/crm/accounts", label: "Accounts", icon: <TeamOutlined /> },
-      { key: "/crm/activity", label: "Activity Log", icon: <AuditOutlined /> },
-      { key: "/crm/sent", label: "Sent Tracker", icon: <SendOutlined /> },
     ],
   },
   { key: "/customers", label: "Customers", icon: <TeamOutlined /> },
