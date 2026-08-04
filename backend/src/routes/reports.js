@@ -21,9 +21,12 @@ function dateStr(d) {
 // GET /api/reports/rolling-totals?warehouseId=X&sku=X
 router.get("/rolling-totals", async (req, res) => {
   try {
-    const { warehouseId, sku } = req.query;
+    const { warehouseId, skus, sku } = req.query;
     const whFilter = warehouseId ? { warehouseId: Number(warehouseId) } : {};
-    const skuWhere = sku ? { product: { sku } } : {};
+    // support ?skus=SKU1,SKU2 (multi) or legacy ?sku=X (single)
+    const skuList = skus ? skus.split(",").map((s) => s.trim()).filter(Boolean)
+      : sku ? [sku] : [];
+    const skuWhere = skuList.length > 0 ? { product: { sku: { in: skuList } } } : {};
 
     const today = new Date();
     today.setHours(23, 59, 59, 999);
@@ -36,7 +39,7 @@ router.get("/rolling-totals", async (req, res) => {
     const currentStock = {};
     const skuNames = {};
     for (const row of stockRows) {
-      if (sku && row.product.sku !== sku) continue;
+      if (skuList.length > 0 && !skuList.includes(row.product.sku)) continue;
       const s = row.product.sku;
       currentStock[s] = (currentStock[s] || 0) + row.onHand;
       skuNames[s] = row.product.name;

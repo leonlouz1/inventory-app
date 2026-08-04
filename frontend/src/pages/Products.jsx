@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Tooltip, Input } from "antd";
+import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Tooltip, Input, Modal, Radio, Select } from "antd";
 import { PlusOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined, SwapOutlined } from "@ant-design/icons";
 import Papa from "papaparse";
 import { productsApi, warehousesApi } from "../api/inventory";
@@ -33,6 +33,12 @@ export default function Products() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [search, setSearch] = useState("");
+  const [rollingTotalsOpen, setRollingTotalsOpen] = useState(false);
+  const [rtProductMode, setRtProductMode] = useState("all");
+  const [rtSelectedSkus, setRtSelectedSkus] = useState([]);
+  const [rtWarehouseMode, setRtWarehouseMode] = useState("all");
+  const [rtWarehouseId, setRtWarehouseId] = useState(null);
+  const [rtDownloading, setRtDownloading] = useState(false);
 
   const filteredProducts = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -73,10 +79,18 @@ export default function Products() {
     downloadCsv(`available_to_sell_${today}.csv`, csv);
   }
 
-  async function downloadRollingTotals() {
+  async function handleRollingTotalsDownload() {
     try {
+      setRtDownloading(true);
       const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
-      const res = await fetch(`${API_BASE}/reports/rolling-totals`);
+      const params = new URLSearchParams();
+      if (rtProductMode === "select" && rtSelectedSkus.length > 0) {
+        params.set("skus", rtSelectedSkus.join(","));
+      }
+      if (rtWarehouseMode === "specific" && rtWarehouseId) {
+        params.set("warehouseId", rtWarehouseId);
+      }
+      const res = await fetch(`${API_BASE}/reports/rolling-totals?${params}`);
       if (!res.ok) throw new Error(await res.text());
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -87,8 +101,11 @@ export default function Products() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      setRollingTotalsOpen(false);
     } catch (err) {
       message.error("Failed to download: " + err.message);
+    } finally {
+      setRtDownloading(false);
     }
   }
 
@@ -214,7 +231,7 @@ export default function Products() {
           <Button icon={<SwapOutlined />} onClick={() => setTransferOpen(true)}>
             Transfer Stock
           </Button>
-          <Button icon={<DownloadOutlined />} onClick={downloadRollingTotals}>
+          <Button icon={<DownloadOutlined />} onClick={() => setRollingTotalsOpen(true)}>
             Rolling Totals
           </Button>
           <Button icon={<DownloadOutlined />} onClick={() => downloadInventoryReport(products)}>
@@ -272,6 +289,67 @@ export default function Products() {
         products={products}
         warehouses={warehouses}
       />
+
+      <Modal
+        title="Download Rolling Totals Report"
+        open={rollingTotalsOpen}
+        onCancel={() => setRollingTotalsOpen(false)}
+        onOk={handleRollingTotalsDownload}
+        okText="Download"
+        confirmLoading={rtDownloading}
+        okButtonProps={{ icon: <DownloadOutlined /> }}
+        width={480}
+        destroyOnHidden
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 24, marginTop: 16 }}>
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>Products</div>
+            <Radio.Group
+              value={rtProductMode}
+              onChange={(e) => { setRtProductMode(e.target.value); setRtSelectedSkus([]); }}
+              style={{ display: "flex", flexDirection: "column", gap: 8 }}
+            >
+              <Radio value="all">All products</Radio>
+              <Radio value="select">Select specific products</Radio>
+            </Radio.Group>
+            {rtProductMode === "select" && (
+              <Select
+                mode="multiple"
+                placeholder="Search and select SKUs..."
+                style={{ width: "100%", marginTop: 10 }}
+                value={rtSelectedSkus}
+                onChange={setRtSelectedSkus}
+                options={products.map((p) => ({ value: p.sku, label: `${p.sku} — ${p.name}` }))}
+                showSearch
+                filterOption={(input, opt) => opt.label.toLowerCase().includes(input.toLowerCase())}
+                allowClear
+              />
+            )}
+          </div>
+
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>Warehouse</div>
+            <Radio.Group
+              value={rtWarehouseMode}
+              onChange={(e) => { setRtWarehouseMode(e.target.value); setRtWarehouseId(null); }}
+              style={{ display: "flex", flexDirection: "column", gap: 8 }}
+            >
+              <Radio value="all">All warehouses</Radio>
+              <Radio value="specific">Specific warehouse</Radio>
+            </Radio.Group>
+            {rtWarehouseMode === "specific" && (
+              <Select
+                placeholder="Select warehouse"
+                style={{ width: "100%", marginTop: 10 }}
+                value={rtWarehouseId}
+                onChange={setRtWarehouseId}
+                options={warehouses.map((w) => ({ value: w.id, label: w.name }))}
+                allowClear
+              />
+            )}
+          </div>
+        </div>
+      </Modal>
     </Spin>
   );
 }
