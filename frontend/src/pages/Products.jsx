@@ -73,6 +73,25 @@ export default function Products() {
     downloadCsv(`available_to_sell_${today}.csv`, csv);
   }
 
+  async function downloadRollingTotals() {
+    try {
+      const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
+      const res = await fetch(`${API_BASE}/reports/rolling-totals`);
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Rolling_Totals_${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      message.error("Failed to download: " + err.message);
+    }
+  }
+
   async function handleDelete(product) {
     try {
       await productsApi.delete(product.id);
@@ -194,6 +213,9 @@ export default function Products() {
           />
           <Button icon={<SwapOutlined />} onClick={() => setTransferOpen(true)}>
             Transfer Stock
+          </Button>
+          <Button icon={<DownloadOutlined />} onClick={downloadRollingTotals}>
+            Rolling Totals
           </Button>
           <Button icon={<DownloadOutlined />} onClick={() => downloadInventoryReport(products)}>
             Inventory Report
