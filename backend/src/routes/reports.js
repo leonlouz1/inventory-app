@@ -25,33 +25,37 @@ router.get("/rolling-totals", async (req, res) => {
     const whFilter = warehouseId ? { warehouseId: Number(warehouseId) } : {};
     const skuWhere = sku ? { product: { sku } } : {};
 
-    // Opening balances from warehouse stock
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    // Current on-hand stock per SKU
     const stockRows = await prisma.warehouseStock.findMany({
       where: { ...whFilter },
       include: { product: true },
     });
-    const openingBalance = {};
+    const currentStock = {};
     const skuNames = {};
     for (const row of stockRows) {
       if (sku && row.product.sku !== sku) continue;
       const s = row.product.sku;
-      openingBalance[s] = (openingBalance[s] || 0) + row.onHand;
+      currentStock[s] = (currentStock[s] || 0) + row.onHand;
       skuNames[s] = row.product.name;
     }
 
-    // Restocks (green, inbound positive)
+    // Restocks — past only (green, inbound positive)
     const restocks = await prisma.restock.findMany({
-      where: { ...whFilter, ...skuWhere },
+      where: { ...whFilter, ...skuWhere, expectedDate: { lte: today } },
       include: { product: true },
       orderBy: { expectedDate: "asc" },
     });
 
-    // Order lines (red, outbound negative) — non-cancelled orders only
+    // Order lines — SHIPPED only, past dates (red, outbound negative)
     const orderLines = await prisma.orderLine.findMany({
       where: {
         ...whFilter,
         ...skuWhere,
-        order: { status: { in: ["CONFIRMED", "ROUTED", "SHIPPED"] } },
+        shipDate: { lte: today },
+        order: { status: "SHIPPED" },
       },
       include: { product: true, order: true },
       orderBy: { shipDate: "asc" },
@@ -59,7 +63,7 @@ router.get("/rolling-totals", async (req, res) => {
 
     // Collect all SKUs
     const allSkus = new Set([
-      ...Object.keys(openingBalance),
+      ...Object.keys(currentStock),
       ...restocks.map((r) => r.product.sku),
       ...orderLines.map((l) => l.product.sku),
     ]);
@@ -163,7 +167,11 @@ router.get("/rolling-totals", async (req, res) => {
 
     for (const s of sortedSkus) {
       const events = skuEvents[s] || [];
-      const opening = openingBalance[s] || 0;
+      // Back-calculate opening: current_on_hand - restocks_received + units_shipped
+      // so the running total ends exactly at current on-hand
+      const totalRestocks = events.filter((e) => e.kind === "restock").reduce((sum, e) => sum + e.qty, 0);
+      const totalOutbounds = events.filter((e) => e.kind === "outbound").reduce((sum, e) => sum + e.qty, 0);
+      const opening = (currentStock[s] || 0) - totalRestocks + totalOutbounds;
 
       // Map event key -> qty for this SKU
       const qtyByKey = {};
