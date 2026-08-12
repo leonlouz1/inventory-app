@@ -70,6 +70,7 @@ router.get(
         orderLineId: line.id,
         orderId: line.orderId,
         orderNumber: line.order.orderNumber,
+        customerPo: line.order.customerPo || null,
         customer: line.order.customer,
         sku: line.product.sku,
         productName: line.product.name,

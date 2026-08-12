@@ -19,6 +19,7 @@ const COLUMNS = [
     key: "orderNumber",
     render: (orderNumber, alert) => <Link to={`/orders?highlight=${alert.orderId}`}>{orderNumber}</Link>,
   },
+  { title: "PO #", dataIndex: "customerPo", key: "customerPo", render: (v) => v || <span style={{ color: "#bbb" }}>—</span> },
   { title: "Customer", dataIndex: "customer", key: "customer" },
   { title: "SKU", dataIndex: "sku", key: "sku", render: (sku) => <Link to={`/timeline?sku=${encodeURIComponent(sku)}`}>{sku}</Link> },
   { title: "Ship From", dataIndex: "shipFrom", key: "shipFrom", render: (v) => v || "Unassigned" },
