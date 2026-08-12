@@ -414,6 +414,24 @@ export default function Orders() {
                   {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
                     <Select
                       size="small"
+                      placeholder="Assign all to warehouse"
+                      style={{ minWidth: 180 }}
+                      allowClear
+                      options={warehouses.map((w) => ({ value: w.id, label: w.name }))}
+                      onChange={async (warehouseId) => {
+                        try {
+                          await ordersApi.assignWarehouse(order.id, warehouseId ?? null);
+                          message.success("All lines assigned");
+                          loadOrders();
+                        } catch (err) {
+                          message.error(err.message);
+                        }
+                      }}
+                    />
+                  )}
+                  {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                    <Select
+                      size="small"
                       placeholder={<><TruckOutlined /> Add to shipment</>}
                       style={{ minWidth: 180 }}
                       value={order.shipmentId || undefined}

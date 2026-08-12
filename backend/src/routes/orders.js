@@ -463,6 +463,20 @@ router.put(
   })
 );
 
+// PATCH /api/orders/:id/warehouse — assign all lines to one warehouse
+router.patch(
+  "/:id/warehouse",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { warehouseId } = req.body;
+    await prisma.orderLine.updateMany({
+      where: { orderId: id },
+      data: { warehouseId: warehouseId ? Number(warehouseId) : null },
+    });
+    res.json({ ok: true });
+  })
+);
+
 // PATCH /api/orders/:id/customer-po — update the customer PO# only
 router.patch(
   "/:id/customer-po",
