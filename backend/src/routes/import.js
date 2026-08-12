@@ -52,21 +52,22 @@ router.post("/", async (req, res) => {
   const productMap = {};
   for (const p of products) {
     if (!p.sku) continue;
+    const sku = String(p.sku).trim().toUpperCase();
     const data = {
-      name: p.name || p.sku,
+      name: p.name || sku,
       brand: p.brand || null,
       category: p.category || null,
       reorderPoint: Number(p.reorderPoint) || 0,
       reorderQty: Number(p.reorderQty) || 0,
       leadTimeDays: Number(p.leadTimeDays) || 45,
     };
-    const before = await prisma.product.findUnique({ where: { sku: p.sku } });
+    const before = await prisma.product.findUnique({ where: { sku } });
     const result = await prisma.product.upsert({
-      where: { sku: p.sku },
+      where: { sku },
       update: data,
-      create: { sku: p.sku, ...data },
+      create: { sku, ...data },
     });
-    productMap[p.sku] = result.id;
+    productMap[sku] = result.id;
     if (before) { summary.products.updated++; } else { summary.products.created++; }
 
     if (p.stock && typeof p.stock === "object") {
@@ -147,7 +148,7 @@ router.post("/", async (req, res) => {
       summary.orders.skipped++;
       continue;
     }
-    const validLines = (o.lines || []).filter((l) => productMap[l.sku] && l.shipDate);
+    const validLines = (o.lines || []).filter((l) => productMap[String(l.sku || "").trim().toUpperCase()] && l.shipDate);
     const order = await prisma.order.create({
       data: {
         orderNumber: o.orderNumber,
@@ -158,7 +159,7 @@ router.post("/", async (req, res) => {
         notes: o.notes || null,
         lines: {
           create: validLines.map((l) => ({
-            productId: productMap[l.sku],
+            productId: productMap[String(l.sku || "").trim().toUpperCase()],
             warehouseId: l.warehouseName ? warehouseMap[l.warehouseName] || null : null,
             quantity: Number(l.quantity) || 1,
             shipDate: new Date(l.shipDate),
@@ -172,7 +173,7 @@ router.post("/", async (req, res) => {
 
   // ── 6. Restocks ───────────────────────────────────────────────────────────
   for (const r of restocks) {
-    const productId = productMap[r.sku];
+    const productId = productMap[String(r.sku || "").trim().toUpperCase()];
     const warehouseId = warehouseMap[r.warehouseName];
     if (!productId || !warehouseId || !r.expectedDate) { summary.restocks.skipped++; continue; }
     const existing = await prisma.restock.findFirst({

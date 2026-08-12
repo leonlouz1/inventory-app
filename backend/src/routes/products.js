@@ -71,7 +71,8 @@ router.get(
 router.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { sku, name, brand, category, reorderPoint, reorderQty, leadTimeDays, initialStock } = req.body;
+    const { sku: rawSku, name, brand, category, reorderPoint, reorderQty, leadTimeDays, initialStock } = req.body;
+    const sku = rawSku ? rawSku.trim().toUpperCase() : rawSku;
     if (!sku || !name) {
       return res.status(400).json({ message: "sku and name are required" });
     }
