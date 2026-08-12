@@ -463,6 +463,20 @@ router.put(
   })
 );
 
+// PATCH /api/orders/:id/customer-po — update the customer PO# only
+router.patch(
+  "/:id/customer-po",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { customerPo } = req.body;
+    const order = await prisma.order.update({
+      where: { id },
+      data: { customerPo: customerPo || null },
+    });
+    res.json({ customerPo: order.customerPo });
+  })
+);
+
 // PATCH /api/orders/:id/notes — update the notes field only
 router.patch(
   "/:id/notes",
