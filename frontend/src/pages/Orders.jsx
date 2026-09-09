@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined, TruckOutlined, MailOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined, TruckOutlined, MailOutlined, DownloadOutlined } from "@ant-design/icons";
 import { ordersApi, productsApi, warehousesApi, restocksApi, shipmentsApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
 import EmailOrderModal from "../components/EmailOrderModal";
@@ -173,6 +173,53 @@ export default function Orders() {
       );
     });
   }, [orders, search, statusFilter]);
+
+  function exportOrdersCsv() {
+    const rows = [];
+    for (const order of filteredOrders) {
+      if (!order.lines || order.lines.length === 0) {
+        rows.push({
+          "Order #": order.orderNumber,
+          "Customer PO #": order.customerPo || "",
+          Customer: order.customer,
+          Status: order.status,
+          SKU: "",
+          "Product Name": "",
+          Qty: "",
+          "Ship Date": "",
+          Warehouse: "",
+        });
+      } else {
+        for (const line of order.lines) {
+          rows.push({
+            "Order #": order.orderNumber,
+            "Customer PO #": order.customerPo || "",
+            Customer: order.customer,
+            Status: order.status,
+            SKU: line.sku,
+            "Product Name": line.productName,
+            Qty: line.quantity,
+            "Ship Date": line.shipDate,
+            Warehouse: line.warehouseName || "Unassigned",
+          });
+        }
+      }
+    }
+    const headers = Object.keys(rows[0] || {});
+    const csv = [
+      headers.join(","),
+      ...rows.map((r) => headers.map((h) => JSON.stringify(r[h] ?? "")).join(",")),
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `orders_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
   const loadOrders = useCallback(() => {
     setLoading(true);
@@ -351,6 +398,9 @@ export default function Orders() {
             onChange={setStatusFilter}
             maxTagCount="responsive"
           />
+          <Button icon={<DownloadOutlined />} onClick={exportOrdersCsv}>
+            Export CSV
+          </Button>
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
             Import CSV
           </Button>
