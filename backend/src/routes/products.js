@@ -234,4 +234,42 @@ router.get(
   })
 );
 
+// POST /api/products/bulk-stock — update on-hand quantities for many SKUs at once
+// Body: [{ sku, stock: [{ warehouseId, onHand }] }, ...]
+router.post(
+  "/bulk-stock",
+  asyncHandler(async (req, res) => {
+    const rows = req.body;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ message: "Body must be a non-empty array" });
+    }
+
+    const skus = rows.map((r) => String(r.sku).trim().toUpperCase());
+    const products = await prisma.product.findMany({ where: { sku: { in: skus } } });
+    const productBySku = Object.fromEntries(products.map((p) => [p.sku, p]));
+
+    const unknown = skus.filter((s) => !productBySku[s]);
+    if (unknown.length) {
+      return res.status(400).json({ message: `Unknown SKUs: ${unknown.join(", ")}` });
+    }
+
+    const ops = [];
+    for (const row of rows) {
+      const sku = String(row.sku).trim().toUpperCase();
+      const product = productBySku[sku];
+      for (const s of row.stock || []) {
+        ops.push(
+          prisma.warehouseStock.upsert({
+            where: { productId_warehouseId: { productId: product.id, warehouseId: s.warehouseId } },
+            update: { onHand: s.onHand },
+            create: { productId: product.id, warehouseId: s.warehouseId, onHand: s.onHand },
+          })
+        );
+      }
+    }
+    await prisma.$transaction(ops);
+    res.json({ updated: rows.length });
+  })
+);
+
 module.exports = router;

@@ -33,6 +33,8 @@ export default function Products() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [search, setSearch] = useState("");
+  const [stockUploadOpen, setStockUploadOpen] = useState(false);
+  const [stockUploading, setStockUploading] = useState(false);
   const [rollingTotalsOpen, setRollingTotalsOpen] = useState(false);
   const [rtProductMode, setRtProductMode] = useState("all");
   const [rtSelectedSkus, setRtSelectedSkus] = useState([]);
@@ -64,6 +66,68 @@ export default function Products() {
     loadProducts();
     warehousesApi.list().then(setWarehouses);
   }, [loadProducts]);
+
+  function downloadStockTemplate() {
+    // Wide format: SKU, Product Name, Warehouse1, Warehouse2, ...
+    const warehouseNames = warehouses.map((w) => w.name);
+    const header = ["SKU", "Product Name", ...warehouseNames];
+    const rows = [...products]
+      .sort((a, b) => a.sku.localeCompare(b.sku))
+      .map((p) => [
+        p.sku,
+        p.name,
+        ...warehouses.map((w) => p.stockByWarehouse?.[w.id] ?? 0),
+      ]);
+    const csv = [header, ...rows].map((r) => r.map((v) => JSON.stringify(v ?? "")).join(",")).join("\n");
+    downloadCsv(`stock_${new Date().toISOString().slice(0, 10)}.csv`, csv);
+  }
+
+  async function handleStockUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setStockUploading(true);
+    try {
+      const text = await file.text();
+      Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async ({ data }) => {
+          try {
+            // Detect warehouse columns (everything except SKU and Product Name)
+            const warehouseCols = Object.keys(data[0] || {}).filter(
+              (k) => k !== "SKU" && k !== "Product Name"
+            );
+            const warehouseByName = Object.fromEntries(warehouses.map((w) => [w.name, w.id]));
+            const rows = data.map((row) => ({
+              sku: row["SKU"],
+              stock: warehouseCols
+                .filter((col) => warehouseByName[col] !== undefined)
+                .map((col) => ({
+                  warehouseId: warehouseByName[col],
+                  onHand: Math.max(0, Math.round(Number(row[col]) || 0)),
+                })),
+            })).filter((r) => r.sku);
+            await productsApi.bulkUpdateStock(rows);
+            message.success(`Stock updated for ${rows.length} SKU${rows.length !== 1 ? "s" : ""}`);
+            loadProducts();
+            setStockUploadOpen(false);
+          } catch (err) {
+            message.error("Upload failed: " + err.message);
+          } finally {
+            setStockUploading(false);
+          }
+        },
+        error: () => {
+          message.error("Could not parse CSV");
+          setStockUploading(false);
+        },
+      });
+    } catch {
+      message.error("Could not read file");
+      setStockUploading(false);
+    }
+  }
 
   function handleExportAvailableToSell() {
     const rows = products
@@ -231,6 +295,9 @@ export default function Products() {
           <Button icon={<SwapOutlined />} onClick={() => setTransferOpen(true)}>
             Transfer Stock
           </Button>
+          <Button icon={<DownloadOutlined />} onClick={() => setStockUploadOpen(true)}>
+            Update Stock
+          </Button>
           <Button icon={<DownloadOutlined />} onClick={() => setRollingTotalsOpen(true)}>
             Rolling Totals
           </Button>
@@ -289,6 +356,45 @@ export default function Products() {
         products={products}
         warehouses={warehouses}
       />
+
+      <Modal
+        title="Update Stock Quantities"
+        open={stockUploadOpen}
+        onCancel={() => setStockUploadOpen(false)}
+        footer={null}
+        width={480}
+        destroyOnHidden
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 20, marginTop: 8 }}>
+          <div>
+            <p style={{ margin: "0 0 10px" }}>
+              Download a CSV of all your current SKUs and their stock per warehouse. Edit the quantities, then re-upload to update.
+            </p>
+            <Button icon={<DownloadOutlined />} onClick={downloadStockTemplate} block>
+              Download Current Stock CSV
+            </Button>
+          </div>
+          <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 16 }}>
+            <p style={{ margin: "0 0 10px", fontWeight: 500 }}>Re-upload to update stock</p>
+            <label style={{ display: "block" }}>
+              <input
+                type="file"
+                accept=".csv"
+                style={{ display: "none" }}
+                onChange={handleStockUpload}
+              />
+              <Button
+                icon={<UploadOutlined />}
+                block
+                loading={stockUploading}
+                onClick={(e) => e.currentTarget.previousSibling.click()}
+              >
+                {stockUploading ? "Updating…" : "Upload Updated CSV"}
+              </Button>
+            </label>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         title="Download Rolling Totals Report"

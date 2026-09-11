@@ -6,6 +6,7 @@ export const productsApi = {
   update: (id, data) => apiClient.put(`/products/${id}`, data),
   delete: (id) => apiClient.delete(`/products/${id}`),
   updateStock: (id, stock) => apiClient.put(`/products/${id}/stock`, { stock }),
+  bulkUpdateStock: (rows) => apiClient.post("/products/bulk-stock", rows),
   projection: (id) => apiClient.get(`/products/${id}/projection`),
 };
 
