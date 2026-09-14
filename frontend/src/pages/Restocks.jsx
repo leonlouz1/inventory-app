@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Table, Button, Tag, Spin, Alert, Typography, Popconfirm, message } from "antd";
+import { Table, Button, Tag, Spin, Alert, Typography, Popconfirm, message, Select } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from "@ant-design/icons";
+
+const STATUS_OPTIONS = [
+  { value: "DRAFT", label: "Draft" },
+  { value: "ON_HOLD", label: "On Hold" },
+  { value: "IN_PRODUCTION", label: "In Production" },
+  { value: "RECEIVED", label: "Received" },
+];
+const STATUS_COLORS = {
+  DRAFT: "default",
+  ON_HOLD: "orange",
+  IN_PRODUCTION: "blue",
+  RECEIVED: "green",
+};
 import { restocksApi, productsApi, warehousesApi, ordersApi } from "../api/inventory";
 import { NewRestockModal, EditRestockModal, AddRestockSkuModal } from "../components/RestockModals";
 import BulkImportRestocksModal from "../components/BulkImportRestocksModal";
@@ -69,6 +82,16 @@ export default function Restocks() {
     }
   }
 
+  async function handleStatusChange(id, status) {
+    try {
+      const updated = await restocksApi.updateStatus(id, status);
+      setRestocks((prev) => prev.map((r) => r.id === id ? { ...r, ...updated } : r));
+      if (status === "RECEIVED") message.success("Stock added to inventory");
+    } catch (err) {
+      message.error(`Failed to update status: ${err.message}`);
+    }
+  }
+
   const shipments = useMemo(() => groupByShipment(restocks), [restocks]);
 
   const columns = [
@@ -98,6 +121,30 @@ export default function Restocks() {
     },
     { title: "Expected Date", dataIndex: "expectedDate" },
     { title: "Supplier / PO", dataIndex: "supplier", render: (v) => v || "—" },
+    {
+      title: "Status",
+      key: "status",
+      render: (_, group) => {
+        if (group.lines.length === 1) {
+          const r = group.lines[0];
+          return (
+            <Select
+              size="small"
+              value={r.status || "IN_PRODUCTION"}
+              style={{ width: 140 }}
+              options={STATUS_OPTIONS}
+              onChange={(val) => handleStatusChange(r.id, val)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          );
+        }
+        // For grouped shipments show distinct statuses as tags
+        const statuses = [...new Set(group.lines.map((l) => l.status || "IN_PRODUCTION"))];
+        return statuses.map((s) => (
+          <Tag key={s} color={STATUS_COLORS[s]}>{STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s}</Tag>
+        ));
+      },
+    },
     {
       title: "Linked Order",
       key: "linkedOrder",
@@ -169,6 +216,19 @@ export default function Restocks() {
               },
               { title: "Product Name", dataIndex: "productName" },
               { title: "Qty", dataIndex: "quantity" },
+              {
+                title: "Status",
+                key: "status",
+                render: (_, r) => (
+                  <Select
+                    size="small"
+                    value={r.status || "IN_PRODUCTION"}
+                    style={{ width: 140 }}
+                    options={STATUS_OPTIONS}
+                    onChange={(val) => handleStatusChange(r.id, val)}
+                  />
+                ),
+              },
               {
                 title: "Linked Order",
                 key: "linkedOrder",

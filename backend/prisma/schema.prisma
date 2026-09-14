@@ -129,6 +129,7 @@ model Restock {
   // container). Purely a display-grouping concern — null for legacy/standalone rows.
   shipmentId     String?  @map("shipment_id") @db.VarChar(40)
   linkedOrderId  Int?      @map("linked_order_id")
+  status         String   @default("IN_PRODUCTION") @map("status") @db.VarChar(20)
   receivedAt     DateTime? @map("received_at") @db.Timestamptz
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
 

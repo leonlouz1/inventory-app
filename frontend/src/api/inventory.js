@@ -28,6 +28,7 @@ export const restocksApi = {
   list: () => apiClient.get("/restocks"),
   create: (data) => apiClient.post("/restocks", data),
   update: (id, data) => apiClient.put(`/restocks/${id}`, data),
+  updateStatus: (id, status) => apiClient.patch(`/restocks/${id}/status`, { status }),
   delete: (id) => apiClient.delete(`/restocks/${id}`),
 };
 

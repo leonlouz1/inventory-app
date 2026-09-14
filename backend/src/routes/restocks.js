@@ -4,6 +4,8 @@ const asyncHandler = require("../middleware/asyncHandler");
 
 const router = express.Router();
 
+const RESTOCK_STATUSES = ["DRAFT", "ON_HOLD", "IN_PRODUCTION", "RECEIVED"];
+
 function serialize(restock) {
   return {
     id: restock.id,
@@ -18,6 +20,7 @@ function serialize(restock) {
     shipmentId: restock.shipmentId,
     linkedOrderId: restock.linkedOrderId,
     linkedOrderNumber: restock.linkedOrder?.orderNumber ?? null,
+    status: restock.status || "IN_PRODUCTION",
     receivedAt: restock.receivedAt ? restock.receivedAt.toISOString() : null,
   };
 }
@@ -38,7 +41,7 @@ router.get(
 router.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { sku, warehouseId, quantity, expectedDate, supplier, notes, shipmentId, linkedOrderId } = req.body;
+    const { sku, warehouseId, quantity, expectedDate, supplier, notes, shipmentId, linkedOrderId, status } = req.body;
     if (!sku || !warehouseId || !quantity || !expectedDate) {
       return res.status(400).json({ message: "sku, warehouseId, quantity, and expectedDate are required" });
     }
@@ -57,6 +60,7 @@ router.post(
         supplier,
         notes,
         shipmentId,
+        status: status || "IN_PRODUCTION",
         ...(linkedOrderId !== undefined && { linkedOrderId: linkedOrderId || null }),
       },
       include: { product: true, warehouse: true, linkedOrder: true },
@@ -66,7 +70,54 @@ router.post(
   })
 );
 
-// PUT /api/restocks/:id — update restock (qty, date, warehouse)
+// PATCH /api/restocks/:id/status — change status; applies/reverses stock when moving to/from RECEIVED
+router.patch(
+  "/:id/status",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { status } = req.body;
+    if (!RESTOCK_STATUSES.includes(status)) {
+      return res.status(400).json({ message: `Invalid status. Must be one of: ${RESTOCK_STATUSES.join(", ")}` });
+    }
+
+    const existing = await prisma.restock.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ message: "Restock not found" });
+
+    const wasReceived = existing.status === "RECEIVED";
+    const nowReceived = status === "RECEIVED";
+
+    const restock = await prisma.$transaction(async (tx) => {
+      // Moving TO received — add stock
+      if (!wasReceived && nowReceived) {
+        await tx.warehouseStock.upsert({
+          where: { productId_warehouseId: { productId: existing.productId, warehouseId: existing.warehouseId } },
+          update: { onHand: { increment: existing.quantity } },
+          create: { productId: existing.productId, warehouseId: existing.warehouseId, onHand: existing.quantity },
+        });
+      }
+      // Moving FROM received — reverse the stock
+      if (wasReceived && !nowReceived) {
+        await tx.warehouseStock.update({
+          where: { productId_warehouseId: { productId: existing.productId, warehouseId: existing.warehouseId } },
+          data: { onHand: { decrement: existing.quantity } },
+        });
+      }
+
+      return tx.restock.update({
+        where: { id },
+        data: {
+          status,
+          receivedAt: nowReceived && !wasReceived ? new Date() : wasReceived && !nowReceived ? null : undefined,
+        },
+        include: { product: true, warehouse: true, linkedOrder: true },
+      });
+    });
+
+    res.json(serialize(restock));
+  })
+);
+
+// PUT /api/restocks/:id — update restock (qty, date, warehouse, etc.)
 router.put(
   "/:id",
   asyncHandler(async (req, res) => {
@@ -115,9 +166,8 @@ router.delete(
       if (!restock) return res.status(404).json({ message: "Restock not found" });
 
       await prisma.$transaction(async (tx) => {
-        // If this restock was already auto-received, reverse the stock increment
-        // so deleting it doesn't leave phantom units in the warehouse.
-        if (restock.receivedAt) {
+        // If received, reverse the stock before deleting
+        if (restock.status === "RECEIVED") {
           await tx.warehouseStock.update({
             where: { productId_warehouseId: { productId: restock.productId, warehouseId: restock.warehouseId } },
             data: { onHand: { decrement: restock.quantity } },

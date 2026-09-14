@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "restocks" ADD COLUMN     "status" VARCHAR(20) NOT NULL DEFAULT 'IN_PRODUCTION';
