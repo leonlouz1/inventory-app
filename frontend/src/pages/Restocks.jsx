@@ -92,6 +92,20 @@ export default function Restocks() {
     }
   }
 
+  async function handleGroupStatusChange(group, status) {
+    try {
+      await Promise.all(group.lines.map((r) => restocksApi.updateStatus(r.id, status)));
+      setRestocks((prev) => prev.map((r) =>
+        group.lines.some((l) => l.id === r.id)
+          ? { ...r, status, receivedAt: status === "RECEIVED" ? new Date().toISOString() : null }
+          : r
+      ));
+      if (status === "RECEIVED") message.success(`Stock added to inventory for all ${group.lines.length} SKUs`);
+    } catch (err) {
+      message.error(`Failed to update status: ${err.message}`);
+    }
+  }
+
   const shipments = useMemo(() => groupByShipment(restocks), [restocks]);
 
   const columns = [
@@ -138,11 +152,20 @@ export default function Restocks() {
             />
           );
         }
-        // For grouped shipments show distinct statuses as tags
+        // For grouped shipments — show a single dropdown that updates all lines
         const statuses = [...new Set(group.lines.map((l) => l.status || "IN_PRODUCTION"))];
-        return statuses.map((s) => (
-          <Tag key={s} color={STATUS_COLORS[s]}>{STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s}</Tag>
-        ));
+        const sharedStatus = statuses.length === 1 ? statuses[0] : null;
+        return (
+          <Select
+            size="small"
+            value={sharedStatus}
+            placeholder="Mixed"
+            style={{ width: 140 }}
+            options={STATUS_OPTIONS}
+            onChange={(val) => handleGroupStatusChange(group, val)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        );
       },
     },
     {
