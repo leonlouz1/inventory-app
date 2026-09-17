@@ -91,6 +91,16 @@ export const crmApi = {
   deleteSent: (id) => apiClient.delete(`/crm/sent/${id}`),
 };
 
+export const skuGroupsApi = {
+  list: () => apiClient.get("/sku-groups"),
+  create: (name) => apiClient.post("/sku-groups", { name }),
+  update: (id, name) => apiClient.put(`/sku-groups/${id}`, { name }),
+  delete: (id) => apiClient.delete(`/sku-groups/${id}`),
+  addSku: (id, sku) => apiClient.post(`/sku-groups/${id}/skus`, { sku }),
+  removeSku: (id, productId) => apiClient.delete(`/sku-groups/${id}/skus/${productId}`),
+  swapLine: (orderId, lineId, productId) => apiClient.patch(`/orders/${orderId}/lines/${lineId}/swap`, { productId }),
+};
+
 export const shipmentsApi = {
   list: () => apiClient.get("/shipments"),
   create: (data) => apiClient.post("/shipments", data),

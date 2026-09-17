@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input } from "antd";
 import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined, TruckOutlined, MailOutlined, DownloadOutlined } from "@ant-design/icons";
-import { ordersApi, productsApi, warehousesApi, restocksApi, shipmentsApi } from "../api/inventory";
+import { ordersApi, productsApi, warehousesApi, restocksApi, shipmentsApi, skuGroupsApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
 import EmailOrderModal from "../components/EmailOrderModal";
 import EditOrderLineModal from "../components/EditOrderLineModal";
@@ -150,6 +150,8 @@ export default function Orders() {
   const [expandedRowKeys, setExpandedRowKeys] = useState(highlightId ? [highlightId] : []);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState([]);
+  const [swapTarget, setSwapTarget] = useState(null); // { orderId, line, groupSkus }
+  const [swapLoading, setSwapLoading] = useState(false);
 
   const restocksByOrderId = useMemo(() => {
     const map = new Map();
@@ -439,11 +441,25 @@ export default function Orders() {
                 title: "",
                 key: "actions",
                 render: (_, line) => (
-                  <Button
-                    icon={<EditOutlined />}
-                    type="text"
-                    onClick={() => setEditingLine({ orderId: order.id, line })}
-                  />
+                  <Space>
+                    {line.groupId && order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                      <Button
+                        size="small"
+                        onClick={async () => {
+                          const groups = await skuGroupsApi.list();
+                          const group = groups.find((g) => g.id === line.groupId);
+                          setSwapTarget({ orderId: order.id, line, groupSkus: group?.skus || [] });
+                        }}
+                      >
+                        Swap SKU
+                      </Button>
+                    )}
+                    <Button
+                      icon={<EditOutlined />}
+                      type="text"
+                      onClick={() => setEditingLine({ orderId: order.id, line })}
+                    />
+                  </Space>
                 ),
               },
             ];
@@ -592,6 +608,70 @@ export default function Orders() {
         onClose={() => setEmailOrder(null)}
         order={emailOrder}
       />
+
+      <Modal
+        title={`Swap SKU — ${swapTarget?.line.sku}`}
+        open={!!swapTarget}
+        onCancel={() => setSwapTarget(null)}
+        footer={null}
+      >
+        {swapTarget && (
+          <>
+            <p style={{ color: "#666", marginBottom: 12 }}>
+              Swapping <strong>{swapTarget.line.sku}</strong> (qty {swapTarget.line.quantity}) to another SKU in the same group.
+              Stock committed will shift automatically.
+            </p>
+            <Table
+              size="small"
+              pagination={false}
+              dataSource={swapTarget.groupSkus.filter((s) => s.productId !== swapTarget.line.productId)}
+              rowKey="productId"
+              columns={[
+                { title: "SKU", dataIndex: "sku" },
+                { title: "Brand", dataIndex: "brand", render: (v) => v || "—" },
+                { title: "On Hand", dataIndex: "onHand", align: "right" },
+                { title: "Committed", dataIndex: "committed", align: "right" },
+                { title: "Incoming", dataIndex: "incoming", align: "right" },
+                {
+                  title: "Available",
+                  dataIndex: "available",
+                  align: "right",
+                  render: (v) => {
+                    const enough = v >= swapTarget.line.quantity;
+                    return <strong style={{ color: enough ? "#52c41a" : "#f5222d" }}>{v}</strong>;
+                  },
+                },
+                {
+                  title: "",
+                  key: "swap",
+                  render: (_, sku) => (
+                    <Button
+                      type="primary"
+                      size="small"
+                      loading={swapLoading}
+                      onClick={async () => {
+                        setSwapLoading(true);
+                        try {
+                          await skuGroupsApi.swapLine(swapTarget.orderId, swapTarget.line.id, sku.productId);
+                          message.success(`Swapped to ${sku.sku}`);
+                          setSwapTarget(null);
+                          loadOrders();
+                        } catch (err) {
+                          message.error(err.message);
+                        } finally {
+                          setSwapLoading(false);
+                        }
+                      }}
+                    >
+                      Swap
+                    </Button>
+                  ),
+                },
+              ]}
+            />
+          </>
+        )}
+      </Modal>
 
       <Modal
         title={`Alerts — ${alertOrder?.orderNumber ?? ""}`}

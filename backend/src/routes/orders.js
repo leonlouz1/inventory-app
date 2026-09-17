@@ -103,7 +103,7 @@ router.get(
   "/",
   asyncHandler(async (req, res) => {
     const orders = await prisma.order.findMany({
-      include: { lines: { include: { product: true, warehouse: true } } },
+      include: { lines: { include: { product: { include: { group: true } }, warehouse: true } } },
     });
 
     const allLines = orders.flatMap((o) => o.lines);
@@ -133,8 +133,11 @@ router.get(
         alertStatus: hasAlerts ? "Has alerts" : "OK",
         lines: order.lines.map((line) => ({
           id: line.id,
+          productId: line.productId,
           sku: line.product.sku,
           productName: line.product.name,
+          groupId: line.product.groupId ?? null,
+          groupName: line.product.group?.name ?? null,
           warehouseId: line.warehouseId,
           warehouseName: line.warehouse ? line.warehouse.name : null,
           quantity: line.quantity,
@@ -502,6 +505,39 @@ router.patch(
       data: { notes: notes ?? null },
     });
     res.json({ notes: order.notes });
+  })
+);
+
+// PATCH /api/orders/:orderId/lines/:lineId/swap — swap a line item to a different SKU in the same group
+router.patch(
+  "/:orderId/lines/:lineId/swap",
+  asyncHandler(async (req, res) => {
+    const lineId = Number(req.params.lineId);
+    const { productId } = req.body;
+    if (!productId) return res.status(400).json({ message: "productId is required" });
+
+    const line = await prisma.orderLine.findUnique({ where: { id: lineId }, include: { product: { include: { group: true } } } });
+    if (!line) return res.status(404).json({ message: "Order line not found" });
+
+    const newProduct = await prisma.product.findUnique({ where: { id: Number(productId) }, include: { group: true } });
+    if (!newProduct) return res.status(404).json({ message: "Product not found" });
+
+    if (!line.product.groupId || line.product.groupId !== newProduct.groupId) {
+      return res.status(400).json({ message: "Products are not in the same group" });
+    }
+
+    const updated = await prisma.orderLine.update({
+      where: { id: lineId },
+      data: { productId: Number(productId) },
+      include: { product: true, warehouse: true },
+    });
+
+    res.json({
+      id: updated.id,
+      productId: updated.productId,
+      sku: updated.product.sku,
+      productName: updated.product.name,
+    });
   })
 );
 

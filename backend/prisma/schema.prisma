@@ -23,6 +23,14 @@ model Warehouse {
   @@map("warehouses")
 }
 
+model ProductGroup {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique @db.VarChar(100)
+  products Product[]
+
+  @@map("product_groups")
+}
+
 model Product {
   id            Int      @id @default(autoincrement())
   sku           String   @unique @db.VarChar(50)
@@ -32,8 +40,10 @@ model Product {
   reorderPoint  Int      @default(0) @map("reorder_point")
   reorderQty    Int      @default(0) @map("reorder_qty")
   leadTimeDays  Int      @default(45) @map("lead_time_days")
+  groupId       Int?     @map("group_id")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
+  group      ProductGroup?    @relation(fields: [groupId], references: [id])
   stock      WarehouseStock[]
   orderLines OrderLine[]
   restocks   Restock[]

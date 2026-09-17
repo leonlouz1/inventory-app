@@ -14,6 +14,7 @@ import CrmAccounts from "./pages/crm/CrmAccounts";
 import CrmAccountDetail from "./pages/crm/CrmAccountDetail";
 import CrmActivity from "./pages/crm/CrmActivity";
 import CrmSentTracker from "./pages/crm/CrmSentTracker";
+import SkuGroups from "./pages/SkuGroups";
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/warehouses" element={<Warehouses />} />
           <Route path="/customers" element={<Customer />} />
           <Route path="/calendar" element={<CalendarView />} />
+          <Route path="/sku-groups" element={<SkuGroups />} />
         </Route>
       </Routes>
     </BrowserRouter>

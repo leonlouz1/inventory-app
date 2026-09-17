@@ -13,6 +13,7 @@ import {
   BarChartOutlined,
   AuditOutlined,
   SendOutlined,
+  LinkOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { key: "/timeline", label: "Timeline", icon: <FieldTimeOutlined /> },
   { key: "/restocks", label: "Restocks", icon: <InboxOutlined /> },
   { key: "/products", label: "Products", icon: <AppstoreOutlined /> },
+  { key: "/sku-groups", label: "SKU Groups", icon: <LinkOutlined /> },
   { key: "/warehouses", label: "Warehouses", icon: <BankOutlined /> },
 ];
 
