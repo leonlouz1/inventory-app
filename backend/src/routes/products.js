@@ -34,7 +34,7 @@ router.get(
       // Incoming = restocks not yet received (any non-RECEIVED status)
       prisma.restock.groupBy({
         by: ["productId"],
-        where: { status: { not: "RECEIVED" } },
+        where: { status: { notIn: ["DRAFT", "RECEIVED"] } },
         _sum: { quantity: true },
       }),
     ]);

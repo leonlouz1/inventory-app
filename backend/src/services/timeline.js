@@ -78,7 +78,7 @@ async function buildSkuTimeline(sku, grain = "month") {
   const [warehouses, stock, restocks, orderLines] = await Promise.all([
     prisma.warehouse.findMany({ orderBy: { id: "asc" } }),
     prisma.warehouseStock.findMany({ where: { productId: product.id } }),
-    prisma.restock.findMany({ where: { productId: product.id, status: { not: "RECEIVED" } }, include: { warehouse: true } }),
+    prisma.restock.findMany({ where: { productId: product.id, status: { notIn: ["DRAFT", "RECEIVED"] } }, include: { warehouse: true } }),
     // Only Confirmed/Routed lines — see loadProjectionData in projection.js
     // for why Shipped/Draft/Cancelled are excluded.
     prisma.orderLine.findMany({
