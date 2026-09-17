@@ -22,6 +22,7 @@ const COLUMNS = [
   { title: "PO #", dataIndex: "customerPo", key: "customerPo", render: (v) => v || <span style={{ color: "#bbb" }}>—</span> },
   { title: "Customer", dataIndex: "customer", key: "customer" },
   { title: "SKU", dataIndex: "sku", key: "sku", render: (sku) => <Link to={`/timeline?sku=${encodeURIComponent(sku)}`}>{sku}</Link> },
+  { title: "Qty", dataIndex: "quantity", key: "quantity", align: "right" },
   { title: "Ship From", dataIndex: "shipFrom", key: "shipFrom", render: (v) => v || "Unassigned" },
   { title: "Ship Date", dataIndex: "shipDate", key: "shipDate" },
   { title: "Projected Available", dataIndex: "projectedAvailable", key: "projectedAvailable" },
