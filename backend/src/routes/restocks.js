@@ -4,7 +4,7 @@ const asyncHandler = require("../middleware/asyncHandler");
 
 const router = express.Router();
 
-const RESTOCK_STATUSES = ["DRAFT", "ON_HOLD", "IN_PRODUCTION", "RECEIVED"];
+const RESTOCK_STATUSES = ["DRAFT", "ON_HOLD", "IN_PRODUCTION", "EN_ROUTE", "RECEIVED"];
 
 function serialize(restock) {
   return {
