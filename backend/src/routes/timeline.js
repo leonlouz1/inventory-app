@@ -46,7 +46,13 @@ router.get(
 
     const [restocks, shippedLines, overdueLines] = await Promise.all([
       prisma.restock.findMany({
-        where: { productId: product.id, expectedDate: { lte: today } },
+        where: {
+          productId: product.id,
+          OR: [
+            { expectedDate: { lte: today } },
+            { status: "RECEIVED" },
+          ],
+        },
         include: { warehouse: true, linkedOrder: true },
         orderBy: { expectedDate: "desc" },
       }),
