@@ -18,7 +18,7 @@ router.get(
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    const [products, warehouses, pendingByProduct] = await Promise.all([
+    const [products, warehouses, pendingByProduct, incomingByProduct] = await Promise.all([
       prisma.product.findMany({
         orderBy: { sku: "asc" },
         include: { stock: true },
@@ -31,10 +31,19 @@ router.get(
         where: { order: { status: { in: PENDING_STATUSES } } },
         _sum: { quantity: true },
       }),
+      // Incoming = restocks not yet received (any non-RECEIVED status)
+      prisma.restock.groupBy({
+        by: ["productId"],
+        where: { status: { not: "RECEIVED" } },
+        _sum: { quantity: true },
+      }),
     ]);
 
     const pendingQtyByProductId = new Map(
       pendingByProduct.map((row) => [row.productId, row._sum.quantity ?? 0])
+    );
+    const incomingQtyByProductId = new Map(
+      incomingByProduct.map((row) => [row.productId, row._sum.quantity ?? 0])
     );
 
     const result = products.map((product) => {
@@ -47,6 +56,7 @@ router.get(
         totalOnHand += onHand;
       }
       const pendingQty = pendingQtyByProductId.get(product.id) ?? 0;
+      const incomingQty = incomingQtyByProductId.get(product.id) ?? 0;
       return {
         id: product.id,
         sku: product.sku,
@@ -59,6 +69,7 @@ router.get(
         stockByWarehouse,
         totalOnHand,
         pendingQty,
+        incomingQty,
         availableToSell: totalOnHand - pendingQty,
       };
     });

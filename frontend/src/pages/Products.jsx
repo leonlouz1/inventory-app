@@ -220,6 +220,13 @@ export default function Products() {
         sorter: (a, b) => (a.stockByWarehouse[w.id] ?? 0) - (b.stockByWarehouse[w.id] ?? 0),
       })),
       {
+        title: "Incoming",
+        dataIndex: "incomingQty",
+        align: "right",
+        sorter: (a, b) => a.incomingQty - b.incomingQty,
+        render: (v) => v > 0 ? <span style={{ color: "#389e0d", fontWeight: 500 }}>+{v}</span> : <span style={{ color: "#bbb" }}>0</span>,
+      },
+      {
         title: "Pending Orders",
         dataIndex: "pendingQty",
         align: "right",
