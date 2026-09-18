@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const prisma = require("./prismaClient");
 
 const productsRouter = require("./routes/products");
 const ordersRouter = require("./routes/orders");
@@ -51,6 +52,37 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 4000;
 
-app.listen(PORT, () => {
-  console.log(`Inventory API listening on http://localhost:${PORT}`);
+async function runStartupMigrations() {
+  try {
+    await prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "product_groups" (
+        "id" SERIAL NOT NULL,
+        "name" VARCHAR(100) NOT NULL,
+        CONSTRAINT "product_groups_pkey" PRIMARY KEY ("id")
+      )
+    `;
+    await prisma.$executeRaw`
+      CREATE UNIQUE INDEX IF NOT EXISTS "product_groups_name_key" ON "product_groups"("name")
+    `;
+    await prisma.$executeRaw`
+      ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "group_id" INTEGER
+    `;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        ALTER TABLE "products" ADD CONSTRAINT "products_group_id_fkey"
+          FOREIGN KEY ("group_id") REFERENCES "product_groups"("id")
+          ON DELETE SET NULL ON UPDATE CASCADE;
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$
+    `;
+    console.log("Startup migrations complete");
+  } catch (err) {
+    console.error("Startup migration error:", err.message);
+  }
+}
+
+runStartupMigrations().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Inventory API listening on http://localhost:${PORT}`);
+  });
 });
