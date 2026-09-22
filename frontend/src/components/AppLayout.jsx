@@ -57,7 +57,7 @@ export default function AppLayout() {
           selectedKeys={[location.pathname]}
           defaultOpenKeys={["crm-group"]}
           items={NAV_ITEMS}
-          onClick={({ key }) => { if (!key.includes("group")) navigate(key); }}
+          onClick={({ key }) => { if (key !== "crm-group") navigate(key); }}
         />
       </Sider>
       <Layout>
