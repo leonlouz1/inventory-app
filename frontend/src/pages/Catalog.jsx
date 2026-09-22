@@ -215,7 +215,7 @@ export default function Catalog() {
               placeholder="All brands"
               value={reportBrand}
               onChange={setReportBrand}
-              options={brands.map((b) => ({ value: b, label: b }))}
+              options={[{ value: null, label: "All Brands" }, ...brands.map((b) => ({ value: b, label: b }))]}
               style={{ width: "100%" }}
             />
           </Form.Item>
