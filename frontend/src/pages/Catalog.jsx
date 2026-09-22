@@ -19,6 +19,9 @@ function EditCatalogModal({ product, onClose, onSaved }) {
         imageUrl: product.imageUrl || "",
         casePack: product.casePack,
         upc: product.upc || "",
+        color: product.color || "",
+        productType: product.productType || "",
+        embossment: product.embossment || "",
       });
     }
   }, [product, form]);
@@ -74,6 +77,17 @@ function EditCatalogModal({ product, onClose, onSaved }) {
           </Form.Item>
           <Form.Item label="UPC" name="upc" style={{ flex: 1 }}>
             <Input />
+          </Form.Item>
+        </div>
+        <Form.Item label="Color" name="color">
+          <Input placeholder="e.g. Navy, Beige" />
+        </Form.Item>
+        <div style={{ display: "flex", gap: 16 }}>
+          <Form.Item label="Type" name="productType" style={{ flex: 1 }}>
+            <Input placeholder="e.g. U-shaped, Rectangular" />
+          </Form.Item>
+          <Form.Item label="Embossment" name="embossment" style={{ flex: 1 }}>
+            <Input placeholder="e.g. Logo embossed" />
           </Form.Item>
         </div>
       </Form>
@@ -136,6 +150,9 @@ export default function Catalog() {
     { title: "SKU", dataIndex: "sku", width: 130 },
     { title: "Product", dataIndex: "name" },
     { title: "Brand", dataIndex: "brand", render: (v) => v || "—" },
+    { title: "Color", dataIndex: "color", render: (v) => v || "—" },
+    { title: "Type", dataIndex: "productType", render: (v) => v || "—" },
+    { title: "Embossment", dataIndex: "embossment", render: (v) => v || "—" },
     { title: "UPC", dataIndex: "upc", render: (v) => v || "—" },
     { title: "Case Pack", dataIndex: "casePack", align: "right" },
     { title: "Wholesale", dataIndex: "wholesalePrice", align: "right", render: (v) => v ? `$${Number(v).toFixed(2)}` : "—" },

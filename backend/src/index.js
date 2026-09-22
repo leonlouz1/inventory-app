@@ -83,6 +83,9 @@ async function runStartupMigrations() {
     await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "image_url" VARCHAR(500)`;
     await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "case_pack" INTEGER NOT NULL DEFAULT 24`;
     await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "upc" VARCHAR(50)`;
+    await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "color" VARCHAR(100)`;
+    await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "product_type" VARCHAR(100)`;
+    await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "embossment" VARCHAR(200)`;
     console.log("Startup migrations complete");
   } catch (err) {
     console.error("Startup migration error:", err.message);

@@ -18,6 +18,9 @@ function serializeCatalog(p) {
     imageUrl: p.imageUrl,
     casePack: p.casePack,
     upc: p.upc,
+    color: p.color ?? null,
+    productType: p.productType ?? null,
+    embossment: p.embossment ?? null,
   };
 }
 
@@ -46,7 +49,7 @@ router.patch(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    const { description, wholesalePrice, retailPrice, imageUrl, casePack, upc } = req.body;
+    const { description, wholesalePrice, retailPrice, imageUrl, casePack, upc, color, productType, embossment } = req.body;
 
     const product = await prisma.product.update({
       where: { id },
@@ -57,6 +60,9 @@ router.patch(
         ...(imageUrl !== undefined && { imageUrl: imageUrl || null }),
         ...(casePack !== undefined && { casePack: Number(casePack) }),
         ...(upc !== undefined && { upc: upc || null }),
+        ...(color !== undefined && { color: color || null }),
+        ...(productType !== undefined && { productType: productType || null }),
+        ...(embossment !== undefined && { embossment: embossment || null }),
       },
     });
     res.json(serializeCatalog(product));

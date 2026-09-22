@@ -81,6 +81,9 @@ export default function ProductPage() {
           {/* Details */}
           <div style={{ borderTop: "1px solid #e8e8e8", paddingTop: 20 }}>
             {[
+              product.color && ["Color", product.color],
+              product.productType && ["Type", product.productType],
+              product.embossment && ["Embossment", product.embossment],
               product.upc && ["UPC", product.upc],
               product.casePack && ["Case Pack", `${product.casePack} units`],
               product.category && ["Category", product.category],

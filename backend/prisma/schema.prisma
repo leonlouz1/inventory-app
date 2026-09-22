@@ -47,6 +47,9 @@ model Product {
   imageUrl      String?  @map("image_url") @db.VarChar(500)
   casePack      Int      @default(24) @map("case_pack")
   upc           String?  @db.VarChar(50)
+  color         String?  @db.VarChar(100)
+  productType   String?  @map("product_type") @db.VarChar(100)
+  embossment    String?  @db.VarChar(200)
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   group      ProductGroup?    @relation(fields: [groupId], references: [id])
