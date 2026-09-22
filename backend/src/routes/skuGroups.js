@@ -49,6 +49,32 @@ async function serializeGroup(group) {
   };
 }
 
+// GET /api/sku-groups/suggestions — find SKUs sharing the same base (before last dash)
+router.get(
+  "/suggestions",
+  asyncHandler(async (req, res) => {
+    const products = await prisma.product.findMany({ select: { id: true, sku: true, name: true, brand: true, groupId: true } });
+
+    const byBase = new Map();
+    for (const p of products) {
+      const dashIdx = p.sku.lastIndexOf("-");
+      if (dashIdx === -1) continue; // no dash, can't infer a group
+      const base = p.sku.slice(0, dashIdx);
+      if (!byBase.has(base)) byBase.set(base, []);
+      byBase.get(base).push(p);
+    }
+
+    const suggestions = [];
+    for (const [base, skus] of byBase) {
+      if (skus.length < 2) continue;
+      suggestions.push({ base, skus });
+    }
+
+    suggestions.sort((a, b) => a.base.localeCompare(b.base));
+    res.json(suggestions);
+  })
+);
+
 // GET /api/sku-groups
 router.get(
   "/",

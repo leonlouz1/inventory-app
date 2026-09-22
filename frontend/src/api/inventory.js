@@ -93,6 +93,7 @@ export const crmApi = {
 
 export const skuGroupsApi = {
   list: () => apiClient.get("/sku-groups"),
+  suggestions: () => apiClient.get("/sku-groups/suggestions"),
   create: (name) => apiClient.post("/sku-groups", { name }),
   update: (id, name) => apiClient.put(`/sku-groups/${id}`, { name }),
   delete: (id) => apiClient.delete(`/sku-groups/${id}`),

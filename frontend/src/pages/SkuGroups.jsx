@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import {
-  Typography, Button, Table, Input, Popconfirm, message, Modal, Tag, Spin, Space
+  Typography, Button, Table, Input, Popconfirm, message, Modal, Tag, Spin, Space, Checkbox
 } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, EditOutlined, BulbOutlined } from "@ant-design/icons";
 import { skuGroupsApi } from "../api/inventory";
 
 export default function SkuGroups() {
@@ -15,6 +15,10 @@ export default function SkuGroups() {
   const [addSkuGroup, setAddSkuGroup] = useState(null);
   const [addSkuInput, setAddSkuInput] = useState("");
   const [addSkuLoading, setAddSkuLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState(null);
+  const [selectedSuggestions, setSelectedSuggestions] = useState({});
+  const [detectLoading, setDetectLoading] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -61,6 +65,44 @@ export default function SkuGroups() {
       message.success("Group deleted");
     } catch (err) {
       message.error(err.message);
+    }
+  }
+
+  async function handleAutoDetect() {
+    setDetectLoading(true);
+    try {
+      const data = await skuGroupsApi.suggestions();
+      setSuggestions(data);
+      // Pre-select all suggestions that aren't already groups
+      const existingNames = new Set(groups.map((g) => g.name));
+      const preSelected = {};
+      data.forEach((s) => { if (!existingNames.has(s.base)) preSelected[s.base] = true; });
+      setSelectedSuggestions(preSelected);
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setDetectLoading(false);
+    }
+  }
+
+  async function handleCreateSuggested() {
+    const toCreate = suggestions.filter((s) => selectedSuggestions[s.base]);
+    if (!toCreate.length) return;
+    setCreateLoading(true);
+    try {
+      for (const s of toCreate) {
+        const group = await skuGroupsApi.create(s.base);
+        for (const sku of s.skus) {
+          await skuGroupsApi.addSku(group.id, sku.sku);
+        }
+      }
+      message.success(`Created ${toCreate.length} group${toCreate.length > 1 ? "s" : ""}`);
+      setSuggestions(null);
+      load();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setCreateLoading(false);
     }
   }
 
@@ -131,6 +173,12 @@ export default function SkuGroups() {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <Button icon={<BulbOutlined />} loading={detectLoading} onClick={handleAutoDetect}>
+          Auto-detect Groups
+        </Button>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <Input
           placeholder="New group name (e.g. 8110BLK)"
           value={newGroupName}
@@ -188,6 +236,44 @@ export default function SkuGroups() {
         okText="Save"
       >
         <Input value={editName} onChange={(e) => setEditName(e.target.value)} onPressEnter={handleRename} />
+      </Modal>
+
+      {/* Auto-detect suggestions modal */}
+      <Modal
+        title="Auto-detected SKU Groups"
+        open={!!suggestions}
+        onCancel={() => setSuggestions(null)}
+        onOk={handleCreateSuggested}
+        okText={`Create ${Object.values(selectedSuggestions).filter(Boolean).length} Group(s)`}
+        confirmLoading={createLoading}
+        width={600}
+      >
+        {suggestions?.length === 0 ? (
+          <p>No ungrouped SKUs with matching suffixes found.</p>
+        ) : (
+          <>
+            <p style={{ color: "#666", marginBottom: 12 }}>
+              These SKUs share the same base. Check the ones you want to create as groups.
+            </p>
+            {suggestions?.map((s) => (
+              <div key={s.base} style={{ marginBottom: 12, padding: "8px 12px", border: "1px solid #f0f0f0", borderRadius: 6 }}>
+                <Checkbox
+                  checked={!!selectedSuggestions[s.base]}
+                  onChange={(e) => setSelectedSuggestions((prev) => ({ ...prev, [s.base]: e.target.checked }))}
+                >
+                  <strong>{s.base}</strong>
+                </Checkbox>
+                <div style={{ marginTop: 4, marginLeft: 24 }}>
+                  {s.skus.map((sku) => (
+                    <Tag key={sku.id} color={sku.groupId ? "orange" : "default"}>
+                      {sku.sku}{sku.groupId ? " (already in a group)" : ""}
+                    </Tag>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </Modal>
 
       {/* Add SKU modal */}
