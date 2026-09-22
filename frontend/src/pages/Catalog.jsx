@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Table, Typography, Button, Input, InputNumber, Spin, message, Form, Modal, Image } from "antd";
+import { Table, Typography, Button, Input, InputNumber, Spin, message, Form, Modal, Image, Select } from "antd";
 import { DownloadOutlined, EditOutlined } from "@ant-design/icons";
 import { catalogApi } from "../api/catalog";
 import { downloadAvailableToSellReport } from "../utils/availableToSellReport";
@@ -87,6 +87,9 @@ export default function Catalog() {
   const [editing, setEditing] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [search, setSearch] = useState("");
+  const [reportModal, setReportModal] = useState(false);
+  const [reportCategory, setReportCategory] = useState(null);
+  const [reportBrand, setReportBrand] = useState(null);
 
   useEffect(() => {
     catalogApi.list()
@@ -94,11 +97,22 @@ export default function Catalog() {
       .finally(() => setLoading(false));
   }, []);
 
+  const categories = [...new Set(products.map((p) => p.category).filter(Boolean))].sort();
+  const brands = [...new Set(products.map((p) => p.brand).filter(Boolean))].sort();
+
   async function handleDownload() {
     setDownloading(true);
     try {
       const rows = await catalogApi.availableToSell();
-      downloadAvailableToSellReport(rows, PUBLIC_CATALOG_URL);
+      const filtered = rows.filter((r) => {
+        if (reportCategory && r.category !== reportCategory) return false;
+        if (reportBrand && r.brand !== reportBrand) return false;
+        return true;
+      });
+      downloadAvailableToSellReport(filtered, PUBLIC_CATALOG_URL);
+      setReportModal(false);
+      setReportCategory(null);
+      setReportBrand(null);
     } catch (err) {
       message.error(err.message);
     } finally {
@@ -157,8 +171,7 @@ export default function Catalog() {
           />
           <Button
             icon={<DownloadOutlined />}
-            loading={downloading}
-            onClick={handleDownload}
+            onClick={() => setReportModal(true)}
           >
             Available to Sell
           </Button>
@@ -172,6 +185,42 @@ export default function Catalog() {
         pagination={{ defaultPageSize: 50, showSizeChanger: true }}
         size="small"
       />
+
+      <Modal
+        title="Available to Sell Report"
+        open={reportModal}
+        onCancel={() => { setReportModal(false); setReportCategory(null); setReportBrand(null); }}
+        onOk={handleDownload}
+        okText="Download Excel"
+        confirmLoading={downloading}
+        okButtonProps={{ icon: <DownloadOutlined /> }}
+      >
+        <p style={{ color: "#666", marginBottom: 16 }}>
+          Filter by product type and/or brand. Leave blank to include all.
+        </p>
+        <Form layout="vertical">
+          <Form.Item label="Product Type (Category)">
+            <Select
+              allowClear
+              placeholder="All categories"
+              value={reportCategory}
+              onChange={setReportCategory}
+              options={categories.map((c) => ({ value: c, label: c }))}
+              style={{ width: "100%" }}
+            />
+          </Form.Item>
+          <Form.Item label="Brand">
+            <Select
+              allowClear
+              placeholder="All brands"
+              value={reportBrand}
+              onChange={setReportBrand}
+              options={brands.map((b) => ({ value: b, label: b }))}
+              style={{ width: "100%" }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <EditCatalogModal
         product={editing}
