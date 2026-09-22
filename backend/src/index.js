@@ -15,6 +15,7 @@ const importRouter = require("./routes/import");
 const emailsRouter = require("./routes/emails");
 const reportsRouter = require("./routes/reports");
 const skuGroupsRouter = require("./routes/skuGroups");
+const catalogRouter = require("./routes/catalog");
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use("/api/import", importRouter);
 app.use("/api/emails", emailsRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/sku-groups", skuGroupsRouter);
+app.use("/api/catalog", catalogRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
@@ -75,6 +77,12 @@ async function runStartupMigrations() {
       EXCEPTION WHEN duplicate_object THEN NULL;
       END $$
     `;
+    await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "description" TEXT`;
+    await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "wholesale_price" DECIMAL(10,2)`;
+    await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "retail_price" DECIMAL(10,2)`;
+    await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "image_url" VARCHAR(500)`;
+    await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "case_pack" INTEGER NOT NULL DEFAULT 24`;
+    await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "upc" VARCHAR(50)`;
     console.log("Startup migrations complete");
   } catch (err) {
     console.error("Startup migration error:", err.message);
