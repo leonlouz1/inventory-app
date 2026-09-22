@@ -22,7 +22,7 @@ export function downloadAvailableToSellReport(rows, catalogBaseUrl) {
       r.retailPrice ?? "",
       r.available,
       r.incoming,
-      catalogBaseUrl ? { f: `HYPERLINK("${catalogBaseUrl}/${r.sku}","View Product")` } : "",
+      catalogBaseUrl ? `${catalogBaseUrl}/${r.sku}` : "",
     ]);
 
   const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
