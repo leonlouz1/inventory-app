@@ -508,6 +508,23 @@ router.patch(
   })
 );
 
+// DELETE /api/orders/:id/lines/:lineId — remove a single line item
+router.delete(
+  "/:id/lines/:lineId",
+  asyncHandler(async (req, res) => {
+    const orderId = Number(req.params.id);
+    const lineId = Number(req.params.lineId);
+
+    const line = await prisma.orderLine.findUnique({ where: { id: lineId } });
+    if (!line || line.orderId !== orderId) {
+      return res.status(404).json({ message: "Line not found" });
+    }
+
+    await prisma.orderLine.delete({ where: { id: lineId } });
+    res.json({ success: true });
+  })
+);
+
 // PATCH /api/orders/:orderId/lines/:lineId/swap — swap a line item to a different SKU in the same group
 router.patch(
   "/:orderId/lines/:lineId/swap",

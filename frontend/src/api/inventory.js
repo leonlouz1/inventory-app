@@ -17,6 +17,7 @@ export const ordersApi = {
   delete: (id) => apiClient.delete(`/orders/${id}`),
   addLine: (orderId, data) => apiClient.post(`/orders/${orderId}/lines`, data),
   updateLine: (orderId, lineId, data) => apiClient.put(`/orders/${orderId}/lines/${lineId}`, data),
+  deleteLine: (orderId, lineId) => apiClient.delete(`/orders/${orderId}/lines/${lineId}`),
   updateStatus: (id, status) => apiClient.put(`/orders/${id}/status`, { status }),
   updateNotes: (id, notes) => apiClient.patch(`/orders/${id}/notes`, { notes }),
   updateCustomerPo: (id, customerPo) => apiClient.patch(`/orders/${id}/customer-po`, { customerPo }),

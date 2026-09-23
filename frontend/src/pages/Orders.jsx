@@ -459,6 +459,23 @@ export default function Orders() {
                       type="text"
                       onClick={() => setEditingLine({ orderId: order.id, line })}
                     />
+                    {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                      <Popconfirm
+                        title="Remove this line?"
+                        onConfirm={async () => {
+                          try {
+                            await ordersApi.deleteLine(order.id, line.id);
+                            loadOrders();
+                          } catch (err) {
+                            message.error(err.message);
+                          }
+                        }}
+                        okText="Remove"
+                        okButtonProps={{ danger: true }}
+                      >
+                        <Button icon={<DeleteOutlined />} type="text" danger size="small" />
+                      </Popconfirm>
+                    )}
                   </Space>
                 ),
               },
