@@ -13,10 +13,12 @@ const router = express.Router();
 // which only ever affect forward projections, never real on-hand.
 async function adjustStockForShippedTransition(tx, lines, sign) {
   for (const line of lines) {
+    if (!line.warehouseId) continue;
     // eslint-disable-next-line no-await-in-loop
-    await tx.warehouseStock.update({
+    await tx.warehouseStock.upsert({
       where: { productId_warehouseId: { productId: line.productId, warehouseId: line.warehouseId } },
-      data: { onHand: { increment: sign * line.quantity } },
+      update: { onHand: { increment: sign * line.quantity } },
+      create: { productId: line.productId, warehouseId: line.warehouseId, onHand: sign * line.quantity },
     });
   }
 }
