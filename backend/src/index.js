@@ -86,6 +86,7 @@ async function runStartupMigrations() {
     await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "color" VARCHAR(100)`;
     await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "product_type" VARCHAR(100)`;
     await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "embossment" VARCHAR(200)`;
+    await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "attributes" JSONB NOT NULL DEFAULT '{}'`;
     console.log("Startup migrations complete");
   } catch (err) {
     console.error("Startup migration error:", err.message);

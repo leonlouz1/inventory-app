@@ -81,12 +81,12 @@ export default function ProductPage() {
           {/* Details */}
           <div style={{ borderTop: "1px solid #e8e8e8", paddingTop: 20 }}>
             {[
-              product.color && ["Color", product.color],
-              product.productType && ["Type", product.productType],
-              product.embossment && ["Embossment", product.embossment],
               product.upc && ["UPC", product.upc],
               product.casePack && ["Case Pack", `${product.casePack} units`],
               product.category && ["Category", product.category],
+              ...Object.entries(product.attributes || {})
+                .filter(([, v]) => v)
+                .map(([k, v]) => [k.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()), v]),
             ].filter(Boolean).map(([label, value]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
                 <span style={{ fontSize: 14, color: "#888" }}>{label}</span>

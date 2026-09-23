@@ -1,14 +1,58 @@
 import { useEffect, useState } from "react";
-import { Table, Typography, Button, Input, InputNumber, Spin, message, Form, Modal, Image, Select } from "antd";
+import { Table, Typography, Button, Input, InputNumber, Spin, message, Form, Modal, Image, Select, Divider } from "antd";
 import { DownloadOutlined, EditOutlined } from "@ant-design/icons";
 import { catalogApi } from "../api/catalog";
 import { downloadAvailableToSellReport } from "../utils/availableToSellReport";
+import { CATEGORY_ATTRIBUTES } from "../config/productAttributes";
 
 const PUBLIC_CATALOG_URL = import.meta.env.VITE_PUBLIC_CATALOG_URL || "";
+
+function AttributeFields({ category, attrs, onChange }) {
+  const schema = CATEGORY_ATTRIBUTES[category];
+  if (!schema) return null;
+
+  function handleChange(key, value) {
+    onChange({ ...attrs, [key]: value });
+  }
+
+  return (
+    <>
+      <Divider orientation="left" style={{ fontSize: 13, color: "#888", marginTop: 8 }}>
+        {category} Details
+      </Divider>
+      {schema.map((field) => {
+        if (field.dependsOn) {
+          const depVal = attrs[field.dependsOn.field];
+          if (!field.dependsOn.values.includes(depVal)) return null;
+        }
+        return (
+          <Form.Item key={field.key} label={field.label}>
+            {field.type === "select" ? (
+              <Select
+                value={attrs[field.key] || undefined}
+                onChange={(v) => handleChange(field.key, v)}
+                allowClear
+                placeholder={`Select ${field.label}`}
+                options={field.options.map((o) => ({ value: o, label: o }))}
+                style={{ width: "100%" }}
+              />
+            ) : (
+              <Input
+                value={attrs[field.key] || ""}
+                onChange={(e) => handleChange(field.key, e.target.value)}
+              />
+            )}
+          </Form.Item>
+        );
+      })}
+    </>
+  );
+}
 
 function EditCatalogModal({ product, onClose, onSaved }) {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  const [attrs, setAttrs] = useState({});
 
   useEffect(() => {
     if (product) {
@@ -19,10 +63,8 @@ function EditCatalogModal({ product, onClose, onSaved }) {
         imageUrl: product.imageUrl || "",
         casePack: product.casePack,
         upc: product.upc || "",
-        color: product.color || "",
-        productType: product.productType || "",
-        embossment: product.embossment || "",
       });
+      setAttrs(product.attributes || {});
     }
   }, [product, form]);
 
@@ -30,7 +72,7 @@ function EditCatalogModal({ product, onClose, onSaved }) {
     const values = form.getFieldsValue();
     setSaving(true);
     try {
-      const updated = await catalogApi.update(product.id, values);
+      const updated = await catalogApi.update(product.id, { ...values, attributes: attrs });
       onSaved(updated);
       onClose();
       message.success("Catalog updated");
@@ -79,17 +121,11 @@ function EditCatalogModal({ product, onClose, onSaved }) {
             <Input />
           </Form.Item>
         </div>
-        <Form.Item label="Color" name="color">
-          <Input placeholder="e.g. Navy, Beige" />
-        </Form.Item>
-        <div style={{ display: "flex", gap: 16 }}>
-          <Form.Item label="Type" name="productType" style={{ flex: 1 }}>
-            <Input placeholder="e.g. U-shaped, Rectangular" />
-          </Form.Item>
-          <Form.Item label="Embossment" name="embossment" style={{ flex: 1 }}>
-            <Input placeholder="e.g. Logo embossed" />
-          </Form.Item>
-        </div>
+        <AttributeFields
+          category={product?.category}
+          attrs={attrs}
+          onChange={setAttrs}
+        />
       </Form>
     </Modal>
   );
@@ -150,9 +186,15 @@ export default function Catalog() {
     { title: "SKU", dataIndex: "sku", width: 130 },
     { title: "Product", dataIndex: "name" },
     { title: "Brand", dataIndex: "brand", render: (v) => v || "—" },
-    { title: "Color", dataIndex: "color", render: (v) => v || "—" },
-    { title: "Type", dataIndex: "productType", render: (v) => v || "—" },
-    { title: "Embossment", dataIndex: "embossment", render: (v) => v || "—" },
+    {
+      title: "Details",
+      dataIndex: "attributes",
+      render: (attrs) => {
+        if (!attrs || !Object.keys(attrs).length) return <span style={{ color: "#bbb" }}>—</span>;
+        const entries = Object.entries(attrs).filter(([, v]) => v);
+        return <span style={{ color: "#595959", fontSize: 12 }}>{entries.map(([, v]) => v).join(", ")}</span>;
+      },
+    },
     { title: "UPC", dataIndex: "upc", render: (v) => v || "—" },
     { title: "Case Pack", dataIndex: "casePack", align: "right" },
     { title: "Wholesale", dataIndex: "wholesalePrice", align: "right", render: (v) => v ? `$${Number(v).toFixed(2)}` : "—" },

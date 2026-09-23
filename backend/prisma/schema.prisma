@@ -50,6 +50,7 @@ model Product {
   color         String?  @db.VarChar(100)
   productType   String?  @map("product_type") @db.VarChar(100)
   embossment    String?  @db.VarChar(200)
+  attributes    Json     @default("{}")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   group      ProductGroup?    @relation(fields: [groupId], references: [id])
