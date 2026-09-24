@@ -93,6 +93,7 @@ async function buildSkuTimeline(sku, grain = "month") {
       orderNumber: line.order.orderNumber,
       customerPo: line.order.customerPo || null,
       customer: line.order.customer,
+      status: line.order.status,
       warehouseId: line.warehouseId,
       warehouseName: line.warehouse ? line.warehouse.name : null,
       quantity: line.quantity,

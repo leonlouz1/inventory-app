@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Select, Segmented, Spin, Alert, Typography, Empty, Modal, Table, Tag } from "antd";
+import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants/orderStatuses";
 import dayjs from "dayjs";
 import { productsApi, timelineApi } from "../api/inventory";
 
@@ -98,6 +99,7 @@ const ORDER_DETAIL_COLUMNS = [
   { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned" },
   { title: "Qty", dataIndex: "quantity", align: "right", render: (qty, row) => <QtyWithCases qty={qty} casePack={row.casePack} /> },
   { title: "Ship Date", dataIndex: "shipDate" },
+  { title: "Status", dataIndex: "status", render: (s) => s ? <Tag color={ORDER_STATUS_COLORS[s]}>{ORDER_STATUS_LABELS[s] ?? s}</Tag> : null },
 ];
 
 const RESTOCK_DETAIL_COLUMNS = [
