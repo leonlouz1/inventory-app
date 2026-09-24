@@ -79,6 +79,7 @@ enum OrderStatus {
   DRAFT
   CONFIRMED
   ROUTED
+  ALLOCATED
   SHIPPED
   CANCELLED
 }
