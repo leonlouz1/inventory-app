@@ -143,6 +143,7 @@ router.get(
           warehouseId: line.warehouseId,
           warehouseName: line.warehouse ? line.warehouse.name : null,
           quantity: line.quantity,
+          casePack: line.product.casePack,
           shipDate: isoDate(line.shipDate),
           projection: serializeShortfall(resultByLineId.get(line.id)),
         })),
@@ -293,6 +294,7 @@ router.get(
         warehouseId: line.warehouseId,
         warehouseName: line.warehouse ? line.warehouse.name : null,
         quantity: line.quantity,
+        casePack: line.product.casePack,
         shipDate: isoDate(line.shipDate),
         projection: serializeShortfall(shortfallResults[i]),
       })),
@@ -406,6 +408,7 @@ router.post(
       warehouseId: line.warehouseId,
       warehouseName: line.warehouse?.name ?? null,
       quantity: line.quantity,
+      casePack: line.product.casePack,
       shipDate: line.shipDate.toISOString().slice(0, 10),
     });
   })
@@ -462,6 +465,7 @@ router.put(
       warehouseId: updated.warehouseId,
       warehouseName: updated.warehouse ? updated.warehouse.name : null,
       quantity: updated.quantity,
+      casePack: updated.product.casePack,
       shipDate: isoDate(updated.shipDate),
       projection: serializeShortfall(projection),
     });

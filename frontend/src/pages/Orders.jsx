@@ -434,7 +434,14 @@ export default function Orders() {
               },
               { title: "Product", dataIndex: "productName" },
               { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned" },
-              { title: "Qty", dataIndex: "quantity" },
+              {
+                title: "Qty",
+                dataIndex: "quantity",
+                render: (qty, line) => {
+                  const cases = line.casePack ? (qty / line.casePack).toFixed(1).replace(/\.0$/, "") : null;
+                  return cases ? <span>{qty} <span style={{ color: "#888", fontSize: 12 }}>({cases} cs)</span></span> : qty;
+                },
+              },
               { title: "Ship Date", dataIndex: "shipDate" },
               { title: "Projection", dataIndex: "projection", render: (p) => <ProjectionTag projection={p} /> },
               {

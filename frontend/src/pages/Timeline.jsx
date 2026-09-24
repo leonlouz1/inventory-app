@@ -4,6 +4,12 @@ import { Select, Segmented, Spin, Alert, Typography, Empty, Modal, Table, Tag } 
 import dayjs from "dayjs";
 import { productsApi, timelineApi } from "../api/inventory";
 
+function QtyWithCases({ qty, casePack }) {
+  if (!casePack || !qty) return qty ?? 0;
+  const cases = (qty / casePack).toFixed(1).replace(/\.0$/, "");
+  return <span>{qty} <span style={{ color: "#888", fontSize: 12 }}>({cases} cs)</span></span>;
+}
+
 const FLAG_BG = {
   ok: undefined,
   low: "#ffe7ba",
@@ -90,13 +96,13 @@ const ORDER_DETAIL_COLUMNS = [
   { title: "PO #", dataIndex: "customerPo", render: (v) => v || <span style={{ color: "#bbb" }}>—</span> },
   { title: "Customer", dataIndex: "customer" },
   { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned" },
-  { title: "Qty", dataIndex: "quantity", align: "right" },
+  { title: "Qty", dataIndex: "quantity", align: "right", render: (qty, row) => <QtyWithCases qty={qty} casePack={row.casePack} /> },
   { title: "Ship Date", dataIndex: "shipDate" },
 ];
 
 const RESTOCK_DETAIL_COLUMNS = [
   { title: "Warehouse", dataIndex: "warehouseName" },
-  { title: "Qty", dataIndex: "quantity", align: "right" },
+  { title: "Qty", dataIndex: "quantity", align: "right", render: (qty, row) => <QtyWithCases qty={qty} casePack={row.casePack} /> },
   { title: "Expected Date", dataIndex: "expectedDate" },
   { title: "Supplier", dataIndex: "supplier", render: (v) => v || "—" },
 ];
@@ -150,7 +156,7 @@ export default function Timeline() {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   function showDetail(kind, periodLabel, items) {
-    setDetail({ kind, periodLabel, items });
+    setDetail({ kind, periodLabel, items: items.map((r) => ({ ...r, casePack: currentCasePack })) });
   }
 
   function setSku(newSku) {
@@ -192,7 +198,7 @@ export default function Timeline() {
     setHistoryLoading(true);
     timelineApi
       .history(sku)
-      .then(setHistory)
+      .then((rows) => setHistory(rows.map((r) => ({ ...r, casePack: currentCasePack }))))
       .catch(() => setHistory([]))
       .finally(() => setHistoryLoading(false));
   }, [sku]);
@@ -200,6 +206,11 @@ export default function Timeline() {
   const skuOptions = useMemo(
     () => products.map((p) => ({ value: p.sku, label: `${p.sku} — ${p.name}` })),
     [products]
+  );
+
+  const currentCasePack = useMemo(
+    () => products.find((p) => p.sku === sku)?.casePack ?? null,
+    [products, sku]
   );
 
   return (
@@ -283,7 +294,7 @@ export default function Timeline() {
                       : t === "OVERDUE" ? <Tag color="red">⚠ OVERDUE</Tag>
                       : <Tag color="blue">▼ OUT</Tag>,
                   },
-                  { title: "Qty", dataIndex: "qty", width: 80, align: "right" },
+                  { title: "Qty", dataIndex: "qty", width: 90, align: "right", render: (qty, row) => <QtyWithCases qty={qty} casePack={row.casePack} /> },
                   { title: "Warehouse", dataIndex: "warehouse" },
                   { title: "Source", dataIndex: "source", width: 120 },
                   {
