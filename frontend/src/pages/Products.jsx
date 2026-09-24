@@ -41,6 +41,8 @@ export default function Products() {
   const [rtWarehouseMode, setRtWarehouseMode] = useState("all");
   const [rtWarehouseId, setRtWarehouseId] = useState(null);
   const [rtDownloading, setRtDownloading] = useState(false);
+  const [selectedSkuIds, setSelectedSkuIds] = useState([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const filteredProducts = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -323,13 +325,54 @@ export default function Products() {
         </Space>
       </div>
 
+      {selectedSkuIds.length > 0 && (
+        <div style={{ background: "#e6f4ff", border: "1px solid #91caff", borderRadius: 6, padding: "8px 16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 600 }}>{selectedSkuIds.length} SKU{selectedSkuIds.length > 1 ? "s" : ""} selected</span>
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={() => {
+              const selected = products.filter((p) => selectedSkuIds.includes(p.id));
+              downloadInventoryReport(selected);
+            }}
+          >
+            Inventory Report
+          </Button>
+          <Popconfirm
+            title={`Delete ${selectedSkuIds.length} SKU${selectedSkuIds.length > 1 ? "s" : ""}?`}
+            description="This cannot be undone."
+            okText="Delete"
+            okButtonProps={{ danger: true }}
+            onConfirm={async () => {
+              setBulkDeleting(true);
+              try {
+                await Promise.all(selectedSkuIds.map((id) => productsApi.delete(id)));
+                message.success(`${selectedSkuIds.length} SKUs deleted`);
+                setSelectedSkuIds([]);
+                setProducts((prev) => prev.filter((p) => !selectedSkuIds.includes(p.id)));
+              } catch (err) {
+                message.error(err.message);
+              } finally {
+                setBulkDeleting(false);
+              }
+            }}
+          >
+            <Button danger icon={<DeleteOutlined />} loading={bulkDeleting}>Delete</Button>
+          </Popconfirm>
+          <Button size="small" onClick={() => setSelectedSkuIds([])}>Clear</Button>
+        </div>
+      )}
+
       <Table
         columns={columns}
         dataSource={filteredProducts}
         rowKey="id"
+        rowSelection={{
+          selectedRowKeys: selectedSkuIds,
+          onChange: setSelectedSkuIds,
+        }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
         onRow={(product) => ({
-          onClick: () => setEditingProduct(product),
+          onClick: (e) => { if (!e.target.closest(".ant-checkbox-wrapper")) setEditingProduct(product); },
           style: { cursor: "pointer" },
         })}
       />

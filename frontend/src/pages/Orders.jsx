@@ -152,6 +152,9 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState([]);
   const [swapTarget, setSwapTarget] = useState(null); // { orderId, line, groupSkus }
   const [swapLoading, setSwapLoading] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+  const [bulkStatusLoading, setBulkStatusLoading] = useState(false);
+  const [bulkWarehouseLoading, setBulkWarehouseLoading] = useState(false);
 
   const restocksByOrderId = useMemo(() => {
     const map = new Map();
@@ -412,10 +415,56 @@ export default function Orders() {
         </Space>
       </div>
 
+      {selectedOrderIds.length > 0 && (
+        <div style={{ background: "#e6f4ff", border: "1px solid #91caff", borderRadius: 6, padding: "8px 16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 600 }}>{selectedOrderIds.length} order{selectedOrderIds.length > 1 ? "s" : ""} selected</span>
+          <Select
+            placeholder="Change status…"
+            style={{ width: 180 }}
+            loading={bulkStatusLoading}
+            options={STATUS_OPTIONS}
+            onChange={async (newStatus) => {
+              setBulkStatusLoading(true);
+              try {
+                await Promise.all(selectedOrderIds.map((id) => ordersApi.updateStatus(id, newStatus)));
+                message.success(`${selectedOrderIds.length} orders marked ${ORDER_STATUS_LABELS[newStatus]}`);
+                setSelectedOrderIds([]);
+                loadOrders();
+              } catch (err) {
+                message.error(err.message);
+              } finally {
+                setBulkStatusLoading(false);
+              }
+            }}
+          />
+          <Select
+            placeholder="Assign warehouse…"
+            style={{ width: 200 }}
+            loading={bulkWarehouseLoading}
+            options={warehouses.map((w) => ({ value: w.id, label: w.name }))}
+            onChange={async (warehouseId) => {
+              setBulkWarehouseLoading(true);
+              try {
+                await Promise.all(selectedOrderIds.map((id) => ordersApi.assignWarehouse(id, warehouseId)));
+                message.success(`Warehouse assigned to ${selectedOrderIds.length} orders`);
+                setSelectedOrderIds([]);
+                loadOrders();
+              } catch (err) {
+                message.error(err.message);
+              } finally {
+                setBulkWarehouseLoading(false);
+              }
+            }}
+          />
+          <Button size="small" onClick={() => setSelectedOrderIds([])}>Clear</Button>
+        </div>
+      )}
+
       <Table
         columns={columns}
         dataSource={filteredOrders}
         rowKey="id"
+        rowSelection={{ selectedRowKeys: selectedOrderIds, onChange: setSelectedOrderIds }}
         pagination={{ defaultPageSize: 15, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
         onRow={(order) => ({ id: `order-row-${order.id}` })}
         expandable={{
