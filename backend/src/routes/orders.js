@@ -146,6 +146,7 @@ router.get(
           casePack: line.product.casePack,
           shipDate: isoDate(line.shipDate),
           containerNumber: line.containerNumber ?? null,
+          cartonMarking: line.cartonMarking ?? null,
           projection: serializeShortfall(resultByLineId.get(line.id)),
         })),
       };
@@ -298,6 +299,7 @@ router.get(
         casePack: line.product.casePack,
         shipDate: isoDate(line.shipDate),
         containerNumber: line.containerNumber ?? null,
+        cartonMarking: line.cartonMarking ?? null,
         projection: serializeShortfall(shortfallResults[i]),
       })),
     });
@@ -514,6 +516,20 @@ router.patch(
       data: { customerPo: customerPo || null },
     });
     res.json({ customerPo: order.customerPo });
+  })
+);
+
+// PATCH /api/orders/:id/lines/:lineId/carton-marking — update carton marking on a line
+router.patch(
+  "/:id/lines/:lineId/carton-marking",
+  asyncHandler(async (req, res) => {
+    const lineId = Number(req.params.lineId);
+    const { cartonMarking } = req.body;
+    const line = await prisma.orderLine.update({
+      where: { id: lineId },
+      data: { cartonMarking: cartonMarking || null },
+    });
+    res.json({ cartonMarking: line.cartonMarking });
   })
 );
 

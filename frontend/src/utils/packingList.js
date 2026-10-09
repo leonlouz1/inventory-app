@@ -13,7 +13,7 @@ export function downloadPackingList(order) {
     ["Customer PO #", order.customerPo || ""],
     ["Order Date", order.orderDate],
     [],
-    ["SKU", "Product", "Warehouse", "Qty (Units)", "Cases (24/case)", "Ship Date", "Container #", "PO #"],
+    ["SKU", "Product", "Warehouse", "Qty (Units)", "Cases (24/case)", "Ship Date", "Container #", "Carton Marking", "PO #"],
   ];
 
   // Container # and PO # are left blank — filled in by hand after export,
@@ -26,6 +26,7 @@ export function downloadPackingList(order) {
     Math.round((line.quantity / UNITS_PER_CASE) * 100) / 100,
     line.shipDate,
     line.containerNumber || "",
+    line.cartonMarking || "",
     "",
   ]);
 
@@ -38,6 +39,7 @@ export function downloadPackingList(order) {
     { wch: 16 },
     { wch: 12 },
     { wch: 14 },
+    { wch: 18 },
     { wch: 14 },
   ];
 

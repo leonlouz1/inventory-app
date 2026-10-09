@@ -603,6 +603,33 @@ export default function Orders() {
                   />
                 ),
               },
+              {
+                title: "Carton Marking",
+                dataIndex: "cartonMarking",
+                render: (val, line) => (
+                  <Input
+                    size="small"
+                    defaultValue={val || ""}
+                    placeholder="—"
+                    style={{ width: 140 }}
+                    onBlur={async (e) => {
+                      const newVal = e.target.value.trim() || null;
+                      if (newVal === (val || null)) return;
+                      try {
+                        await ordersApi.updateLineCartonMarking(order.id, line.id, newVal);
+                        setOrders((prev) => prev.map((o) =>
+                          o.id === order.id
+                            ? { ...o, lines: o.lines.map((l) => l.id === line.id ? { ...l, cartonMarking: newVal } : l) }
+                            : o
+                        ));
+                      } catch (err) {
+                        message.error(`Failed to save carton marking: ${err.message}`);
+                      }
+                    }}
+                    onPressEnter={(e) => e.target.blur()}
+                  />
+                ),
+              },
               { title: "Projection", dataIndex: "projection", render: (p) => <ProjectionTag projection={p} /> },
               {
                 title: "",

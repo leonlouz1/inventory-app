@@ -24,6 +24,7 @@ export const ordersApi = {
   updateCustomer: (id, customer) => apiClient.patch(`/orders/${id}/customer`, { customer }),
   renameCustomer: (oldName, newName) => apiClient.patch(`/orders/rename-customer`, { oldName, newName }),
   updateLineContainer: (orderId, lineId, containerNumber) => apiClient.patch(`/orders/${orderId}/lines/${lineId}/container`, { containerNumber }),
+  updateLineCartonMarking: (orderId, lineId, cartonMarking) => apiClient.patch(`/orders/${orderId}/lines/${lineId}/carton-marking`, { cartonMarking }),
   assignWarehouse: (id, warehouseId) => apiClient.patch(`/orders/${id}/warehouse`, { warehouseId }),
   nextNumber: () => apiClient.get("/orders/next-number"),
 };

@@ -125,6 +125,7 @@ model OrderLine {
   quantity        Int
   shipDate        DateTime @map("ship_date") @db.Date
   containerNumber String?  @map("container_number") @db.VarChar(100)
+  cartonMarking   String?  @map("carton_marking") @db.VarChar(200)
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
