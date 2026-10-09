@@ -201,6 +201,8 @@ export default function Orders() {
   const [expandedRowKeys, setExpandedRowKeys] = useState(highlightId ? [highlightId] : []);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState([]);
+  const [customerFilter, setCustomerFilter] = useState(null);
+  const [categoryFilter, setCategoryFilter] = useState(null);
   const [swapTarget, setSwapTarget] = useState(null); // { orderId, line, groupSkus }
   const [swapLoading, setSwapLoading] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
@@ -217,10 +219,23 @@ export default function Orders() {
     return map;
   }, [restocks]);
 
+  const customerOptions = useMemo(() => {
+    const names = [...new Set(orders.map((o) => o.customer))].sort();
+    return names.map((n) => ({ value: n, label: n }));
+  }, [orders]);
+
+  const categoryOptions = useMemo(() => {
+    const cats = new Set();
+    for (const o of orders) for (const l of o.lines) if (l.groupName) cats.add(l.groupName);
+    return [...cats].sort().map((c) => ({ value: c, label: c }));
+  }, [orders]);
+
   const filteredOrders = useMemo(() => {
     const term = search.trim().toLowerCase();
     return orders.filter((o) => {
       if (statusFilter.length > 0 && !statusFilter.includes(o.status)) return false;
+      if (customerFilter && o.customer !== customerFilter) return false;
+      if (categoryFilter && !o.lines.some((l) => l.groupName === categoryFilter)) return false;
       if (!term) return true;
       return (
         o.orderNumber.toLowerCase().includes(term) ||
@@ -228,7 +243,7 @@ export default function Orders() {
         (o.customerPo || "").toLowerCase().includes(term)
       );
     });
-  }, [orders, search, statusFilter]);
+  }, [orders, search, statusFilter, customerFilter, categoryFilter]);
 
   function exportOrdersCsv() {
     const rows = [];
@@ -443,6 +458,24 @@ export default function Orders() {
             style={{ width: 260 }}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+          />
+          <Select
+            showSearch
+            placeholder="Filter by customer"
+            allowClear
+            style={{ minWidth: 180 }}
+            options={customerOptions}
+            value={customerFilter}
+            onChange={(v) => setCustomerFilter(v ?? null)}
+            filterOption={(input, option) => option.label.toLowerCase().includes(input.toLowerCase())}
+          />
+          <Select
+            placeholder="Filter by category"
+            allowClear
+            style={{ minWidth: 160 }}
+            options={categoryOptions}
+            value={categoryFilter}
+            onChange={(v) => setCategoryFilter(v ?? null)}
           />
           <Select
             mode="multiple"
