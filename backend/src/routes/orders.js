@@ -145,6 +145,7 @@ router.get(
           quantity: line.quantity,
           casePack: line.product.casePack,
           shipDate: isoDate(line.shipDate),
+          containerNumber: line.containerNumber ?? null,
           projection: serializeShortfall(resultByLineId.get(line.id)),
         })),
       };
@@ -296,6 +297,7 @@ router.get(
         quantity: line.quantity,
         casePack: line.product.casePack,
         shipDate: isoDate(line.shipDate),
+        containerNumber: line.containerNumber ?? null,
         projection: serializeShortfall(shortfallResults[i]),
       })),
     });
@@ -512,6 +514,20 @@ router.patch(
       data: { customerPo: customerPo || null },
     });
     res.json({ customerPo: order.customerPo });
+  })
+);
+
+// PATCH /api/orders/:id/lines/:lineId/container — update container number on a line
+router.patch(
+  "/:id/lines/:lineId/container",
+  asyncHandler(async (req, res) => {
+    const lineId = Number(req.params.lineId);
+    const { containerNumber } = req.body;
+    const line = await prisma.orderLine.update({
+      where: { id: lineId },
+      data: { containerNumber: containerNumber || null },
+    });
+    res.json({ containerNumber: line.containerNumber });
   })
 );
 

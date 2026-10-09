@@ -25,7 +25,7 @@ export function downloadPackingList(order) {
     line.quantity,
     Math.round((line.quantity / UNITS_PER_CASE) * 100) / 100,
     line.shipDate,
-    "",
+    line.containerNumber || "",
     "",
   ]);
 

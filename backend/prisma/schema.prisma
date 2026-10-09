@@ -122,9 +122,10 @@ model OrderLine {
   orderId     Int      @map("order_id")
   productId   Int      @map("product_id")
   warehouseId Int?     @map("warehouse_id")
-  quantity    Int
-  shipDate    DateTime @map("ship_date") @db.Date
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  quantity        Int
+  shipDate        DateTime @map("ship_date") @db.Date
+  containerNumber String?  @map("container_number") @db.VarChar(100)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product   Product    @relation(fields: [productId], references: [id])

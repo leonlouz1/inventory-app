@@ -576,6 +576,33 @@ export default function Orders() {
                 },
               },
               { title: "Ship Date", dataIndex: "shipDate" },
+              {
+                title: "Container #",
+                dataIndex: "containerNumber",
+                render: (val, line) => (
+                  <Input
+                    size="small"
+                    defaultValue={val || ""}
+                    placeholder="—"
+                    style={{ width: 120 }}
+                    onBlur={async (e) => {
+                      const newVal = e.target.value.trim() || null;
+                      if (newVal === (val || null)) return;
+                      try {
+                        await ordersApi.updateLineContainer(order.id, line.id, newVal);
+                        setOrders((prev) => prev.map((o) =>
+                          o.id === order.id
+                            ? { ...o, lines: o.lines.map((l) => l.id === line.id ? { ...l, containerNumber: newVal } : l) }
+                            : o
+                        ));
+                      } catch (err) {
+                        message.error(`Failed to save container #: ${err.message}`);
+                      }
+                    }}
+                    onPressEnter={(e) => e.target.blur()}
+                  />
+                ),
+              },
               { title: "Projection", dataIndex: "projection", render: (p) => <ProjectionTag projection={p} /> },
               {
                 title: "",
