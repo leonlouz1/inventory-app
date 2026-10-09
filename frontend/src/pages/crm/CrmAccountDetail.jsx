@@ -134,6 +134,9 @@ export default function CrmAccountDetail() {
   const [error, setError] = useState(null);
   const [logOpen, setLogOpen] = useState(false);
   const [contactModal, setContactModal] = useState({ open: false, contact: null });
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -186,6 +189,20 @@ export default function CrmAccountDetail() {
     }
   }
 
+  async function saveRetailerName() {
+    if (!nameValue.trim()) return;
+    setNameSaving(true);
+    try {
+      await crmApi.updateRetailer(retailer.id, { name: nameValue.trim() });
+      setRetailer((prev) => ({ ...prev, name: nameValue.trim() }));
+      setEditingName(false);
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setNameSaving(false);
+    }
+  }
+
   async function deleteActivity(activityId) {
     try {
       await crmApi.deleteActivity(activityId);
@@ -230,7 +247,29 @@ export default function CrmAccountDetail() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/crm/accounts")} type="text" />
-          <Typography.Title level={4} style={{ margin: 0 }}>{retailer.name}</Typography.Title>
+          {editingName ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <Input
+                autoFocus
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onPressEnter={saveRetailerName}
+                style={{ fontSize: 18, fontWeight: 600, width: 260 }}
+              />
+              <Button type="primary" size="small" loading={nameSaving} onClick={saveRetailerName}>Save</Button>
+              <Button size="small" onClick={() => setEditingName(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Typography.Title level={4} style={{ margin: 0 }}>{retailer.name}</Typography.Title>
+              <Button
+                type="text"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => { setNameValue(retailer.name); setEditingName(true); }}
+              />
+            </div>
+          )}
           {retailer.type && <Tag>{retailer.type}</Tag>}
           {retailer.priority && (
             <Tag color={retailer.priority === "3 - High" ? "red" : retailer.priority === "2 - Medium" ? "orange" : "default"}>

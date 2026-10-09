@@ -486,6 +486,21 @@ router.patch(
   })
 );
 
+// PATCH /api/orders/:id/customer — update the customer name only
+router.patch(
+  "/:id/customer",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { customer } = req.body;
+    if (!customer || !customer.trim()) return res.status(400).json({ message: "customer is required" });
+    const order = await prisma.order.update({
+      where: { id },
+      data: { customer: customer.trim() },
+    });
+    res.json({ customer: order.customer });
+  })
+);
+
 // PATCH /api/orders/:id/customer-po — update the customer PO# only
 router.patch(
   "/:id/customer-po",

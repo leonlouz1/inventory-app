@@ -68,6 +68,57 @@ function OrderNotes({ order, onSaved }) {
   );
 }
 
+function OrderCustomer({ order, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(order.customer || "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!value.trim()) return;
+    setSaving(true);
+    try {
+      await ordersApi.updateCustomer(order.id, value.trim());
+      onSaved(value.trim());
+      setEditing(false);
+    } catch (err) {
+      message.error(`Failed to save customer: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
+        <Input
+          autoFocus
+          style={{ maxWidth: 240 }}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Customer name…"
+          onPressEnter={save}
+        />
+        <Button type="primary" size="small" loading={saving} onClick={save}>Save</Button>
+        <Button size="small" onClick={() => { setValue(order.customer || ""); setEditing(false); }}>Cancel</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
+      <Typography.Text type="secondary" style={{ fontSize: 13 }}>Customer:</Typography.Text>
+      <Typography.Text style={{ fontSize: 13 }}>{order.customer}</Typography.Text>
+      <Button
+        type="link"
+        size="small"
+        icon={<EditOutlined />}
+        style={{ padding: "0 4px", height: "auto", lineHeight: 1 }}
+        onClick={() => { setValue(order.customer || ""); setEditing(true); }}
+      />
+    </div>
+  );
+}
+
 function OrderCustomerPo({ order, onSaved }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(order.customerPo || "");
@@ -603,6 +654,12 @@ export default function Orders() {
                     />
                   )}
                 </Space>
+                <OrderCustomer
+                  order={order}
+                  onSaved={(customer) =>
+                    setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, customer } : o))
+                  }
+                />
                 <OrderCustomerPo
                   order={order}
                   onSaved={(customerPo) =>
