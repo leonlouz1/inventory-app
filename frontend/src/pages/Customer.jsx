@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Select, Spin, Alert, Typography, Empty, Table, Tag, Row, Col, Statistic, Card, Button, Space } from "antd";
-import { DownloadOutlined } from "@ant-design/icons";
+import { Select, Spin, Alert, Typography, Empty, Table, Tag, Row, Col, Statistic, Card, Button, Space, Modal, Input, message, Form } from "antd";
+import { DownloadOutlined, EditOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import * as XLSX from "xlsx";
 import { ordersApi, crmApi } from "../api/inventory";
@@ -117,6 +117,9 @@ export default function Customer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [warehouseFilter, setWarehouseFilter] = useState(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameSaving, setRenameSaving] = useState(false);
   const customer = searchParams.get("name");
 
   useEffect(() => {
@@ -146,6 +149,30 @@ export default function Customer() {
 
   function setCustomer(name) {
     setSearchParams(name ? { name } : {});
+  }
+
+  async function handleRename() {
+    if (!renameValue.trim() || renameValue.trim() === customer) return;
+    setRenameSaving(true);
+    try {
+      // Rename all orders + the CRM retailer (best effort)
+      await ordersApi.renameCustomer(customer, renameValue.trim());
+      const match = activeRetailers.find((r) => r.name === customer);
+      if (match) {
+        try { await crmApi.updateRetailer(match.id, { name: renameValue.trim() }); } catch (_) {}
+      }
+      // Reload data and navigate to new name
+      const [orderData, retailers] = await Promise.all([ordersApi.list(), crmApi.activeCustomers()]);
+      setOrders(orderData);
+      setActiveRetailers(retailers);
+      setSearchParams({ name: renameValue.trim() });
+      setRenameOpen(false);
+      message.success(`Renamed to "${renameValue.trim()}"`);
+    } catch (err) {
+      message.error(`Rename failed: ${err.message}`);
+    } finally {
+      setRenameSaving(false);
+    }
   }
 
   const customerOrders = useMemo(
@@ -187,7 +214,7 @@ export default function Customer() {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 24, alignItems: "center", marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 24 }}>
         <Select
           showSearch
           placeholder="Select customer"
@@ -197,7 +224,36 @@ export default function Customer() {
           filterOption={(input, option) => option.label.toLowerCase().includes(input.toLowerCase())}
           onChange={setCustomer}
         />
+        {customer && (
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => { setRenameValue(customer); setRenameOpen(true); }}
+          >
+            Rename
+          </Button>
+        )}
       </div>
+
+      <Modal
+        title="Rename Customer"
+        open={renameOpen}
+        onCancel={() => setRenameOpen(false)}
+        onOk={handleRename}
+        confirmLoading={renameSaving}
+        okText="Rename"
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          This will update the name on all orders for <strong>{customer}</strong> and their CRM account.
+        </Typography.Paragraph>
+        <Input
+          autoFocus
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onPressEnter={handleRename}
+          placeholder="New name…"
+        />
+      </Modal>
 
       <Spin spinning={loading}>
         {customer ? (

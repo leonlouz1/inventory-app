@@ -515,6 +515,22 @@ router.patch(
   })
 );
 
+// PATCH /api/orders/rename-customer — rename all orders for a customer
+router.patch(
+  "/rename-customer",
+  asyncHandler(async (req, res) => {
+    const { oldName, newName } = req.body;
+    if (!oldName || !newName || !newName.trim()) {
+      return res.status(400).json({ message: "oldName and newName are required" });
+    }
+    const result = await prisma.order.updateMany({
+      where: { customer: oldName },
+      data: { customer: newName.trim() },
+    });
+    res.json({ updated: result.count });
+  })
+);
+
 // PATCH /api/orders/:id/notes — update the notes field only
 router.patch(
   "/:id/notes",
