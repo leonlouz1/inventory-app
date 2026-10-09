@@ -56,13 +56,6 @@ router.get(
       if (networkBalance < 0) {
         flags.push("network_shortage");
       }
-      if (
-        warehouseAssigned &&
-        !flags.includes("warehouse_shortage") &&
-        warehouseBalance < line.product.reorderPoint
-      ) {
-        flags.push("low_stock");
-      }
 
       if (flags.length === 0) continue;
 

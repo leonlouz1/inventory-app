@@ -57,8 +57,6 @@ router.post("/", async (req, res) => {
       name: p.name || sku,
       brand: p.brand || null,
       category: p.category || null,
-      reorderPoint: Number(p.reorderPoint) || 0,
-      reorderQty: Number(p.reorderQty) || 0,
       leadTimeDays: Number(p.leadTimeDays) || 45,
     };
     const before = await prisma.product.findUnique({ where: { sku } });

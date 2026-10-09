@@ -242,9 +242,6 @@ export default function Timeline() {
       <Spin spinning={loading}>
         {timeline ? (
           <>
-            <Typography.Paragraph type="secondary">
-              Reorder point: <strong>{timeline.reorderPoint}</strong> units (network-wide)
-            </Typography.Paragraph>
             <TimelineBlock
               title="Network Total (All Warehouses)"
               rows={timeline.network}

@@ -22,8 +22,6 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
         name: values.name,
         brand: values.brand,
         category: values.category,
-        reorderPoint: values.reorderPoint ?? 0,
-        reorderQty: values.reorderQty ?? 0,
         leadTimeDays: values.leadTimeDays ?? 45,
         initialStock,
       });
@@ -49,7 +47,7 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
       okText="Create"
       destroyOnHidden
     >
-      <Form form={form} layout="vertical" initialValues={{ reorderPoint: 0, reorderQty: 0, leadTimeDays: 45 }}>
+      <Form form={form} layout="vertical" initialValues={{ leadTimeDays: 45 }}>
         <Row gutter={12}>
           <Col span={12}>
             <Form.Item name="sku" label="SKU" rules={[{ required: true, message: "Required" }]}>
@@ -74,23 +72,9 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
             </Form.Item>
           </Col>
         </Row>
-        <Row gutter={12}>
-          <Col span={8}>
-            <Form.Item name="reorderPoint" label="Reorder Point">
-              <InputNumber min={0} style={{ width: "100%" }} />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="reorderQty" label="Reorder Qty">
-              <InputNumber min={0} style={{ width: "100%" }} />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="leadTimeDays" label="Lead Time (days)">
-              <InputNumber min={0} style={{ width: "100%" }} />
-            </Form.Item>
-          </Col>
-        </Row>
+        <Form.Item name="leadTimeDays" label="Lead Time (days)" style={{ maxWidth: 180 }}>
+          <InputNumber min={0} style={{ width: "100%" }} />
+        </Form.Item>
 
         <Typography.Title level={5}>Initial On-Hand</Typography.Title>
         <Row gutter={12}>
@@ -120,8 +104,6 @@ export function EditProductModal({ open, onClose, onUpdated, product, warehouses
         name: product.name,
         brand: product.brand,
         category: product.category,
-        reorderPoint: product.reorderPoint,
-        reorderQty: product.reorderQty,
         leadTimeDays: product.leadTimeDays,
         ...stockFields,
       });
@@ -166,23 +148,9 @@ export function EditProductModal({ open, onClose, onUpdated, product, warehouses
             </Form.Item>
           </Col>
         </Row>
-        <Row gutter={12}>
-          <Col span={8}>
-            <Form.Item name="reorderPoint" label="Reorder Point">
-              <InputNumber min={0} style={{ width: "100%" }} />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="reorderQty" label="Reorder Qty">
-              <InputNumber min={0} style={{ width: "100%" }} />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="leadTimeDays" label="Lead Time (days)">
-              <InputNumber min={0} style={{ width: "100%" }} />
-            </Form.Item>
-          </Col>
-        </Row>
+        <Form.Item name="leadTimeDays" label="Lead Time (days)" style={{ maxWidth: 180 }}>
+          <InputNumber min={0} style={{ width: "100%" }} />
+        </Form.Item>
 
         <Typography.Title level={5}>On-Hand Stock</Typography.Title>
         <Row gutter={12}>

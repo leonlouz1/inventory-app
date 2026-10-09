@@ -44,8 +44,6 @@ export async function downloadFullExport() {
         Name: p.name,
         Brand: p.brand || "",
         Category: p.category || "",
-        "Reorder Point": p.reorderPoint,
-        "Reorder Qty": p.reorderQty,
         "Lead Time (days)": p.leadTimeDays,
         "Pending Orders": p.pendingQty,
         "Available to Sell": p.availableToSell,

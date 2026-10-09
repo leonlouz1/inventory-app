@@ -46,8 +46,6 @@ function buildPayload(wb) {
       name: r["Name"],
       brand: r["Brand"] || null,
       category: r["Category"] || null,
-      reorderPoint: Number(r["Reorder Point"]) || 0,
-      reorderQty: Number(r["Reorder Qty"]) || 0,
       leadTimeDays: Number(r["Lead Time (days)"]) || 45,
       stock,
     };

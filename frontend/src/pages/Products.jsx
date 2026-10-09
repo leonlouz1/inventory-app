@@ -246,18 +246,6 @@ export default function Products() {
         render: (v) => <span style={{ color: v < 0 ? "#cf1322" : undefined, fontWeight: 600 }}>{v}</span>,
       },
       {
-        title: "Reorder Point",
-        dataIndex: "reorderPoint",
-        align: "right",
-        sorter: (a, b) => a.reorderPoint - b.reorderPoint,
-      },
-      {
-        title: "Reorder Qty",
-        dataIndex: "reorderQty",
-        align: "right",
-        sorter: (a, b) => a.reorderQty - b.reorderQty,
-      },
-      {
         title: "Lead Time (days)",
         dataIndex: "leadTimeDays",
         align: "right",

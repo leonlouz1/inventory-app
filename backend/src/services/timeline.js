@@ -50,9 +50,8 @@ function sumQuantity(rows) {
   return rows.reduce((sum, row) => sum + row.quantity, 0);
 }
 
-function flagFor(balance, reorderPoint) {
+function flagFor(balance) {
   if (balance < 0) return "shortage";
-  if (balance < reorderPoint) return "low";
   return "ok";
 }
 
@@ -138,7 +137,7 @@ async function buildSkuTimeline(sku, grain = "month") {
       ordersDetail.push(outRows.map(serializeOrderLine));
       runningBalance = runningBalance + inQty - outQty;
       projectedAvailable.push(runningBalance);
-      flags.push(flagFor(runningBalance, product.reorderPoint));
+      flags.push(flagFor(runningBalance));
     }
 
     return {
@@ -180,13 +179,12 @@ async function buildSkuTimeline(sku, grain = "month") {
     network.ordersDetail.push(outRows.map(serializeOrderLine));
     networkRunningBalance = networkRunningBalance + inQty - outQty;
     network.projectedAvailable.push(networkRunningBalance);
-    network.flags.push(flagFor(networkRunningBalance, product.reorderPoint));
+    network.flags.push(flagFor(networkRunningBalance));
   }
 
   return {
     sku: product.sku,
     productName: product.name,
-    reorderPoint: product.reorderPoint,
     grain: normalizedGrain,
     periods: periods.map((p) => ({ start: isoDate(p.start), end: isoDate(p.end) })),
     warehouses: warehouseRows,

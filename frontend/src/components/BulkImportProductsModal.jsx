@@ -12,8 +12,6 @@ function buildTemplateCsv(warehouses) {
     "name",
     "brand",
     "category",
-    "reorderPoint",
-    "reorderQty",
     "leadTimeDays",
     ...warehouses.map((w) => w.name),
   ];
@@ -22,8 +20,6 @@ function buildTemplateCsv(warehouses) {
     "Example Widget",
     PRODUCT_BRANDS[0],
     PRODUCT_CATEGORIES[0],
-    "20",
-    "100",
     "45",
     ...warehouses.map(() => "0"),
   ];
@@ -66,11 +62,9 @@ function validateRow(row, warehouses, seenSkus) {
     return Number.isFinite(n) ? Math.round(n) : NaN;
   };
 
-  const reorderPoint = toInt(row.reorderPoint, 0);
-  const reorderQty = toInt(row.reorderQty, 0);
   const leadTimeDays = toInt(row.leadTimeDays, 45);
-  if ([reorderPoint, reorderQty, leadTimeDays].some(Number.isNaN)) {
-    return { sku, name, error: "reorderPoint/reorderQty/leadTimeDays must be numbers" };
+  if (Number.isNaN(leadTimeDays)) {
+    return { sku, name, error: "leadTimeDays must be a number" };
   }
 
   const initialStock = [];
@@ -88,8 +82,6 @@ function validateRow(row, warehouses, seenSkus) {
     name,
     brand: brand || undefined,
     category: category || undefined,
-    reorderPoint,
-    reorderQty,
     leadTimeDays,
     initialStock,
     error: null,
@@ -141,8 +133,6 @@ export default function BulkImportProductsModal({ open, onClose, onImported, war
           name: row.name,
           brand: row.brand,
           category: row.category,
-          reorderPoint: row.reorderPoint,
-          reorderQty: row.reorderQty,
           leadTimeDays: row.leadTimeDays,
           initialStock: row.initialStock,
         });
@@ -203,7 +193,7 @@ export default function BulkImportProductsModal({ open, onClose, onImported, war
       <Typography.Paragraph type="secondary">
         Download the template, fill in one row per product, then upload it here. Columns: sku, name, brand
         (optional, must match an existing brand), category (optional, must match an existing category),
-        reorderPoint, reorderQty, leadTimeDays, and one column per warehouse for initial on-hand quantity.
+        leadTimeDays, and one column per warehouse for initial on-hand quantity.
       </Typography.Paragraph>
 
       <Button
