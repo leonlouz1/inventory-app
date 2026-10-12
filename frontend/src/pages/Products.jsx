@@ -43,6 +43,8 @@ export default function Products() {
   const [rtDownloading, setRtDownloading] = useState(false);
   const [selectedSkuIds, setSelectedSkuIds] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [inventoryReportOpen, setInventoryReportOpen] = useState(false);
+  const [inventoryReportCategories, setInventoryReportCategories] = useState([]);
 
   const filteredProducts = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -298,7 +300,7 @@ export default function Products() {
           <Button icon={<DownloadOutlined />} onClick={() => setRollingTotalsOpen(true)}>
             Rolling Totals
           </Button>
-          <Button icon={<DownloadOutlined />} onClick={() => downloadInventoryReport(products)}>
+          <Button icon={<DownloadOutlined />} onClick={() => { setInventoryReportCategories([]); setInventoryReportOpen(true); }}>
             Inventory Report
           </Button>
           <Button icon={<DownloadOutlined />} onClick={handleExportAvailableToSell}>
@@ -394,6 +396,39 @@ export default function Products() {
         products={products}
         warehouses={warehouses}
       />
+
+      <Modal
+        title="Inventory Report"
+        open={inventoryReportOpen}
+        onCancel={() => setInventoryReportOpen(false)}
+        okText="Download"
+        onOk={() => {
+          const filtered = inventoryReportCategories.length === 0
+            ? products
+            : products.filter((p) => inventoryReportCategories.includes(p.category));
+          downloadInventoryReport(filtered);
+          setInventoryReportOpen(false);
+        }}
+        destroyOnHidden
+        width={420}
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          Select which categories to include. Leave blank for all.
+        </Typography.Paragraph>
+        <Select
+          mode="multiple"
+          placeholder="All categories"
+          allowClear
+          style={{ width: "100%" }}
+          options={[
+            ...PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c })),
+            { value: null, label: "(No category)" },
+          ]}
+          value={inventoryReportCategories}
+          onChange={setInventoryReportCategories}
+          maxTagCount="responsive"
+        />
+      </Modal>
 
       <Modal
         title="Update Stock Quantities"
