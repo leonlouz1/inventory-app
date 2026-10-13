@@ -107,6 +107,11 @@ export const skuGroupsApi = {
   swapLine: (orderId, lineId, productId) => apiClient.patch(`/orders/${orderId}/lines/${lineId}/swap`, { productId }),
 };
 
+export const billingApi = {
+  list: () => apiClient.get("/billing"),
+  markInvoiced: (id, invoiced) => apiClient.patch(`/billing/${id}/invoice`, { invoiced }),
+};
+
 export const shipmentsApi = {
   list: () => apiClient.get("/shipments"),
   create: (data) => apiClient.post("/shipments", data),

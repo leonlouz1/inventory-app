@@ -108,6 +108,7 @@ model Order {
   status       OrderStatus @default(CONFIRMED)
   notes        String?
   shipmentId   Int?        @map("shipment_id")
+  invoicedAt   DateTime?   @map("invoiced_at") @db.Timestamptz
   createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
 
   lines           OrderLine[]

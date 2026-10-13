@@ -16,6 +16,7 @@ import CrmActivity from "./pages/crm/CrmActivity";
 import CrmSentTracker from "./pages/crm/CrmSentTracker";
 import SkuGroups from "./pages/SkuGroups";
 import Catalog from "./pages/Catalog";
+import Billing from "./pages/Billing";
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="/calendar" element={<CalendarView />} />
           <Route path="/sku-groups" element={<SkuGroups />} />
           <Route path="/catalog" element={<Catalog />} />
+          <Route path="/billing" element={<Billing />} />
         </Route>
       </Routes>
     </BrowserRouter>

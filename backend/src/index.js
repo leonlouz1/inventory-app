@@ -16,6 +16,7 @@ const emailsRouter = require("./routes/emails");
 const reportsRouter = require("./routes/reports");
 const skuGroupsRouter = require("./routes/skuGroups");
 const catalogRouter = require("./routes/catalog");
+const billingRouter = require("./routes/billing");
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use("/api/emails", emailsRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/sku-groups", skuGroupsRouter);
 app.use("/api/catalog", catalogRouter);
+app.use("/api/billing", billingRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
@@ -92,6 +94,7 @@ async function runStartupMigrations() {
     await prisma.$executeRaw`ALTER TABLE "products" DROP COLUMN IF EXISTS "reorder_qty"`;
     await prisma.$executeRaw`ALTER TABLE "order_lines" ADD COLUMN IF NOT EXISTS "container_number" VARCHAR(100)`;
     await prisma.$executeRaw`ALTER TABLE "order_lines" ADD COLUMN IF NOT EXISTS "carton_marking" VARCHAR(200)`;
+    await prisma.$executeRaw`ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "invoiced_at" TIMESTAMPTZ`;
     console.log("Startup migrations complete");
   } catch (err) {
     console.error("Startup migration error:", err.message);

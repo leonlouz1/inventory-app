@@ -15,6 +15,7 @@ import {
   SendOutlined,
   LinkOutlined,
   BookOutlined,
+  DollarOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { key: "/", label: "Dashboard", icon: <DashboardOutlined /> },
   { key: "/orders", label: "Orders", icon: <ShoppingCartOutlined /> },
   { key: "/shipments", label: "Shipments", icon: <TruckOutlined /> },
+  { key: "/billing", label: "Billing", icon: <DollarOutlined /> },
   {
     key: "crm-group",
     label: "CRM",
