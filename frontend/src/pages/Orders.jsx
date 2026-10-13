@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input } from "antd";
+import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input, DatePicker } from "antd";
 import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined, TruckOutlined, MailOutlined, DownloadOutlined } from "@ant-design/icons";
 import { ordersApi, productsApi, warehousesApi, restocksApi, shipmentsApi, skuGroupsApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
@@ -343,6 +343,8 @@ export default function Orders() {
     }
   }
 
+  const [shipDateModal, setShipDateModal] = useState(null); // { order, newStatus, date }
+
   function handleStatusChange(order, newStatus) {
     const crossesShippedBoundary = order.status === "SHIPPED" || newStatus === "SHIPPED";
     if (!crossesShippedBoundary) {
@@ -351,15 +353,31 @@ export default function Orders() {
     }
 
     const goingToShipped = newStatus === "SHIPPED";
-    Modal.confirm({
-      title: goingToShipped ? "Mark as Shipped?" : "Move off Shipped?",
-      content: goingToShipped
-        ? "This will deduct each line's quantity from on-hand stock at its assigned warehouse — a real inventory transaction, not just a projection."
-        : "This will restore each line's quantity back to on-hand stock, undoing the deduction made when it was marked Shipped.",
-      okText: "Confirm",
-      cancelText: "Cancel",
-      onOk: () => applyStatusChange(order, newStatus),
-    });
+    if (goingToShipped) {
+      setShipDateModal({ order, newStatus, date: dayjs().format("YYYY-MM-DD") });
+    } else {
+      Modal.confirm({
+        title: "Move off Shipped?",
+        content: "This will restore each line's quantity back to on-hand stock, undoing the deduction made when it was marked Shipped.",
+        okText: "Confirm",
+        cancelText: "Cancel",
+        onOk: () => applyStatusChange(order, newStatus),
+      });
+    }
+  }
+
+  async function confirmShipDate() {
+    const { order, newStatus, date } = shipDateModal;
+    setShipDateModal(null);
+    await applyStatusChange(order, newStatus);
+    if (date) {
+      try {
+        await ordersApi.updateShippedAt(order.id, date);
+        loadOrders();
+      } catch (err) {
+        message.error(`Failed to set ship date: ${err.message}`);
+      }
+    }
   }
 
   const sortString = (key) => (a, b) => (a[key] || "").localeCompare(b[key] || "");
@@ -924,6 +942,32 @@ export default function Orders() {
             size="small"
           />
         )}
+      </Modal>
+
+      <Modal
+        title="Mark as Shipped"
+        open={!!shipDateModal}
+        onCancel={() => setShipDateModal(null)}
+        onOk={confirmShipDate}
+        okText="Confirm"
+        cancelText="Cancel"
+      >
+        <p style={{ marginBottom: 12 }}>
+          This will deduct each line's quantity from on-hand stock at its assigned warehouse. Enter the ship date:
+        </p>
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Input
+            type="date"
+            value={shipDateModal?.date || ""}
+            onChange={(e) => setShipDateModal((prev) => ({ ...prev, date: e.target.value }))}
+            style={{ width: "100%" }}
+          />
+          <Button
+            onClick={() => setShipDateModal((prev) => ({ ...prev, date: dayjs().format("YYYY-MM-DD") }))}
+          >
+            Today ({dayjs().format("MMM D, YYYY")})
+          </Button>
+        </Space>
       </Modal>
     </Spin>
   );
