@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from "react";
-import { Table, Button, Tag, Spin, Alert, Typography, Tabs, Space, Popconfirm, message, Input } from "antd";
-import { CheckCircleOutlined, MailOutlined, UndoOutlined } from "@ant-design/icons";
+import { Table, Button, Tag, Spin, Alert, Typography, Tabs, Space, Popconfirm, message, Input, Tooltip } from "antd";
+import { CheckCircleOutlined, MailOutlined, UndoOutlined, EditOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { billingApi } from "../api/inventory";
+import { billingApi, ordersApi } from "../api/inventory";
 import EmailOrderModal from "../components/EmailOrderModal";
 
 export default function Billing() {
@@ -11,6 +11,18 @@ export default function Billing() {
   const [error, setError] = useState(null);
   const [emailOrder, setEmailOrder] = useState(null);
   const [search, setSearch] = useState("");
+  const [editingShippedAt, setEditingShippedAt] = useState(null); // orderId
+
+  async function handleShippedAtChange(order, newDate) {
+    try {
+      const { shippedAt } = await ordersApi.updateShippedAt(order.id, newDate || null);
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, shippedAt } : o)));
+    } catch (err) {
+      message.error(`Failed to update ship date: ${err.message}`);
+    } finally {
+      setEditingShippedAt(null);
+    }
+  }
 
   function load() {
     setLoading(true);
@@ -70,6 +82,41 @@ export default function Billing() {
       dataIndex: "orderDate",
       render: (v) => v ? dayjs(v).format("MMM D, YYYY") : "—",
       sorter: (a, b) => (a.orderDate || "").localeCompare(b.orderDate || ""),
+    },
+    {
+      title: "Ship Date",
+      dataIndex: "shippedAt",
+      sorter: (a, b) => (a.shippedAt || "").localeCompare(b.shippedAt || ""),
+      render: (v, order) => {
+        if (editingShippedAt === order.id) {
+          return (
+            <Input
+              type="date"
+              autoFocus
+              size="small"
+              defaultValue={v || ""}
+              style={{ width: 140 }}
+              onBlur={(e) => handleShippedAtChange(order, e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") setEditingShippedAt(null); }}
+            />
+          );
+        }
+        return (
+          <Space size={4}>
+            <span style={{ color: v ? undefined : "#bbb" }}>
+              {v ? dayjs(v).format("MMM D, YYYY") : "Not set"}
+            </span>
+            <Tooltip title="Edit ship date">
+              <Button
+                type="text"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => setEditingShippedAt(order.id)}
+              />
+            </Tooltip>
+          </Space>
+        );
+      },
     },
     {
       title: "Lines",

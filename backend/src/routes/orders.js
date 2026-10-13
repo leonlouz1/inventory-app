@@ -132,6 +132,7 @@ router.get(
         lineCount: order.lines.length,
         earliestShipDate,
         latestShipDate,
+        shippedAt: order.shippedAt ? isoDate(order.shippedAt) : null,
         alertStatus: hasAlerts ? "Has alerts" : "OK",
         lines: order.lines.map((line) => ({
           id: line.id,
@@ -339,10 +340,13 @@ router.put(
       } else if (wasShipped && !willBeShipped) {
         await adjustStockForShippedTransition(tx, order.lines, 1);
       }
-      return tx.order.update({ where: { id }, data: { status } });
+      const statusData = { status };
+      if (!wasShipped && willBeShipped) statusData.shippedAt = new Date();
+      if (wasShipped && !willBeShipped) statusData.shippedAt = null;
+      return tx.order.update({ where: { id }, data: statusData });
     });
 
-    res.json({ id: updated.id, status: updated.status });
+    res.json({ id: updated.id, status: updated.status, shippedAt: updated.shippedAt ? updated.shippedAt.toISOString().slice(0, 10) : null });
   })
 );
 
@@ -487,6 +491,20 @@ router.patch(
       data: { warehouseId: warehouseId ? Number(warehouseId) : null },
     });
     res.json({ ok: true });
+  })
+);
+
+// PATCH /api/orders/:id/shipped-at — manually set or clear the shipped date
+router.patch(
+  "/:id/shipped-at",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { shippedAt } = req.body;
+    const order = await prisma.order.update({
+      where: { id },
+      data: { shippedAt: shippedAt ? new Date(shippedAt) : null },
+    });
+    res.json({ shippedAt: order.shippedAt ? order.shippedAt.toISOString().slice(0, 10) : null });
   })
 );
 

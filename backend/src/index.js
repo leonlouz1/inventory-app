@@ -95,6 +95,7 @@ async function runStartupMigrations() {
     await prisma.$executeRaw`ALTER TABLE "order_lines" ADD COLUMN IF NOT EXISTS "container_number" VARCHAR(100)`;
     await prisma.$executeRaw`ALTER TABLE "order_lines" ADD COLUMN IF NOT EXISTS "carton_marking" VARCHAR(200)`;
     await prisma.$executeRaw`ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "invoiced_at" TIMESTAMPTZ`;
+    await prisma.$executeRaw`ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "shipped_at" DATE`;
     console.log("Startup migrations complete");
   } catch (err) {
     console.error("Startup migration error:", err.message);
