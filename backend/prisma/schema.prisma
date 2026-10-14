@@ -175,9 +175,13 @@ model Retailer {
   name      String   @unique @db.VarChar(200)
   type      String?  @db.VarChar(100)
   priority  String   @default("1 - Low") @db.VarChar(20)
-  notes     String?
-  archived  Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  notes          String?
+  billingAddress String? @map("billing_address") @db.VarChar(300)
+  billingCity    String? @map("billing_city") @db.VarChar(100)
+  billingState   String? @map("billing_state") @db.VarChar(100)
+  billingZip     String? @map("billing_zip") @db.VarChar(20)
+  archived       Boolean  @default(false)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   categories   RetailerCategory[]
   contacts     CrmContact[]

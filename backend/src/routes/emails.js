@@ -41,7 +41,14 @@ router.post("/invoice", async (req, res) => {
     });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
+    // Look up billing address from CRM
+    const retailer = await prisma.retailer.findFirst({ where: { name: order.customer } });
+
     const serialized = serializeOrder(order);
+    serialized.billingAddress = retailer?.billingAddress || null;
+    serialized.billingCity = retailer?.billingCity || null;
+    serialized.billingState = retailer?.billingState || null;
+    serialized.billingZip = retailer?.billingZip || null;
     if (extraNotes) serialized.notes = [serialized.notes, extraNotes].filter(Boolean).join(" — ");
 
     // Use frontend-edited lines if provided, otherwise fall back to order lines

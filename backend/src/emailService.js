@@ -165,6 +165,15 @@ function buildInvoicePdf({ order, lines, company: companyKey }) {
     y += 13;
     doc.fontSize(10).fillColor(black).font("Helvetica-Bold").text(order.customer, L, y);
     y += 14;
+    if (order.billingAddress) {
+      doc.fontSize(9).fillColor(gray).font("Helvetica").text(order.billingAddress, L, y);
+      y += 12;
+    }
+    if (order.billingCity || order.billingState || order.billingZip) {
+      const cityLine = [order.billingCity, order.billingState, order.billingZip].filter(Boolean).join(", ");
+      doc.fontSize(9).fillColor(gray).font("Helvetica").text(cityLine, L, y);
+      y += 12;
+    }
 
     y += 20;
 

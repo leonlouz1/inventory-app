@@ -137,6 +137,9 @@ export default function CrmAccountDetail() {
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [addressForm] = Form.useForm();
+  const [addressSaving, setAddressSaving] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -200,6 +203,25 @@ export default function CrmAccountDetail() {
       message.error(err.message);
     } finally {
       setNameSaving(false);
+    }
+  }
+
+  async function saveAddress() {
+    setAddressSaving(true);
+    try {
+      const values = addressForm.getFieldsValue();
+      await crmApi.updateRetailer(retailer.id, {
+        billingAddress: values.billingAddress || null,
+        billingCity: values.billingCity || null,
+        billingState: values.billingState || null,
+        billingZip: values.billingZip || null,
+      });
+      setRetailer((prev) => ({ ...prev, ...values }));
+      setEditingAddress(false);
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setAddressSaving(false);
     }
   }
 
@@ -382,10 +404,64 @@ export default function CrmAccountDetail() {
           </Card>
 
           {retailer.notes && (
-            <Card size="small" title="Notes">
+            <Card size="small" title="Notes" style={{ marginBottom: 16 }}>
               <Typography.Text>{retailer.notes}</Typography.Text>
             </Card>
           )}
+
+          <Card
+            size="small"
+            title="Billing Address"
+            extra={
+              !editingAddress && (
+                <Button size="small" icon={<EditOutlined />} onClick={() => {
+                  addressForm.setFieldsValue({
+                    billingAddress: retailer.billingAddress || "",
+                    billingCity: retailer.billingCity || "",
+                    billingState: retailer.billingState || "",
+                    billingZip: retailer.billingZip || "",
+                  });
+                  setEditingAddress(true);
+                }}>Edit</Button>
+              )
+            }
+          >
+            {editingAddress ? (
+              <Form form={addressForm} layout="vertical" size="small">
+                <Form.Item name="billingAddress" label="Street Address">
+                  <Input placeholder="123 Main St" />
+                </Form.Item>
+                <Row gutter={8}>
+                  <Col span={12}>
+                    <Form.Item name="billingCity" label="City">
+                      <Input placeholder="New York" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={6}>
+                    <Form.Item name="billingState" label="State">
+                      <Input placeholder="NY" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={6}>
+                    <Form.Item name="billingZip" label="Zip">
+                      <Input placeholder="10001" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Space>
+                  <Button type="primary" size="small" loading={addressSaving} onClick={saveAddress}>Save</Button>
+                  <Button size="small" onClick={() => setEditingAddress(false)}>Cancel</Button>
+                </Space>
+              </Form>
+            ) : retailer.billingAddress ? (
+              <div style={{ fontSize: 13, lineHeight: "22px" }}>
+                <div>{retailer.billingAddress}</div>
+                <div>{[retailer.billingCity, retailer.billingState, retailer.billingZip].filter(Boolean).join(", ")}</div>
+              </div>
+            ) : (
+              <Typography.Text type="secondary">No billing address set.</Typography.Text>
+            )}
+          </Card>
         </Col>
       </Row>
 

@@ -19,6 +19,10 @@ function serializeRetailer(r, includeRelations = false) {
     type: r.type,
     priority: r.priority,
     notes: r.notes,
+    billingAddress: r.billingAddress || null,
+    billingCity: r.billingCity || null,
+    billingState: r.billingState || null,
+    billingZip: r.billingZip || null,
     createdAt: r.createdAt.toISOString(),
     categories: (r.categories || []).map((c) => ({
       id: c.id,
@@ -187,7 +191,7 @@ router.post("/retailers", async (req, res) => {
 router.put("/retailers/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { name, type, priority, notes } = req.body;
+    const { name, type, priority, notes, billingAddress, billingCity, billingState, billingZip } = req.body;
     const retailer = await prisma.retailer.update({
       where: { id },
       data: {
@@ -195,6 +199,10 @@ router.put("/retailers/:id", async (req, res) => {
         ...(type !== undefined && { type: type || null }),
         ...(priority !== undefined && { priority }),
         ...(notes !== undefined && { notes: notes || null }),
+        ...(billingAddress !== undefined && { billingAddress: billingAddress || null }),
+        ...(billingCity !== undefined && { billingCity: billingCity || null }),
+        ...(billingState !== undefined && { billingState: billingState || null }),
+        ...(billingZip !== undefined && { billingZip: billingZip || null }),
       },
       include: { categories: true },
     });
