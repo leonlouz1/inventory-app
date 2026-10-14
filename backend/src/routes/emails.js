@@ -59,7 +59,7 @@ router.post("/invoice", async (req, res) => {
     const pdfBuffer = await buildInvoicePdf({ order: serialized, lines: pdfLines, company });
     await sendEmail({
       to,
-      subject: `Order Confirmation — ${order.orderNumber} — ${order.customer}`,
+      subject: `Invoice — ${order.customerPo || order.orderNumber} — ${order.customer}`,
       html,
       attachments: [{ filename: `${order.orderNumber}-invoice.pdf`, content: pdfBuffer }],
     });

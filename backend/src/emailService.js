@@ -33,13 +33,12 @@ function invoiceHtml({ order, lines }) {
 <!DOCTYPE html>
 <html>
 <body style="font-family:Arial,sans-serif;color:#222;max-width:700px;margin:0 auto;padding:32px">
-  <h2 style="margin-top:0;color:#1677ff">Order Confirmation — ${order.orderNumber}</h2>
+  <h2 style="margin-top:0;color:#1677ff">Invoice — ${order.customerPo || order.orderNumber}</h2>
   <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
     <tr><td style="padding:4px 0;color:#888;width:140px">Customer</td><td><strong>${order.customer}</strong></td></tr>
     ${order.customerPo ? `<tr><td style="padding:4px 0;color:#888">Customer PO #</td><td>${order.customerPo}</td></tr>` : ""}
     <tr><td style="padding:4px 0;color:#888">Order Date</td><td>${order.orderDate}</td></tr>
     <tr><td style="padding:4px 0;color:#888">Status</td><td>${order.status}</td></tr>
-    ${order.notes ? `<tr><td style="padding:4px 0;color:#888">Notes</td><td>${order.notes}</td></tr>` : ""}
   </table>
 
   <table style="width:100%;border-collapse:collapse">
@@ -54,10 +53,6 @@ function invoiceHtml({ order, lines }) {
     </thead>
     <tbody>${rows}</tbody>
   </table>
-
-  <p style="margin-top:32px;color:#888;font-size:13px">
-    This is an automated order confirmation from Hotel Collection Inc.
-  </p>
 </body>
 </html>`;
 }
@@ -171,10 +166,6 @@ function buildInvoicePdf({ order, lines, company: companyKey }) {
     y += 13;
     doc.fontSize(10).fillColor(black).font("Helvetica-Bold").text(order.customer, L, y);
     y += 14;
-    if (order.notes) {
-      doc.fontSize(9).fillColor(gray).font("Helvetica").text(order.notes, L, y);
-      y += 12;
-    }
 
     y += 20;
 
@@ -236,12 +227,6 @@ function buildInvoicePdf({ order, lines, company: companyKey }) {
     doc.fontSize(10).font("Helvetica-Bold").text(fmtMoney(subtotal), totValX, y + 2, { width: totValW, align: "right" });
     y += 24;
 
-    // ── Remarks
-    if (order.notes) {
-      doc.fontSize(8).fillColor(gray).font("Helvetica-Bold").text("Remarks / Payment Instructions:", L, y);
-      y += 12;
-      doc.fontSize(9).fillColor(black).font("Helvetica").text(order.notes, L, y, { width: 300 });
-    }
 
     doc.end();
   });
