@@ -15,6 +15,7 @@ function serializeOrder(order) {
     customer: order.customer,
     customerPo: order.customerPo || null,
     orderDate: isoDate(order.orderDate),
+    shippedAt: order.shippedAt ? order.shippedAt.toISOString().slice(0, 10) : null,
     status: order.status,
     notes: order.notes || null,
     lines: order.lines.map((l) => ({

@@ -37,8 +37,7 @@ function invoiceHtml({ order, lines }) {
   <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
     <tr><td style="padding:4px 0;color:#888;width:140px">Customer</td><td><strong>${order.customer}</strong></td></tr>
     ${order.customerPo ? `<tr><td style="padding:4px 0;color:#888">Customer PO #</td><td>${order.customerPo}</td></tr>` : ""}
-    <tr><td style="padding:4px 0;color:#888">Order Date</td><td>${order.orderDate}</td></tr>
-    <tr><td style="padding:4px 0;color:#888">Status</td><td>${order.status}</td></tr>
+    ${order.shippedAt ? `<tr><td style="padding:4px 0;color:#888">Ship Date</td><td>${order.shippedAt}</td></tr>` : ""}
   </table>
 
   <table style="width:100%;border-collapse:collapse">
@@ -147,8 +146,8 @@ function buildInvoicePdf({ order, lines, company: companyKey }) {
     doc.fontSize(28).fillColor(black).font("Helvetica-Bold").text("INVOICE", 380, 50, { width: 180, align: "right" });
 
     // DATE / INVOICE # (right column, below INVOICE)
-    doc.fontSize(9).fillColor(gray).font("Helvetica-Bold").text("DATE", 430, 90, { width: 60, align: "left" });
-    doc.fontSize(9).fillColor(black).font("Helvetica").text(order.orderDate, 490, 90, { width: 70, align: "right" });
+    doc.fontSize(9).fillColor(gray).font("Helvetica-Bold").text("SHIP DATE", 430, 90, { width: 60, align: "left" });
+    doc.fontSize(9).fillColor(black).font("Helvetica").text(order.shippedAt || order.orderDate, 490, 90, { width: 70, align: "right" });
     doc.fontSize(9).fillColor(gray).font("Helvetica-Bold").text("INVOICE #", 430, 104, { width: 60, align: "left" });
     doc.fontSize(9).fillColor(black).font("Helvetica").text(order.orderNumber, 490, 104, { width: 70, align: "right" });
     if (order.customerPo) {
