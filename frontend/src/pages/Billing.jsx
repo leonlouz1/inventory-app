@@ -78,12 +78,6 @@ export default function Billing() {
       render: (v) => v || <span style={{ color: "#bbb" }}>—</span>,
     },
     {
-      title: "Order Date",
-      dataIndex: "orderDate",
-      render: (v) => v ? dayjs(v).format("MMM D, YYYY") : "—",
-      sorter: (a, b) => (a.orderDate || "").localeCompare(b.orderDate || ""),
-    },
-    {
       title: "Ship Date",
       dataIndex: "shippedAt",
       sorter: (a, b) => (a.shippedAt || "").localeCompare(b.shippedAt || ""),
