@@ -39,9 +39,11 @@ function buildPeriods(grain, today) {
   });
 }
 
-function filterInRange(rows, dateField, start, end) {
+function filterInRange(rows, dateField, start, end, isFirstPeriod = false) {
   return rows.filter((row) => {
     const date = toDateOnly(row[dateField]);
+    // Past-due rows (ship date before today) are pinned to the first period
+    if (isFirstPeriod && date < start) return true;
     return date >= start && date <= end;
   });
 }
@@ -125,10 +127,12 @@ async function buildSkuTimeline(sku, grain = "month") {
     const flags = [];
 
     let runningBalance = startingOnHand;
-    for (const period of periods) {
+    for (let i = 0; i < periods.length; i++) {
+      const period = periods[i];
+      const first = i === 0;
       onHandStart.push(runningBalance);
-      const inRows = filterInRange(warehouseRestocks, "expectedDate", period.start, period.end);
-      const outRows = filterInRange(warehouseOrderLines, "shipDate", period.start, period.end);
+      const inRows = filterInRange(warehouseRestocks, "expectedDate", period.start, period.end, first);
+      const outRows = filterInRange(warehouseOrderLines, "shipDate", period.start, period.end, first);
       const inQty = sumQuantity(inRows);
       const outQty = sumQuantity(outRows);
       restocksIn.push(inQty);
@@ -167,10 +171,12 @@ async function buildSkuTimeline(sku, grain = "month") {
     flags: [],
   };
   let networkRunningBalance = networkStartingOnHand;
-  for (const period of periods) {
+  for (let i = 0; i < periods.length; i++) {
+    const period = periods[i];
+    const first = i === 0;
     network.onHandStart.push(networkRunningBalance);
-    const inRows = filterInRange(restocks, "expectedDate", period.start, period.end);
-    const outRows = filterInRange(orderLines, "shipDate", period.start, period.end);
+    const inRows = filterInRange(restocks, "expectedDate", period.start, period.end, first);
+    const outRows = filterInRange(orderLines, "shipDate", period.start, period.end, first);
     const inQty = sumQuantity(inRows);
     const outQty = sumQuantity(outRows);
     network.restocksIn.push(inQty);
