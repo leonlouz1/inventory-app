@@ -3,9 +3,22 @@
 // server/proxy, so VITE_API_URL must point at the deployed backend's origin.
 const API_BASE = `${import.meta.env.VITE_API_URL || ""}/api`;
 
+async function getToken() {
+  try {
+    return await window.Clerk?.session?.getToken() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function request(path, options = {}) {
+  const token = await getToken();
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...options,
   });
   if (!res.ok) {

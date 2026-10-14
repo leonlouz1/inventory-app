@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const { clerkMiddleware, requireAuth } = require("@clerk/express");
 const prisma = require("./prismaClient");
 
 const productsRouter = require("./routes/products");
@@ -22,10 +23,14 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(clerkMiddleware());
 
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
+
+// All /api routes below require a valid Clerk session
+app.use("/api", requireAuth());
 
 app.use("/api/products", productsRouter);
 app.use("/api/orders", ordersRouter);

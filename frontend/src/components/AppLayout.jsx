@@ -1,4 +1,5 @@
 import { Layout, Menu, Typography } from "antd";
+import { UserButton } from "@clerk/clerk-react";
 import {
   DashboardOutlined,
   ShoppingCartOutlined,
@@ -65,10 +66,11 @@ export default function AppLayout() {
         />
       </Sider>
       <Layout>
-        <Header style={{ background: "#fff", borderBottom: "1px solid #f0f0f0" }}>
-          <Typography.Title level={4} style={{ margin: 0, lineHeight: "64px" }}>
+        <Header style={{ background: "#fff", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Typography.Title level={4} style={{ margin: 0 }}>
             Inventory Management
           </Typography.Title>
+          <UserButton afterSignOutUrl="/" />
         </Header>
         <Content style={{ margin: 24 }}>
           <Outlet />
