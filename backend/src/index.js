@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const { clerkMiddleware, requireAuth } = require("@clerk/express");
+const { clerkMiddleware, getAuth } = require("@clerk/express");
 const prisma = require("./prismaClient");
 
 const productsRouter = require("./routes/products");
@@ -34,7 +34,16 @@ app.get("/api/health", (req, res) => {
 });
 
 // All /api routes below require a valid Clerk session
-app.use("/api", requireAuth());
+app.use("/api", (req, res, next) => {
+  try {
+    const { userId } = getAuth(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    next();
+  } catch (err) {
+    console.error("Auth check error:", err.message);
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+});
 
 app.use("/api/products", productsRouter);
 app.use("/api/orders", ordersRouter);
