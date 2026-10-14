@@ -29,7 +29,7 @@ router.get("/rolling-totals", async (req, res) => {
     const skuWhere = skuList.length > 0 ? { product: { sku: { in: skuList } } } : {};
 
     const today = new Date();
-    today.setHours(23, 59, 59, 999);
+    today.setHours(0, 0, 0, 0);
 
     // Current on-hand stock per SKU
     const stockRows = await prisma.warehouseStock.findMany({
@@ -45,20 +45,21 @@ router.get("/rolling-totals", async (req, res) => {
       skuNames[s] = row.product.name;
     }
 
-    // Restocks — past only (green, inbound positive)
+    const { PENDING_STATUSES } = require("../constants/orderStatuses");
+
+    // Restocks — future/pending (green, inbound positive)
     const restocks = await prisma.restock.findMany({
-      where: { ...whFilter, ...skuWhere, expectedDate: { lte: today } },
+      where: { ...whFilter, ...skuWhere, status: { notIn: ["DRAFT", "RECEIVED"] } },
       include: { product: true },
       orderBy: { expectedDate: "asc" },
     });
 
-    // Order lines — SHIPPED only, past dates (red, outbound negative)
+    // Order lines — active (not shipped/cancelled), all dates including past-due
     const orderLines = await prisma.orderLine.findMany({
       where: {
         ...whFilter,
         ...skuWhere,
-        shipDate: { lte: today },
-        order: { status: "SHIPPED" },
+        order: { status: { in: PENDING_STATUSES } },
       },
       include: { product: true, order: true },
       orderBy: { shipDate: "asc" },
@@ -170,11 +171,8 @@ router.get("/rolling-totals", async (req, res) => {
 
     for (const s of sortedSkus) {
       const events = skuEvents[s] || [];
-      // Back-calculate opening: current_on_hand - restocks_received + units_shipped
-      // so the running total ends exactly at current on-hand
-      const totalRestocks = events.filter((e) => e.kind === "restock").reduce((sum, e) => sum + e.qty, 0);
-      const totalOutbounds = events.filter((e) => e.kind === "outbound").reduce((sum, e) => sum + e.qty, 0);
-      const opening = (currentStock[s] || 0) - totalRestocks + totalOutbounds;
+      // Opening balance = current on-hand; future events project forward from here
+      const opening = currentStock[s] || 0;
 
       // Map event key -> qty for this SKU
       const qtyByKey = {};
