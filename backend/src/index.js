@@ -21,7 +21,11 @@ const billingRouter = require("./routes/billing");
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
 app.use(express.json());
 app.use(clerkMiddleware());
 
