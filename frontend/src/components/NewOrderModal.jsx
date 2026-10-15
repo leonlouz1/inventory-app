@@ -26,7 +26,7 @@ function nextLineKey() {
 }
 
 function emptyLine() {
-  return { key: nextLineKey(), sku: undefined, warehouseId: undefined, quantity: undefined, shipDate: undefined };
+  return { key: nextLineKey(), sku: undefined, warehouseId: undefined, quantity: undefined };
 }
 
 function ProjectionTags({ projection }) {
@@ -61,6 +61,7 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeCustomers, setActiveCustomers] = useState([]);
+  const [shipDate, setShipDate] = useState(null);
   const debounceRef = useRef(null);
   const requestIdRef = useRef(0);
 
@@ -85,8 +86,8 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
 
   useEffect(() => {
     if (!open) return;
-    const completeLines = lines.filter((l) => l.sku && l.shipDate && l.quantity > 0);
-    if (completeLines.length === 0) {
+    const completeLines = lines.filter((l) => l.sku && l.quantity > 0);
+    if (completeLines.length === 0 || !shipDate) {
       setProjectionsByKey({});
       return;
     }
@@ -102,7 +103,7 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
             sku: l.sku,
             warehouse_id: l.warehouseId ?? undefined,
             quantity: l.quantity,
-            ship_date: l.shipDate.format("YYYY-MM-DD"),
+            ship_date: shipDate.format("YYYY-MM-DD"),
           })),
         });
         if (requestId !== requestIdRef.current) return; // stale response, ignore
@@ -124,7 +125,7 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lines, open]);
+  }, [lines, shipDate, open]);
 
   function updateLine(key, patch) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -142,6 +143,7 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
     form.resetFields();
     setLines([emptyLine()]);
     setProjectionsByKey({});
+    setShipDate(null);
     onClose();
   }
 
@@ -156,12 +158,12 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
         status: headerValues.status,
         notes: headerValues.notes || undefined,
         lines: lines
-          .filter((l) => l.sku && l.shipDate && l.quantity > 0)
+          .filter((l) => l.sku && l.quantity > 0)
           .map((l) => ({
             sku: l.sku,
             warehouse_id: l.warehouseId ?? undefined,
             quantity: l.quantity,
-            ship_date: l.shipDate.format("YYYY-MM-DD"),
+            ship_date: headerValues.ship_date.format("YYYY-MM-DD"),
           })),
       });
       message.success(`Order ${result.order.orderNumber} created`);
@@ -176,9 +178,9 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
 
   async function handleSave() {
     const headerValues = await form.validateFields();
-    const validLines = lines.filter((l) => l.sku && l.shipDate && l.quantity > 0);
+    const validLines = lines.filter((l) => l.sku && l.quantity > 0);
     if (validLines.length === 0) {
-      message.error("Add at least one complete line item (SKU, quantity, ship date)");
+      message.error("Add at least one complete line item (SKU and quantity)");
       return;
     }
 
@@ -244,13 +246,6 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
       ),
     },
     {
-      title: "Ship Date",
-      dataIndex: "shipDate",
-      render: (_, line) => (
-        <DatePicker value={line.shipDate} onChange={(value) => updateLine(line.key, { shipDate: value })} />
-      ),
-    },
-    {
       title: "Projection",
       key: "projection",
       render: (_, line) => <ProjectionTags projection={projectionsByKey[line.key]} />,
@@ -304,6 +299,9 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
           </Form.Item>
           <Form.Item name="order_date" label="Order Date" rules={[{ required: true, message: "Required" }]}>
             <DatePicker />
+          </Form.Item>
+          <Form.Item name="ship_date" label="Ship Date" rules={[{ required: true, message: "Required" }]}>
+            <DatePicker onChange={(value) => setShipDate(value)} />
           </Form.Item>
           <Form.Item name="status" label="Status">
             <Select options={STATUS_OPTIONS} style={{ width: 130 }} />
