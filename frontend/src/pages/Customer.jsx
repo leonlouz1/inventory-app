@@ -54,14 +54,14 @@ const LINE_COLUMNS = (showStatus) => [
 ];
 
 function downloadSkuHistoryReport(customer, allLines) {
-  // Build pivot: SKU → { productName, month → qty }
+  // Build pivot: SKU → { productName, brand, month → qty }
   const skuMap = {};
   const monthSet = new Set();
 
   allLines.forEach((l) => {
     const month = l.shipDate ? l.shipDate.slice(0, 7) : "Unknown"; // "YYYY-MM"
     monthSet.add(month);
-    if (!skuMap[l.sku]) skuMap[l.sku] = { productName: l.productName, months: {} };
+    if (!skuMap[l.sku]) skuMap[l.sku] = { productName: l.productName, brand: l.brand, months: {} };
     skuMap[l.sku].months[month] = (skuMap[l.sku].months[month] || 0) + l.quantity;
   });
 
@@ -76,17 +76,18 @@ function downloadSkuHistoryReport(customer, allLines) {
     return `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(mo) - 1]} ${y}`;
   };
 
-  const header = ["SKU", "Product", ...months.map(monthLabel)];
+  const header = ["SKU", "Product", "Brand", ...months.map(monthLabel)];
   const rows = Object.entries(skuMap)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([sku, { productName, months: m }]) => [
+    .map(([sku, { productName, brand, months: m }]) => [
       sku,
       productName,
+      brand || "",
       ...months.map((mo) => m[mo] || ""),
     ]);
 
   const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-  ws["!cols"] = [{ wch: 14 }, { wch: 36 }, ...months.map(() => ({ wch: 12 }))];
+  ws["!cols"] = [{ wch: 14 }, { wch: 36 }, { wch: 16 }, ...months.map(() => ({ wch: 12 }))];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "SKU History");
   XLSX.writeFile(wb, `${customer}-sku-history.xlsx`);
@@ -98,13 +99,14 @@ function downloadUpcomingReport(customer, lines) {
     "Customer PO #": l.customerPo || "",
     SKU: l.sku,
     Product: l.productName,
+    Brand: l.brand || "",
     Warehouse: l.warehouseName || "Unassigned",
     Qty: l.quantity,
     "Ship Date": l.shipDate,
     "Order Status": l.orderStatus,
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws["!cols"] = [14, 16, 12, 40, 24, 8, 14, 14].map((w) => ({ wch: w }));
+  ws["!cols"] = [14, 16, 12, 40, 16, 24, 8, 14, 14].map((w) => ({ wch: w }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Upcoming Orders");
   XLSX.writeFile(wb, `${customer}-upcoming-orders.xlsx`);

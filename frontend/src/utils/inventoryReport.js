@@ -6,6 +6,7 @@ export async function downloadInventoryReport(products) {
   const headerRow = [
     "SKU",
     "Product",
+    "Brand",
     "Current Stock",
     "Committed Orders",
     "Incoming Restocks",
@@ -19,13 +20,14 @@ export async function downloadInventoryReport(products) {
       const committed = p.pendingQty ?? 0;
       const incoming = p.incomingQty ?? 0;
       const net = onHand - committed + incoming;
-      return [p.sku, p.name, onHand, committed, incoming, net];
+      return [p.sku, p.name, p.brand || "", onHand, committed, incoming, net];
     });
 
   const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
   ws["!cols"] = [
     { wch: 16 },
     { wch: 28 },
+    { wch: 16 },
     { wch: 14 },
     { wch: 18 },
     { wch: 18 },

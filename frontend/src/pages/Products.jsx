@@ -140,6 +140,7 @@ export default function Products() {
       .map((p) => ({
         sku: p.sku,
         name: p.name,
+        brand: p.brand || "",
         available_to_sell: p.availableToSell,
       }));
     const csv = Papa.unparse(rows);

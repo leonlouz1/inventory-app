@@ -38,11 +38,13 @@ router.get("/rolling-totals", async (req, res) => {
     });
     const currentStock = {};
     const skuNames = {};
+    const skuBrands = {};
     for (const row of stockRows) {
       if (skuList.length > 0 && !skuList.includes(row.product.sku)) continue;
       const s = row.product.sku;
       currentStock[s] = (currentStock[s] || 0) + row.onHand;
       skuNames[s] = row.product.name;
+      skuBrands[s] = row.product.brand;
     }
 
     const { PENDING_STATUSES } = require("../constants/orderStatuses");
@@ -80,6 +82,7 @@ router.get("/rolling-totals", async (req, res) => {
     for (const r of restocks) {
       const s = r.product.sku;
       skuNames[s] = r.product.name;
+      skuBrands[s] = r.product.brand;
       const d = dateStr(r.expectedDate);
       const label = r.supplier ? `Restock\n${r.supplier}` : `Restock\n${d}`;
       const key = `restock|||${d}|||${label}`;
@@ -89,6 +92,7 @@ router.get("/rolling-totals", async (req, res) => {
     for (const l of orderLines) {
       const s = l.product.sku;
       skuNames[s] = l.product.name;
+      skuBrands[s] = l.product.brand;
       const d = dateStr(l.shipDate);
       const label = `${l.order.orderNumber}\n${l.order.customer}`;
       const key = `outbound|||${d}|||${label}`;
@@ -154,9 +158,13 @@ router.get("/rolling-totals", async (req, res) => {
     ws.getCell(1, 2).font = { bold: true, name: "Arial", size: 9, color: { argb: "FFFFFFFF" } };
     ws.getColumn(2).width = 24;
 
+    headerCell(1, 3, "Brand", HEADER_FILL);
+    ws.getCell(1, 3).font = { bold: true, name: "Arial", size: 9, color: { argb: "FFFFFFFF" } };
+    ws.getColumn(3).width = 16;
+
     for (let ci = 0; ci < cols.length; ci++) {
       const col = cols[ci];
-      const c = ci + 3;
+      const c = ci + 4;
       const fill = col.colType === "opening" ? OPENING_FILL
         : col.colType === "restock" ? GREEN_FILL
         : col.colType === "outbound" ? RED_FILL
@@ -193,17 +201,19 @@ router.get("/rolling-totals", async (req, res) => {
         return cell;
       }
 
-      // SKU and name left-aligned
+      // SKU, name and brand left-aligned
       const skuCell = dataCell(1, s, null, true);
       skuCell.alignment = { vertical: "middle", horizontal: "left" };
       const nameCell = dataCell(2, skuNames[s] || "", null, false);
       nameCell.alignment = { vertical: "middle", horizontal: "left" };
+      const brandCell = dataCell(3, skuBrands[s] || "", null, false);
+      brandCell.alignment = { vertical: "middle", horizontal: "left" };
 
       let running = opening;
 
       for (let ci = 0; ci < cols.length; ci++) {
         const col = cols[ci];
-        const c = ci + 3;
+        const c = ci + 4;
 
         if (col.colType === "opening") {
           dataCell(c, opening, OPENING_FILL, true);
@@ -231,7 +241,7 @@ router.get("/rolling-totals", async (req, res) => {
       rowIdx++;
     }
 
-    ws.views = [{ state: "frozen", xSplit: 2, ySplit: 1 }];
+    ws.views = [{ state: "frozen", xSplit: 3, ySplit: 1 }];
 
     // Warehouse label for filename
     let whName = "All";
