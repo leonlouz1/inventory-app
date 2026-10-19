@@ -7,6 +7,7 @@ import {
   PlusOutlined, DeleteOutlined, EditOutlined, MinusCircleOutlined, FileExcelOutlined, ScissorOutlined, MergeCellsOutlined,
   FilePdfOutlined,
 } from "@ant-design/icons";
+import { Link } from "react-router-dom";
 import dayjs from "dayjs";
 import { shipmentsApi, ordersApi, warehousesApi } from "../api/inventory";
 import { downloadShipmentPackingList, downloadShipmentPackingListPerOrder } from "../utils/packingList";
@@ -288,7 +289,12 @@ export default function Shipments() {
   }
 
   const columns = [
-    { title: "Shipment #", dataIndex: "shipmentNumber", sorter: (a, b) => a.shipmentNumber.localeCompare(b.shipmentNumber) },
+    {
+      title: "Shipment #",
+      dataIndex: "shipmentNumber",
+      sorter: (a, b) => a.shipmentNumber.localeCompare(b.shipmentNumber),
+      render: (n, s) => <Link to={`/shipments/${s.id}`}>{n}</Link>,
+    },
     {
       title: "Pickup Date",
       dataIndex: "pickupDate",
@@ -310,7 +316,7 @@ export default function Shipments() {
       dataIndex: "orders",
       render: (orders) => (
         <Space size={4} wrap>
-          {orders.length === 0 ? "—" : orders.map((o) => <Tag key={o.id}>{o.orderNumber}</Tag>)}
+          {orders.length === 0 ? "—" : orders.map((o) => <Tag key={o.id}><Link to={`/orders/${o.id}`}>{o.orderNumber}</Link></Tag>)}
         </Space>
       ),
     },
@@ -391,7 +397,7 @@ export default function Shipments() {
                   rowKey="id"
                   dataSource={shipment.orders}
                   columns={[
-                    { title: "Order #", dataIndex: "orderNumber" },
+                    { title: "Order #", dataIndex: "orderNumber", render: (n, o) => <Link to={`/orders/${o.id}`}>{n}</Link> },
                     { title: "Customer", dataIndex: "customer" },
                     { title: "Customer PO #", dataIndex: "customerPo", render: (v) => v || "—" },
                     { title: "Status", dataIndex: "status", render: (v) => <Tag>{v}</Tag> },

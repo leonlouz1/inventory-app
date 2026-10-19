@@ -266,7 +266,10 @@ router.get(
     const id = Number(req.params.id);
     const order = await prisma.order.findUnique({
       where: { id },
-      include: { lines: { include: { product: { include: { shadowParent: { select: { sku: true } } } }, warehouse: true } } },
+      include: {
+        lines: { include: { product: { include: { shadowParent: { select: { sku: true } } } }, warehouse: true } },
+        shipment: { select: { id: true, shipmentNumber: true, pickupDate: true, status: true } },
+      },
     });
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
@@ -284,8 +287,14 @@ router.get(
       orderDate: isoDate(order.orderDate),
       status: order.status,
       notes: order.notes,
+      shippedAt: isoDate(order.shippedAt),
+      invoicedAt: order.invoicedAt ? order.invoicedAt.toISOString() : null,
+      shipment: order.shipment
+        ? { id: order.shipment.id, shipmentNumber: order.shipment.shipmentNumber, pickupDate: order.shipment.pickupDate.toISOString(), status: order.shipment.status }
+        : null,
       lines: order.lines.map((line, i) => ({
         id: line.id,
+        productId: line.productId,
         sku: line.product.sku,
         productName: line.product.name,
         brand: line.product.brand ?? null,

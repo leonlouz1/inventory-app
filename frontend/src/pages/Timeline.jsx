@@ -92,7 +92,7 @@ const ORDER_DETAIL_COLUMNS = [
   {
     title: "Order #",
     dataIndex: "orderNumber",
-    render: (v, row) => <Link to={`/orders?highlight=${row.orderId}`}>{v}</Link>,
+    render: (v, row) => <Link to={`/orders/${row.orderId}`}>{v}</Link>,
   },
   { title: "PO #", dataIndex: "customerPo", render: (v) => v || <span style={{ color: "#bbb" }}>—</span> },
   { title: "Customer", dataIndex: "customer" },
@@ -301,13 +301,13 @@ export default function Timeline() {
                     dataIndex: "detail",
                     render: (v, row) => {
                       if (row.type === "OUT" && row.orderId) {
-                        return <Link to={`/orders?highlight=${row.orderId}`}>{v}</Link>;
+                        return <Link to={`/orders/${row.orderId}`}>{v}</Link>;
                       }
                       if (row.type === "IN" && row.linkedOrderNumber) {
                         return (
                           <>
                             {v && <span>{v} · </span>}
-                            <Link to={`/orders?highlight=${row.linkedOrderId}`}>For {row.linkedOrderNumber}</Link>
+                            <Link to={`/orders/${row.linkedOrderId}`}>For {row.linkedOrderNumber}</Link>
                           </>
                         );
                       }

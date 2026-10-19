@@ -177,6 +177,61 @@ router.post(
   })
 );
 
+// GET /api/products/by-sku/:sku — a product's page: its id plus open orders,
+// recent shipments and restocks for that SKU (designers just get the id)
+router.get(
+  "/by-sku/:sku",
+  asyncHandler(async (req, res) => {
+    const product = await prisma.product.findUnique({ where: { sku: req.params.sku }, select: { id: true, sku: true } });
+    if (!product) return res.status(404).json({ message: `No product with SKU ${req.params.sku}` });
+    if (req.role === "designer") return res.json({ id: product.id, sku: product.sku });
+
+    const lineView = (l) => ({
+      orderId: l.order.id,
+      orderNumber: l.order.orderNumber,
+      customer: l.order.customer,
+      customerPo: l.order.customerPo,
+      status: l.order.status,
+      quantity: l.quantity,
+      shipDate: l.shipDate.toISOString().slice(0, 10),
+      shippedAt: l.order.shippedAt ? l.order.shippedAt.toISOString().slice(0, 10) : null,
+      warehouseName: l.warehouse?.name ?? null,
+    });
+    const [openLines, shippedLines, restocks] = await Promise.all([
+      prisma.orderLine.findMany({
+        where: { productId: product.id, order: { status: { notIn: ["SHIPPED", "CANCELLED"] } } },
+        include: { order: true, warehouse: true },
+        orderBy: { shipDate: "asc" },
+      }),
+      prisma.orderLine.findMany({
+        where: { productId: product.id, order: { status: "SHIPPED" } },
+        include: { order: true, warehouse: true },
+        orderBy: { shipDate: "desc" },
+        take: 25,
+      }),
+      prisma.restock.findMany({
+        where: { productId: product.id, status: { not: "RECEIVED" } },
+        include: { warehouse: true },
+        orderBy: { expectedDate: "asc" },
+      }),
+    ]);
+    res.json({
+      id: product.id,
+      sku: product.sku,
+      openLines: openLines.map(lineView),
+      shippedLines: shippedLines.map(lineView),
+      restocks: restocks.map((r) => ({
+        id: r.id,
+        quantity: r.quantity,
+        expectedDate: r.expectedDate.toISOString().slice(0, 10),
+        status: r.status,
+        supplier: r.supplier,
+        warehouseName: r.warehouse?.name ?? null,
+      })),
+    });
+  })
+);
+
 // GET /api/products/:id/full — everything about one product, for the product
 // window shared by Products, Catalog and UPC Codes (no stock for designers)
 router.get(

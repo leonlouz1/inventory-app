@@ -9,6 +9,7 @@ export const productsApi = {
   bulkUpdateStock: (rows) => apiClient.post("/products/bulk-stock", rows),
   projection: (id) => apiClient.get(`/products/${id}/projection`),
   full: (id) => apiClient.get(`/products/${id}/full`),
+  bySku: (sku) => apiClient.get(`/products/by-sku/${encodeURIComponent(sku)}`),
   setShadowParent: (id, parentId) => apiClient.put(`/products/${id}/shadow-parent`, { parentId }),
   setShadows: (id, shadowIds) => apiClient.put(`/products/${id}/shadows`, { shadowIds }),
 };
@@ -120,6 +121,7 @@ export const billingApi = {
 
 export const shipmentsApi = {
   list: () => apiClient.get("/shipments"),
+  get: (id) => apiClient.get(`/shipments/${id}`),
   create: (data) => apiClient.post("/shipments", data),
   update: (id, data) => apiClient.put(`/shipments/${id}`, data),
   delete: (id) => apiClient.delete(`/shipments/${id}`),

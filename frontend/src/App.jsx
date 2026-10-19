@@ -19,6 +19,9 @@ import SkuGroups from "./pages/SkuGroups";
 import Catalog from "./pages/Catalog";
 import Billing from "./pages/Billing";
 import Upc from "./pages/Upc";
+import OrderPage from "./pages/detail/OrderPage";
+import ProductPage from "./pages/detail/ProductPage";
+import ShipmentPage from "./pages/detail/ShipmentPage";
 import { useRole, DESIGNER_PATHS } from "./hooks/useRole";
 
 function DesignerRoutes() {
@@ -26,6 +29,7 @@ function DesignerRoutes() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/products" element={<Products />} />
+        <Route path="/products/:sku" element={<ProductPage />} />
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/upc" element={<Upc />} />
         <Route path="*" element={<Navigate to={DESIGNER_PATHS[0]} replace />} />
@@ -58,6 +62,9 @@ function AppRoutes() {
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/billing" element={<Billing />} />
         <Route path="/upc" element={<Upc />} />
+        <Route path="/orders/:id" element={<OrderPage />} />
+        <Route path="/products/:sku" element={<ProductPage />} />
+        <Route path="/shipments/:id" element={<ShipmentPage />} />
       </Route>
     </Routes>
   );

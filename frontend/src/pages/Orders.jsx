@@ -7,6 +7,7 @@ import { ordersApi, productsApi, warehousesApi, restocksApi, shipmentsApi, skuGr
 import NewOrderModal from "../components/NewOrderModal";
 import EmailOrderModal from "../components/EmailOrderModal";
 import SplitOrderModal from "../components/SplitOrderModal";
+import ProjectionTag from "../components/ProjectionTag";
 import EditOrderLineModal from "../components/EditOrderLineModal";
 import AddOrderLineModal from "../components/AddOrderLineModal";
 import BulkImportOrdersModal from "../components/BulkImportOrdersModal";
@@ -172,15 +173,6 @@ function OrderCustomerPo({ order, onSaved }) {
         onClick={() => { setValue(order.customerPo || ""); setEditing(true); }}
       />
     </div>
-  );
-}
-
-function ProjectionTag({ projection }) {
-  if (!projection) return null;
-  return projection.ok ? (
-    <Tag color="green">✓ {projection.balance}</Tag>
-  ) : (
-    <Tag color="red">⚠ {projection.balance} (deficit {projection.deficit})</Tag>
   );
 }
 
@@ -402,7 +394,12 @@ export default function Orders() {
   const sortNumber = (key) => (a, b) => (a[key] ?? 0) - (b[key] ?? 0);
 
   const columns = [
-    { title: "Order #", dataIndex: "orderNumber", sorter: sortString("orderNumber") },
+    {
+      title: "Order #",
+      dataIndex: "orderNumber",
+      sorter: sortString("orderNumber"),
+      render: (n, order) => <Link to={`/orders/${order.id}`} onClick={(e) => e.stopPropagation()}>{n}</Link>,
+    },
     {
       title: "Customer",
       dataIndex: "customer",
@@ -611,7 +608,7 @@ export default function Orders() {
                 dataIndex: "sku",
                 render: (sku, line) => (
                   <>
-                    <Link to={`/timeline?sku=${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
+                    <Link to={`/products/${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
                       {sku}
                     </Link>
                     {line.shadowOf && <Tag color="purple" style={{ marginLeft: 6 }}>shadow of {line.shadowOf}</Tag>}
@@ -855,7 +852,7 @@ export default function Orders() {
                       rowKey="id"
                       dataSource={linkedRestocks}
                       columns={[
-                        { title: "SKU", dataIndex: "sku", render: (sku) => <Link to={`/timeline?sku=${encodeURIComponent(sku)}`}>{sku}</Link> },
+                        { title: "SKU", dataIndex: "sku", render: (sku) => <Link to={`/products/${encodeURIComponent(sku)}`}>{sku}</Link> },
                         { title: "Product", dataIndex: "productName" },
                         { title: "Warehouse", dataIndex: "warehouseName" },
                         { title: "Qty Incoming", dataIndex: "quantity" },
@@ -990,7 +987,7 @@ export default function Orders() {
               {
                 title: "SKU",
                 dataIndex: "sku",
-                render: (sku) => <Link to={`/timeline?sku=${encodeURIComponent(sku)}`}>{sku}</Link>,
+                render: (sku) => <Link to={`/products/${encodeURIComponent(sku)}`}>{sku}</Link>,
               },
               { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned" },
               { title: "Ship Date", dataIndex: "shipDate" },

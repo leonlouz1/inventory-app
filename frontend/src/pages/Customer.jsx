@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Select, Spin, Alert, Typography, Empty, Table, Tag, Row, Col, Statistic, Card, Button, Space, Modal, Input, message, Form } from "antd";
 import { DownloadOutlined, EditOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -12,6 +12,7 @@ function flattenLines(orders) {
   return orders.flatMap((order) =>
     order.lines.map((line) => ({
       key: line.id,
+      orderId: order.id,
       orderNumber: order.orderNumber,
       customerPo: order.customerPo,
       orderStatus: order.status,
@@ -21,9 +22,19 @@ function flattenLines(orders) {
 }
 
 const LINE_COLUMNS = (showStatus) => [
-  { title: "Order #", dataIndex: "orderNumber", sorter: (a, b) => a.orderNumber.localeCompare(b.orderNumber) },
+  {
+    title: "Order #",
+    dataIndex: "orderNumber",
+    sorter: (a, b) => a.orderNumber.localeCompare(b.orderNumber),
+    render: (n, line) => <Link to={`/orders/${line.orderId}`}>{n}</Link>,
+  },
   { title: "Customer PO #", dataIndex: "customerPo", render: (v) => v || "—" },
-  { title: "SKU", dataIndex: "sku", sorter: (a, b) => a.sku.localeCompare(b.sku) },
+  {
+    title: "SKU",
+    dataIndex: "sku",
+    sorter: (a, b) => a.sku.localeCompare(b.sku),
+    render: (sku) => <Link to={`/products/${encodeURIComponent(sku)}`}>{sku}</Link>,
+  },
   { title: "Product", dataIndex: "productName", sorter: (a, b) => a.productName.localeCompare(b.productName) },
   { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned", sorter: (a, b) => (a.warehouseName || "").localeCompare(b.warehouseName || "") },
   { title: "Qty", dataIndex: "quantity", align: "right", sorter: (a, b) => a.quantity - b.quantity },

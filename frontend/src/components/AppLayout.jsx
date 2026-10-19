@@ -49,6 +49,13 @@ const NAV_ITEMS = [
   { key: "/warehouses", label: "Warehouses", icon: <BankOutlined /> },
 ];
 
+// Highlight the menu item a page belongs to, e.g. /orders/42 -> Orders
+function selectedKey(items, pathname) {
+  const keys = items.flatMap((i) => (i.children ? i.children.map((c) => c.key) : [i.key])).filter((k) => k.startsWith("/"));
+  const matches = keys.filter((k) => (k === "/" ? pathname === "/" : pathname === k || pathname.startsWith(`${k}/`)));
+  return matches.sort((a, b) => b.length - a.length)[0] ?? pathname;
+}
+
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -64,7 +71,7 @@ export default function AppLayout() {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[selectedKey(navItems, location.pathname)]}
           defaultOpenKeys={["crm-group"]}
           items={navItems}
           onClick={({ key }) => { if (key !== "crm-group") navigate(key); }}

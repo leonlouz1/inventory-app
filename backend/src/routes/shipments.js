@@ -197,6 +197,17 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+// GET /api/shipments/:id — one shipment with its orders
+router.get("/:id", async (req, res) => {
+  try {
+    const shipment = await loadShipment(prisma, Number(req.params.id));
+    if (!shipment) return res.status(404).json({ message: "Shipment not found" });
+    res.json(serialize(shipment));
+  } catch (err) {
+    res.status(500).json({ message: err.message, error: err.message });
+  }
+});
+
 // GET /api/shipments/:id/bol — what the BOL form starts from
 router.get("/:id/bol", async (req, res) => {
   try {

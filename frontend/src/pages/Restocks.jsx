@@ -116,7 +116,7 @@ export default function Restocks() {
       key: "sku",
       render: (_, group) =>
         group.lines.length === 1 ? (
-          <Link to={`/timeline?sku=${encodeURIComponent(group.lines[0].sku)}`} onClick={(e) => e.stopPropagation()}>
+          <Link to={`/products/${encodeURIComponent(group.lines[0].sku)}`} onClick={(e) => e.stopPropagation()}>
             {group.lines[0].sku}
           </Link>
         ) : (
@@ -177,14 +177,14 @@ export default function Restocks() {
         if (group.lines.length === 1) {
           const r = group.lines[0];
           return r.linkedOrderNumber
-            ? <Link to={`/orders?highlight=${r.linkedOrderId}`} onClick={(e) => e.stopPropagation()}>{r.linkedOrderNumber}</Link>
+            ? <Link to={`/orders/${r.linkedOrderId}`} onClick={(e) => e.stopPropagation()}>{r.linkedOrderNumber}</Link>
             : "—";
         }
         const linked = group.lines.filter((l) => l.linkedOrderNumber);
         if (linked.length === 0) return "—";
         return linked.map((l) => (
           <div key={l.id}>
-            <Link to={`/orders?highlight=${l.linkedOrderId}`} onClick={(e) => e.stopPropagation()}>{l.linkedOrderNumber}</Link>
+            <Link to={`/orders/${l.linkedOrderId}`} onClick={(e) => e.stopPropagation()}>{l.linkedOrderNumber}</Link>
             {" "}<span style={{ color: "#999", fontSize: 12 }}>({l.sku})</span>
           </div>
         ));
@@ -237,7 +237,7 @@ export default function Restocks() {
               {
                 title: "SKU",
                 dataIndex: "sku",
-                render: (sku) => <Link to={`/timeline?sku=${encodeURIComponent(sku)}`}>{sku}</Link>,
+                render: (sku) => <Link to={`/products/${encodeURIComponent(sku)}`}>{sku}</Link>,
               },
               { title: "Product Name", dataIndex: "productName" },
               { title: "Qty", dataIndex: "quantity" },
@@ -258,7 +258,7 @@ export default function Restocks() {
                 title: "Linked Order",
                 key: "linkedOrder",
                 render: (_, r) => r.linkedOrderNumber
-                  ? <Link to={`/orders?highlight=${r.linkedOrderId}`}>{r.linkedOrderNumber}</Link>
+                  ? <Link to={`/orders/${r.linkedOrderId}`}>{r.linkedOrderNumber}</Link>
                   : "—",
               },
               {

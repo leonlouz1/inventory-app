@@ -210,7 +210,7 @@ export default function Products() {
         render: (sku, product) => (
           <>
             {isDesigner ? sku : (
-              <Link to={`/timeline?sku=${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
+              <Link to={`/products/${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
                 {sku}
               </Link>
             )}

@@ -140,11 +140,11 @@ export default function CalendarView() {
               dataSource={selectedDay.shipments}
               renderItem={({ order, line }) => (
                 <List.Item>
-                  <Link to={`/orders?highlight=${order.id}`} onClick={() => setSelectedDate(null)}>
+                  <Link to={`/orders/${order.id}`} onClick={() => setSelectedDate(null)}>
                     {order.orderNumber}
                   </Link>
                   {" — "}
-                  <Link to={`/timeline?sku=${encodeURIComponent(line.sku)}`} onClick={() => setSelectedDate(null)}>
+                  <Link to={`/products/${encodeURIComponent(line.sku)}`} onClick={() => setSelectedDate(null)}>
                     {line.sku}
                   </Link>
                   {` x${line.quantity} — ${order.customer} `}
@@ -186,7 +186,7 @@ export default function CalendarView() {
                         const r = g.lines[0];
                         return (
                           <List.Item>
-                            <Link to={`/timeline?sku=${encodeURIComponent(r.sku)}`} onClick={() => setSelectedDate(null)}>
+                            <Link to={`/products/${encodeURIComponent(r.sku)}`} onClick={() => setSelectedDate(null)}>
                               {r.sku}
                             </Link>
                             {` x${r.quantity} — ${r.warehouseName}`}
@@ -209,7 +209,7 @@ export default function CalendarView() {
                             dataSource={g.lines}
                             renderItem={(r) => (
                               <List.Item>
-                                <Link to={`/timeline?sku=${encodeURIComponent(r.sku)}`} onClick={() => setSelectedDate(null)}>
+                                <Link to={`/products/${encodeURIComponent(r.sku)}`} onClick={() => setSelectedDate(null)}>
                                   {r.sku}
                                 </Link>
                                 {` x${r.quantity}`}

@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { Table, Button, Tag, Spin, Alert, Typography, Tabs, Space, Popconfirm, message, Input, Tooltip } from "antd";
 import { CheckCircleOutlined, MailOutlined, UndoOutlined, EditOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -66,6 +67,7 @@ export default function Billing() {
       title: "Order #",
       dataIndex: "orderNumber",
       sorter: (a, b) => a.orderNumber.localeCompare(b.orderNumber),
+      render: (n, order) => <Link to={`/orders/${order.id}`}>{n}</Link>,
     },
     {
       title: "Customer",
