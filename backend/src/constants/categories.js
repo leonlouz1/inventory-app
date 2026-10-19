@@ -11,6 +11,7 @@ const PRODUCT_CATEGORIES = [
   "Training Pads",
   "Towels",
   "Soap Pumps",
+  "Storage & Organization",
 ];
 
 module.exports = { PRODUCT_CATEGORIES };

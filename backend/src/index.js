@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const prisma = require("./prismaClient");
 const { authenticate } = require("./middleware/auth");
+const { seedStorageHangers } = require("./services/upcSeed");
 
 const productsRouter = require("./routes/products");
 const ordersRouter = require("./routes/orders");
@@ -134,6 +135,12 @@ async function runStartupMigrations() {
         ('brand', '27', 'Leluxe Travel')
       ON CONFLICT DO NOTHING
     `;
+    await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "name" VARCHAR(200)`;
+    await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "brand" VARCHAR(100)`;
+    await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "color" VARCHAR(100)`;
+    await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "category" VARCHAR(50)`;
+    await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "pack_size" INTEGER`;
+    await seedStorageHangers(prisma);
     console.log("Startup migrations complete");
   } catch (err) {
     console.error("Startup migration error:", err.message);

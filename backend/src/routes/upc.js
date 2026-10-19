@@ -1,13 +1,16 @@
 const express = require("express");
 const prisma = require("../prismaClient");
 const asyncHandler = require("../middleware/asyncHandler");
-const { FIRST_BRAND, LAST_BRAND, CODE_LENGTH, fullUpc, isValidSku, splitSku } = require("../services/upc");
+const {
+  FIRST_BRAND, LAST_BRAND, CODE_LENGTH, fullUpc, splitSku, isTravelRange, otherProductName,
+} = require("../services/upc");
+const { createUpcProduct } = require("../services/upcProducts");
 
 const router = express.Router();
 
 async function loadCodeNames() {
   const codes = await prisma.upcCode.findMany();
-  const names = { brand: {}, style: {}, color: {} };
+  const names = { brand: {}, style: {}, color: {}, range: {} };
   for (const c of codes) names[c.kind][c.code] = c.name;
   return names;
 }
@@ -33,6 +36,7 @@ router.get(
       brands: codes.filter((c) => c.kind === "brand"),
       styles: codes.filter((c) => c.kind === "style"),
       colors: codes.filter((c) => c.kind === "color"),
+      ranges: codes.filter((c) => c.kind === "range"),
     });
   })
 );
@@ -46,12 +50,15 @@ router.post(
     const name = String(req.body.name || "").trim();
 
     const length = CODE_LENGTH[kind];
-    if (!length) return res.status(400).json({ message: "kind must be brand, style or color" });
+    if (!length) return res.status(400).json({ message: "kind must be brand, style, color or range" });
     if (!new RegExp(`^\\d{${length}}$`).test(code)) {
       return res.status(400).json({ message: `${kind} code must be exactly ${length} digit${length > 1 ? "s" : ""}` });
     }
     if (kind === "brand" && (Number(code) < FIRST_BRAND || Number(code) > LAST_BRAND)) {
       return res.status(400).json({ message: `Brand code must be between ${FIRST_BRAND} and ${LAST_BRAND}` });
+    }
+    if (kind === "range" && isTravelRange(code)) {
+      return res.status(400).json({ message: `${FIRST_BRAND}–${LAST_BRAND} are Travel ranges; pick another number` });
     }
     if (!name) return res.status(400).json({ message: "Name is required" });
 
@@ -86,7 +93,11 @@ router.delete(
     if (!code) return res.status(404).json({ message: "Code not found" });
 
     const inUse = await prisma.upcAssignment.findMany({ where: { inUse: true } });
-    const using = inUse.filter((a) => splitSku(a.sku)[code.kind] === code.code);
+    const using = inUse.filter((a) =>
+      code.kind === "range"
+        ? a.sku.slice(0, 2) === code.code
+        : isTravelRange(a.sku.slice(0, 2)) && splitSku(a.sku)[code.kind] === code.code
+    );
     if (using.length > 0) {
       return res.status(409).json({
         message: `Can't delete: ${using.length} in-use number${using.length > 1 ? "s use" : " uses"} this code (e.g. ${using[0].sku})`,
@@ -136,16 +147,51 @@ router.get(
   })
 );
 
-// GET /api/upc?brand=24 — every number in one brand's range (xx000–xx999)
+function otherDetails(a) {
+  return {
+    name: a?.name ?? null,
+    brand: a?.brand ?? null,
+    color: a?.color ?? null,
+    category: a?.category ?? null,
+    packSize: a?.packSize ?? null,
+  };
+}
+
+async function isKnownRange(prefix) {
+  if (isTravelRange(prefix)) return true;
+  return Boolean(await prisma.upcCode.findUnique({ where: { kind_code: { kind: "range", code: prefix } } }));
+}
+
+// GET /api/upc?range=24 — every number in one range (xx000–xx999). Travel
+// ranges decode brand/style/color; other ranges return typed-in details.
 router.get(
   "/",
   asyncHandler(async (req, res) => {
-    const brand = Number(req.query.brand);
-    if (!Number.isInteger(brand) || brand < FIRST_BRAND || brand > LAST_BRAND) {
-      return res.status(400).json({ message: `brand must be between ${FIRST_BRAND} and ${LAST_BRAND}` });
+    const prefix = String(req.query.range ?? req.query.brand ?? "");
+    if (!/^\d{2}$/.test(prefix) || !(await isKnownRange(prefix))) {
+      return res.status(400).json({ message: `${prefix} isn't a UPC range` });
+    }
+    const brand = Number(prefix);
+    const skus = Array.from({ length: 1000 }, (_, i) => String(brand * 1000 + i));
+
+    if (!isTravelRange(prefix)) {
+      const [assignments, products] = await Promise.all([
+        prisma.upcAssignment.findMany({ where: { sku: { in: skus } } }),
+        prisma.product.findMany({ where: { sku: { in: skus } }, select: { id: true, sku: true, name: true } }),
+      ]);
+      const assignmentBySku = new Map(assignments.map((a) => [a.sku, a]));
+      const productBySku = new Map(products.map((p) => [p.sku, p]));
+      return res.json(
+        skus.map((sku) => ({
+          sku,
+          upc: fullUpc(sku),
+          ...otherDetails(assignmentBySku.get(sku)),
+          inUse: assignmentBySku.get(sku)?.inUse ?? false,
+          product: productBySku.get(sku) ?? null,
+        }))
+      );
     }
 
-    const skus = Array.from({ length: 1000 }, (_, i) => String(brand * 1000 + i));
     const [names, assignments, products] = await Promise.all([
       loadCodeNames(),
       prisma.upcAssignment.findMany({ where: { sku: { in: skus } } }),
@@ -173,7 +219,10 @@ router.patch(
   "/:sku",
   asyncHandler(async (req, res) => {
     const sku = String(req.params.sku);
-    if (!isValidSku(sku)) return res.status(400).json({ message: `${sku} is not a valid item number` });
+    if (!/^\d{5}$/.test(sku) || !(await isKnownRange(sku.slice(0, 2)))) {
+      return res.status(400).json({ message: `${sku} is not a valid item number` });
+    }
+    if (!isTravelRange(sku.slice(0, 2))) return updateOtherNumber(sku, req, res);
     const inUse = Boolean(req.body.inUse);
     const names = await loadCodeNames();
     const info = describe(sku, names);
@@ -199,26 +248,63 @@ router.patch(
       const existing = await tx.product.findUnique({ where: { sku }, select: { id: true, sku: true, name: true } });
       if (!inUse || existing) return existing;
 
-      const created = await tx.product.create({
-        data: {
-          sku,
-          name: `${info.brandName} ${info.styleName} ${info.colorName}`,
-          brand: info.brandName,
-          productType: info.styleName,
-          color: info.colorName,
-          upc: fullUpc(sku),
-        },
-        select: { id: true, sku: true, name: true },
+      return createUpcProduct(tx, {
+        sku,
+        name: `${info.brandName} ${info.styleName} ${info.colorName}`,
+        brand: info.brandName,
+        productType: info.styleName,
+        color: info.colorName,
       });
-      const warehouses = await tx.warehouse.findMany();
-      await tx.warehouseStock.createMany({
-        data: warehouses.map((w) => ({ productId: created.id, warehouseId: w.id, onHand: 0 })),
-      });
-      return created;
     });
 
     res.json({ sku, upc: fullUpc(sku), ...info, inUse, product });
   })
 );
+
+// Other-category number: { inUse?, name?, brand?, color?, category?, packSize? }.
+// Details can be saved any time; marking in use needs a name and creates the
+// product (once) as "Name Color N Pack". Unmarking leaves the product alone.
+async function updateOtherNumber(sku, req, res) {
+  const body = req.body;
+  const text = (v) => (v == null || String(v).trim() === "" ? null : String(v).trim());
+  const details = {};
+  for (const key of ["name", "brand", "color", "category"]) {
+    if (body[key] !== undefined) details[key] = text(body[key]);
+  }
+  if (body.packSize !== undefined) {
+    const n = body.packSize === null || body.packSize === "" ? null : Number(body.packSize);
+    if (n !== null && (!Number.isInteger(n) || n < 1)) {
+      return res.status(400).json({ message: "Pack size must be a whole number" });
+    }
+    details.packSize = n;
+  }
+
+  const current = await prisma.upcAssignment.findUnique({ where: { sku } });
+  const inUse = body.inUse !== undefined ? Boolean(body.inUse) : current?.inUse ?? false;
+  const merged = { ...otherDetails(current), ...details };
+  if (inUse && !merged.name) {
+    return res.status(400).json({ message: "Give this number a name before marking it in use" });
+  }
+
+  const product = await prisma.$transaction(async (tx) => {
+    await tx.upcAssignment.upsert({
+      where: { sku },
+      update: { inUse, ...details },
+      create: { sku, inUse, ...details },
+    });
+    const existing = await tx.product.findUnique({ where: { sku }, select: { id: true, sku: true, name: true } });
+    if (!inUse || existing) return existing;
+    return createUpcProduct(tx, {
+      sku,
+      name: otherProductName(merged),
+      brand: merged.brand,
+      color: merged.color,
+      category: merged.category,
+      attributes: merged.packSize ? { packSize: String(merged.packSize) } : undefined,
+    });
+  });
+
+  res.json({ sku, upc: fullUpc(sku), ...merged, inUse, product });
+}
 
 module.exports = router;

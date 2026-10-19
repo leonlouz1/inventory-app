@@ -270,11 +270,12 @@ model RetailerType {
   @@map("retailer_types")
 }
 
-// Brand / style / color codes that make up a 5-digit UPC item number
-// (BB brand + SS style + C color). Shared across all brands.
+// UPC codes. Travel ranges (24-29) build the 5-digit item number from
+// BB brand + SS style + C color, shared across brands. "range" codes name the
+// other-category ranges (e.g. 23 Storage & Organization), numbered freely.
 model UpcCode {
   id   Int    @id @default(autoincrement())
-  kind String @db.VarChar(10) // "brand" | "style" | "color"
+  kind String @db.VarChar(10) // "brand" | "style" | "color" | "range"
   code String @db.VarChar(2)
   name String @db.VarChar(100)
 
@@ -284,9 +285,15 @@ model UpcCode {
 
 // Which item numbers are marked "In use". Numbers without a row are available.
 // The linked product is the one whose SKU equals the item number.
+// name/brand/color/category/packSize are typed in for other-category numbers.
 model UpcAssignment {
   sku       String   @id @db.VarChar(5)
   inUse     Boolean  @default(false) @map("in_use")
+  name      String?  @db.VarChar(200)
+  brand     String?  @db.VarChar(100)
+  color     String?  @db.VarChar(100)
+  category  String?  @db.VarChar(50)
+  packSize  Int?     @map("pack_size")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("upc_assignments")

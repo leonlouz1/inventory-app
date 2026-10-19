@@ -1,0 +1,554 @@
+[
+ {
+  "sku": "23000",
+  "name": "Plastic Hanger",
+  "color": "Black",
+  "packSize": 10
+ },
+ {
+  "sku": "23001",
+  "name": "Plastic Hanger",
+  "color": "White",
+  "packSize": 10
+ },
+ {
+  "sku": "23002",
+  "name": "Plastic Hanger",
+  "color": "Gray",
+  "packSize": 10
+ },
+ {
+  "sku": "23003",
+  "name": "Plastic Hanger",
+  "color": "Navy",
+  "packSize": 10
+ },
+ {
+  "sku": "23004",
+  "name": "Plastic Hanger",
+  "color": "Sage",
+  "packSize": 10
+ },
+ {
+  "sku": "23005",
+  "name": "Plastic Hanger",
+  "color": "Pink",
+  "packSize": 10
+ },
+ {
+  "sku": "23006",
+  "name": "Plastic Hanger",
+  "color": "Black",
+  "packSize": 20
+ },
+ {
+  "sku": "23007",
+  "name": "Plastic Hanger",
+  "color": "White",
+  "packSize": 20
+ },
+ {
+  "sku": "23008",
+  "name": "Plastic Hanger",
+  "color": "Gray",
+  "packSize": 20
+ },
+ {
+  "sku": "23009",
+  "name": "Plastic Hanger",
+  "color": "Navy",
+  "packSize": 20
+ },
+ {
+  "sku": "23010",
+  "name": "Plastic Hanger",
+  "color": "Sage",
+  "packSize": 20
+ },
+ {
+  "sku": "23011",
+  "name": "Plastic Hanger",
+  "color": "Pink",
+  "packSize": 20
+ },
+ {
+  "sku": "23012",
+  "name": "Plastic Hanger",
+  "color": "Black",
+  "packSize": 25
+ },
+ {
+  "sku": "23013",
+  "name": "Plastic Hanger",
+  "color": "White",
+  "packSize": 25
+ },
+ {
+  "sku": "23014",
+  "name": "Plastic Hanger",
+  "color": "Gray",
+  "packSize": 25
+ },
+ {
+  "sku": "23015",
+  "name": "Plastic Hanger",
+  "color": "Navy",
+  "packSize": 25
+ },
+ {
+  "sku": "23016",
+  "name": "Plastic Hanger",
+  "color": "Sage",
+  "packSize": 25
+ },
+ {
+  "sku": "23017",
+  "name": "Plastic Hanger",
+  "color": "Pink",
+  "packSize": 25
+ },
+ {
+  "sku": "23018",
+  "name": "Plastic Hanger",
+  "color": "Black",
+  "packSize": 30
+ },
+ {
+  "sku": "23019",
+  "name": "Plastic Hanger",
+  "color": "White",
+  "packSize": 30
+ },
+ {
+  "sku": "23020",
+  "name": "Plastic Hanger",
+  "color": "Gray",
+  "packSize": 30
+ },
+ {
+  "sku": "23021",
+  "name": "Plastic Hanger",
+  "color": "Navy",
+  "packSize": 30
+ },
+ {
+  "sku": "23022",
+  "name": "Plastic Hanger",
+  "color": "Sage",
+  "packSize": 30
+ },
+ {
+  "sku": "23023",
+  "name": "Plastic Hanger",
+  "color": "Pink",
+  "packSize": 30
+ },
+ {
+  "sku": "23024",
+  "name": "Plastic Hanger",
+  "color": "Black",
+  "packSize": 35
+ },
+ {
+  "sku": "23025",
+  "name": "Plastic Hanger",
+  "color": "White",
+  "packSize": 35
+ },
+ {
+  "sku": "23026",
+  "name": "Plastic Hanger",
+  "color": "Gray",
+  "packSize": 35
+ },
+ {
+  "sku": "23027",
+  "name": "Plastic Hanger",
+  "color": "Navy",
+  "packSize": 35
+ },
+ {
+  "sku": "23028",
+  "name": "Plastic Hanger",
+  "color": "Sage",
+  "packSize": 35
+ },
+ {
+  "sku": "23029",
+  "name": "Plastic Hanger",
+  "color": "Pink",
+  "packSize": 35
+ },
+ {
+  "sku": "23030",
+  "name": "Plastic Hanger",
+  "color": "Black",
+  "packSize": 50
+ },
+ {
+  "sku": "23031",
+  "name": "Plastic Hanger",
+  "color": "White",
+  "packSize": 50
+ },
+ {
+  "sku": "23032",
+  "name": "Plastic Hanger",
+  "color": "Gray",
+  "packSize": 50
+ },
+ {
+  "sku": "23033",
+  "name": "Plastic Hanger",
+  "color": "Navy",
+  "packSize": 50
+ },
+ {
+  "sku": "23034",
+  "name": "Plastic Hanger",
+  "color": "Sage",
+  "packSize": 50
+ },
+ {
+  "sku": "23035",
+  "name": "Plastic Hanger",
+  "color": "Pink",
+  "packSize": 50
+ },
+ {
+  "sku": "23036",
+  "name": "Velvet Hanger",
+  "color": "Black",
+  "packSize": 10
+ },
+ {
+  "sku": "23037",
+  "name": "Velvet Hanger",
+  "color": "White",
+  "packSize": 10
+ },
+ {
+  "sku": "23038",
+  "name": "Velvet Hanger",
+  "color": "Gray",
+  "packSize": 10
+ },
+ {
+  "sku": "23039",
+  "name": "Velvet Hanger",
+  "color": "Navy",
+  "packSize": 10
+ },
+ {
+  "sku": "23040",
+  "name": "Velvet Hanger",
+  "color": "Sage",
+  "packSize": 10
+ },
+ {
+  "sku": "23041",
+  "name": "Velvet Hanger",
+  "color": "Pink",
+  "packSize": 10
+ },
+ {
+  "sku": "23042",
+  "name": "Velvet Hanger",
+  "color": "Black",
+  "packSize": 20
+ },
+ {
+  "sku": "23043",
+  "name": "Velvet Hanger",
+  "color": "White",
+  "packSize": 20
+ },
+ {
+  "sku": "23044",
+  "name": "Velvet Hanger",
+  "color": "Gray",
+  "packSize": 20
+ },
+ {
+  "sku": "23045",
+  "name": "Velvet Hanger",
+  "color": "Navy",
+  "packSize": 20
+ },
+ {
+  "sku": "23046",
+  "name": "Velvet Hanger",
+  "color": "Sage",
+  "packSize": 20
+ },
+ {
+  "sku": "23047",
+  "name": "Velvet Hanger",
+  "color": "Pink",
+  "packSize": 20
+ },
+ {
+  "sku": "23048",
+  "name": "Velvet Hanger",
+  "color": "Black",
+  "packSize": 25
+ },
+ {
+  "sku": "23049",
+  "name": "Velvet Hanger",
+  "color": "White",
+  "packSize": 25
+ },
+ {
+  "sku": "23050",
+  "name": "Velvet Hanger",
+  "color": "Gray",
+  "packSize": 25
+ },
+ {
+  "sku": "23051",
+  "name": "Velvet Hanger",
+  "color": "Navy",
+  "packSize": 25
+ },
+ {
+  "sku": "23052",
+  "name": "Velvet Hanger",
+  "color": "Sage",
+  "packSize": 25
+ },
+ {
+  "sku": "23053",
+  "name": "Velvet Hanger",
+  "color": "Pink",
+  "packSize": 25
+ },
+ {
+  "sku": "23054",
+  "name": "Velvet Hanger",
+  "color": "Black",
+  "packSize": 30
+ },
+ {
+  "sku": "23055",
+  "name": "Velvet Hanger",
+  "color": "White",
+  "packSize": 30
+ },
+ {
+  "sku": "23056",
+  "name": "Velvet Hanger",
+  "color": "Gray",
+  "packSize": 30
+ },
+ {
+  "sku": "23057",
+  "name": "Velvet Hanger",
+  "color": "Navy",
+  "packSize": 30
+ },
+ {
+  "sku": "23058",
+  "name": "Velvet Hanger",
+  "color": "Sage",
+  "packSize": 30
+ },
+ {
+  "sku": "23059",
+  "name": "Velvet Hanger",
+  "color": "Pink",
+  "packSize": 30
+ },
+ {
+  "sku": "23060",
+  "name": "Velvet Hanger",
+  "color": "Black",
+  "packSize": 35
+ },
+ {
+  "sku": "23061",
+  "name": "Velvet Hanger",
+  "color": "White",
+  "packSize": 35
+ },
+ {
+  "sku": "23062",
+  "name": "Velvet Hanger",
+  "color": "Gray",
+  "packSize": 35
+ },
+ {
+  "sku": "23063",
+  "name": "Velvet Hanger",
+  "color": "Navy",
+  "packSize": 35
+ },
+ {
+  "sku": "23064",
+  "name": "Velvet Hanger",
+  "color": "Sage",
+  "packSize": 35
+ },
+ {
+  "sku": "23065",
+  "name": "Velvet Hanger",
+  "color": "Pink",
+  "packSize": 35
+ },
+ {
+  "sku": "23066",
+  "name": "Velvet Hanger",
+  "color": "Black",
+  "packSize": 50
+ },
+ {
+  "sku": "23067",
+  "name": "Velvet Hanger",
+  "color": "White",
+  "packSize": 50
+ },
+ {
+  "sku": "23068",
+  "name": "Velvet Hanger",
+  "color": "Gray",
+  "packSize": 50
+ },
+ {
+  "sku": "23069",
+  "name": "Velvet Hanger",
+  "color": "Navy",
+  "packSize": 50
+ },
+ {
+  "sku": "23070",
+  "name": "Velvet Hanger",
+  "color": "Sage",
+  "packSize": 50
+ },
+ {
+  "sku": "23071",
+  "name": "Velvet Hanger",
+  "color": "Pink",
+  "packSize": 50
+ },
+ {
+  "sku": "23072",
+  "name": "Wooden Scarf Hanger (20 Hooks)",
+  "color": "Natural",
+  "packSize": 1
+ },
+ {
+  "sku": "23073",
+  "name": "Wooden Scarf Hanger (20 Hooks)",
+  "color": "Cherry",
+  "packSize": 1
+ },
+ {
+  "sku": "23074",
+  "name": "Wooden Scarf Hanger (20 Hooks)",
+  "color": "White",
+  "packSize": 1
+ },
+ {
+  "sku": "23075",
+  "name": "Wooden Scarf Hanger (20 Hooks)",
+  "color": "Walnut",
+  "packSize": 1
+ },
+ {
+  "sku": "23076",
+  "name": "Wooden Scarf Hanger (20 Hooks)",
+  "color": "Black",
+  "packSize": 1
+ },
+ {
+  "sku": "23077",
+  "name": "Velvet 4 Tier Pants Hanger",
+  "color": "Black",
+  "packSize": 2
+ },
+ {
+  "sku": "23078",
+  "name": "Velvet 4 Tier Pants Hanger",
+  "color": "White",
+  "packSize": 2
+ },
+ {
+  "sku": "23079",
+  "name": "Velvet 4 Tier Pants Hanger",
+  "color": "Gray",
+  "packSize": 2
+ },
+ {
+  "sku": "23080",
+  "name": "Velvet 4 Tier Pants Hanger",
+  "color": "Navy",
+  "packSize": 2
+ },
+ {
+  "sku": "23081",
+  "name": "Velvet 4 Tier Pants Hanger",
+  "color": "Sage",
+  "packSize": 2
+ },
+ {
+  "sku": "23082",
+  "name": "Velvet 4 Tier Pants Hanger",
+  "color": "Pink",
+  "packSize": 2
+ },
+ {
+  "sku": "23083",
+  "name": "Open Ended Pants Hanger",
+  "color": "Black",
+  "packSize": 5
+ },
+ {
+  "sku": "23084",
+  "name": "Open Ended Pants Hanger",
+  "color": "Black",
+  "packSize": 10
+ },
+ {
+  "sku": "23085",
+  "name": "Open Ended Pants Hanger",
+  "color": "Black",
+  "packSize": 20
+ },
+ {
+  "sku": "23086",
+  "name": "5-Tier Metal Clip Hanger",
+  "color": "Black / Silver",
+  "packSize": 1
+ },
+ {
+  "sku": "23087",
+  "name": "5-Tier Metal Clip Hanger",
+  "color": "Black / Silver",
+  "packSize": 2
+ },
+ {
+  "sku": "23088",
+  "name": "5-Tier Metal Clip Hanger",
+  "color": "Black / Silver",
+  "packSize": 3
+ },
+ {
+  "sku": "23090",
+  "name": "4-Tier Skirt Clip Hanger",
+  "color": "Black / Silver",
+  "packSize": 1
+ },
+ {
+  "sku": "23091",
+  "name": "4-Tier Skirt Clip Hanger",
+  "color": "Black / Silver",
+  "packSize": 2
+ },
+ {
+  "sku": "23092",
+  "name": "4-Tier Skirt Clip Hanger",
+  "color": "Black / Silver",
+  "packSize": 3
+ }
+]

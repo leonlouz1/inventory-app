@@ -7,7 +7,19 @@ const COMPANY_PREFIX = "689528";
 const FIRST_BRAND = 24;
 const LAST_BRAND = 29;
 
-const CODE_LENGTH = { brand: 2, style: 2, color: 1 };
+const CODE_LENGTH = { brand: 2, style: 2, color: 1, range: 2 };
+
+// Travel ranges use the brand/style/color layout; any other 2-digit range is
+// an "other category" range where numbers are assigned one by one.
+function isTravelRange(prefix) {
+  const n = Number(prefix);
+  return n >= FIRST_BRAND && n <= LAST_BRAND;
+}
+
+// Product name for an other-category number: Name Color N Pack
+function otherProductName({ name, color, packSize }) {
+  return [name, color, packSize ? `${packSize} Pack` : null].filter(Boolean).join(" ");
+}
 
 function checkDigit(first11) {
   let odd = 0;
@@ -35,4 +47,7 @@ function splitSku(sku) {
   return { brand: sku.slice(0, 2), style: sku.slice(2, 4), color: sku.slice(4, 5) };
 }
 
-module.exports = { COMPANY_PREFIX, FIRST_BRAND, LAST_BRAND, CODE_LENGTH, checkDigit, fullUpc, isValidSku, splitSku };
+module.exports = {
+  COMPANY_PREFIX, FIRST_BRAND, LAST_BRAND, CODE_LENGTH,
+  checkDigit, fullUpc, isValidSku, splitSku, isTravelRange, otherProductName,
+};
