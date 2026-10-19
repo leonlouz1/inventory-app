@@ -39,4 +39,26 @@ async function seedStorageHangers(prisma) {
   console.log(`Loaded ${hangers.length} Storage & Organization UPCs`);
 }
 
-module.exports = { seedStorageHangers };
+// One-time, when UPC groups are introduced: numbers with the same name, pack
+// size and brand (one product in several colors) become a group, named like
+// "Plastic Hanger 10 Pack". Single numbers stay ungrouped.
+async function groupExistingUpcNumbers(prisma) {
+  const named = await prisma.upcAssignment.findMany({ where: { name: { not: null } }, orderBy: { sku: "asc" } });
+  const families = new Map();
+  for (const a of named) {
+    const key = `${a.name}|${a.packSize ?? ""}|${a.brand ?? ""}`;
+    if (!families.has(key)) families.set(key, []);
+    families.get(key).push(a);
+  }
+  let created = 0;
+  for (const members of families.values()) {
+    if (members.length < 2) continue;
+    const { name, packSize } = members[0];
+    const group = await prisma.upcGroup.create({ data: { name: packSize ? `${name} ${packSize} Pack` : name } });
+    await prisma.upcAssignment.updateMany({ where: { sku: { in: members.map((m) => m.sku) } }, data: { groupId: group.id } });
+    created += 1;
+  }
+  if (created) console.log(`Grouped existing UPC numbers into ${created} groups`);
+}
+
+module.exports = { seedStorageHangers, groupExistingUpcNumbers };

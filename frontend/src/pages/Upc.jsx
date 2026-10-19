@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Typography, Table, Input, InputNumber, Select, Checkbox, Button, Segmented, Modal, Tabs, Space, Popconfirm, Tooltip,
-  Form, message,
+  Form, AutoComplete, message,
 } from "antd";
-import { SettingOutlined, DeleteOutlined, PlusOutlined, EditOutlined } from "@ant-design/icons";
+import { SettingOutlined, DeleteOutlined, PlusOutlined, EditOutlined, DisconnectOutlined, GroupOutlined } from "@ant-design/icons";
 import { upcApi } from "../api/inventory";
 import { PRODUCT_BRANDS } from "../constants/brands";
 import { PRODUCT_CATEGORIES } from "../constants/categories";
@@ -399,46 +399,313 @@ function CreateNumberModal({ open, onClose, onContinue }) {
   );
 }
 
-// Condense the list: numbers with the same name, pack size and brand (the same
-// product in different colors) become one expandable row, and numbers with no
-// details yet become a single "available" row.
-function groupOtherRows(rows) {
-  const groups = new Map();
+// Turn a list of numbers into table rows: numbers in a group become one
+// expandable row per group, other filled-in numbers stay as single rows, and
+// numbers with no details yet collapse into one "available" row.
+function groupOtherRows(rows, groups) {
+  const groupName = new Map(groups.map((g) => [g.id, g.name]));
+  const members = new Map();
+  const result = [];
   let available = 0;
   for (const r of rows) {
-    if (!r.name) {
+    if (r.groupId && groupName.has(r.groupId)) {
+      if (!members.has(r.groupId)) {
+        members.set(r.groupId, []);
+        result.push({ key: `g:${r.groupId}`, isGroup: true, groupId: r.groupId, groupName: groupName.get(r.groupId) });
+      }
+      members.get(r.groupId).push(r);
+    } else if (r.name) {
+      result.push(r);
+    } else {
       available += 1;
-      continue;
     }
-    const key = `g:${r.name}|${r.packSize ?? ""}|${r.brand ?? ""}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(r);
   }
-  const result = [...groups.entries()].map(([key, members]) => (
-    members.length === 1 ? members[0] : { key, isGroup: true, ...members[0], children: members }
-  ));
+  for (const g of result) if (g.isGroup) g.children = members.get(g.groupId);
   if (available > 0) result.push({ key: "available", isAvailable: true, count: available });
   return result;
+}
+
+const uniqueJoin = (values) => [...new Set(values.filter((v) => v != null && v !== ""))].join(", ");
+
+// New product family: shared details once, then every color x pack size
+// combination gets the next free number.
+function CreateGroupModal({ open, range, colorOptions, onClose, onCreated }) {
+  const [form] = Form.useForm();
+  const category = Form.useWatch("category", form);
+  const watchedColors = Form.useWatch("colors", form);
+  const watchedPacks = Form.useWatch("packs", form);
+  const startSku = Form.useWatch("startSku", form) || "";
+  const [preview, setPreview] = useState([]);
+  const [previewError, setPreviewError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const variants = useMemo(() => {
+    const colors = watchedColors || [];
+    const packs = watchedPacks || [];
+    if (!colors.length && !packs.length) return [];
+    const cs = colors.length ? colors : [null];
+    const ps = packs.length ? packs : [null];
+    return cs.flatMap((color) => ps.map((packSize) => ({ color, packSize })));
+  }, [watchedColors, watchedPacks]);
+
+  // Suggest the first free number in this range
+  useEffect(() => {
+    if (!open || range === "custom") return;
+    upcApi.nextFree(`${range}000`, 1)
+      .then(([first]) => { if (!form.getFieldValue("startSku")) form.setFieldsValue({ startSku: first.sku }); })
+      .catch(() => {});
+  }, [open, range, form]);
+
+  // Preview the exact numbers the group will get
+  const canPreview = open && /^\d{5}$/.test(startSku) && variants.length > 0;
+  useEffect(() => {
+    if (!canPreview) return;
+    let active = true;
+    upcApi.nextFree(startSku, variants.length)
+      .then((nums) => { if (active) { setPreview(nums); setPreviewError(null); } })
+      .catch((err) => { if (active) { setPreview([]); setPreviewError(err.message); } });
+    return () => { active = false; };
+  }, [canPreview, startSku, variants.length]);
+  const shown = canPreview && preview.length === variants.length ? preview : [];
+
+  async function handleOk() {
+    const values = await form.validateFields();
+    setSaving(true);
+    try {
+      const result = await upcApi.createGroup({
+        groupName: values.groupName,
+        startSku: values.startSku,
+        base: { name: values.name, brand: values.brand, category: values.category, attributes: values.attributes || {} },
+        variants,
+        inUse: values.inUse,
+      });
+      message.success(`Created ${result.group.name} (${result.skus.length} numbers)`);
+      form.resetFields();
+      onCreated();
+      onClose();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const name = Form.useWatch("name", form);
+  return (
+    <Modal
+      title="Create group"
+      open={open}
+      onCancel={() => { form.resetFields(); onClose(); }}
+      onOk={handleOk}
+      okText={`Create ${shown.length || ""} number${shown.length === 1 ? "" : "s"}`}
+      okButtonProps={{ disabled: shown.length === 0 }}
+      confirmLoading={saving}
+      width={680}
+      destroyOnHidden
+    >
+      <Form form={form} layout="vertical" initialValues={{ inUse: true, colors: [], packs: [] }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 12 }}>
+          <Form.Item name="name" label="Product name" rules={[{ required: true, whitespace: true, message: "Required" }]}>
+            <Input placeholder="e.g. Shoe Rack" />
+          </Form.Item>
+          <Form.Item name="groupName" label="Group name" extra="Defaults to the product name">
+            <Input placeholder={name || ""} />
+          </Form.Item>
+          <Form.Item name="brand" label="Brand">
+            <Select allowClear placeholder="None" options={PRODUCT_BRANDS.map((b) => ({ value: b, label: b }))} />
+          </Form.Item>
+          <Form.Item name="category" label="Category">
+            <Select allowClear placeholder="None" options={PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c }))} />
+          </Form.Item>
+          <Form.Item name="colors" label="Colors" extra="Type a color and press Enter">
+            <Select mode="tags" placeholder="e.g. Silver" options={colorOptions.map((c) => ({ value: c, label: c }))} />
+          </Form.Item>
+          <Form.Item
+            name="packs"
+            label="Pack sizes"
+            extra="Type a number and press Enter"
+            normalize={(v) => (v || []).map((x) => Number(x)).filter((x) => Number.isInteger(x) && x > 0)}
+          >
+            <Select mode="tags" placeholder="e.g. 1, 2, 4" />
+          </Form.Item>
+        </div>
+        <CategoryFields category={category} exclude={["color", "packSize"]} />
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <Form.Item
+            name="startSku"
+            label="Starting number"
+            rules={[{ pattern: /^\d{5}$/, message: "5 digits" }, { required: true, message: "Required" }]}
+            normalize={(v) => (v || "").replace(/\D/g, "").slice(0, 5)}
+            style={{ width: 180 }}
+          >
+            <Input placeholder="e.g. 23100" style={{ fontFamily: "monospace" }} />
+          </Form.Item>
+          <Form.Item name="inUse" valuePropName="checked">
+            <Checkbox>In use (adds them to Products)</Checkbox>
+          </Form.Item>
+        </div>
+      </Form>
+      {canPreview && previewError && <Typography.Text type="danger">{previewError}</Typography.Text>}
+      {shown.length > 0 && (
+        <Table
+          size="small"
+          rowKey="sku"
+          pagination={false}
+          scroll={{ y: 240 }}
+          dataSource={shown.map((n, i) => ({ ...n, ...variants[i] }))}
+          columns={[
+            { title: "SKU", dataIndex: "sku", width: 80 },
+            { title: "UPC", dataIndex: "upc", width: 160, render: (v) => <span style={{ fontFamily: "monospace" }}>{formatUpc(v)}</span> },
+            {
+              title: "Product",
+              key: "product",
+              render: (_, v) => [name, v.color, v.packSize ? `${v.packSize} Pack` : null].filter(Boolean).join(" "),
+            },
+          ]}
+        />
+      )}
+    </Modal>
+  );
+}
+
+// One more color and/or pack size for an existing group
+function AddVariantModal({ group, colorOptions, onClose, onAdded }) {
+  const [form] = Form.useForm();
+  const [saving, setSaving] = useState(false);
+
+  async function handleOk() {
+    const values = await form.validateFields();
+    if (!values.color && !values.packSize) {
+      message.warning("Enter a color or pack size");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { skus } = await upcApi.addVariant(group.groupId, values);
+      message.success(`Added ${skus[0]} to ${group.groupName}`);
+      onAdded();
+      onClose();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={`Add to ${group?.groupName ?? ""}`}
+      open={!!group}
+      onCancel={onClose}
+      onOk={handleOk}
+      okText="Add"
+      confirmLoading={saving}
+      destroyOnHidden
+      width={420}
+    >
+      <Typography.Paragraph type="secondary">
+        Uses the group&apos;s product details and the next free number after the group.
+      </Typography.Paragraph>
+      <Form form={form} layout="vertical" initialValues={{ inUse: true }}>
+        <Form.Item name="color" label="Color">
+          <AutoComplete
+            allowClear
+            placeholder="e.g. Silver"
+            options={colorOptions.map((c) => ({ value: c }))}
+            filterOption={(input, opt) => opt.value.toLowerCase().includes(input.toLowerCase())}
+          />
+        </Form.Item>
+        <Form.Item name="packSize" label="Pack size">
+          <InputNumber min={1} precision={0} style={{ width: "100%" }} />
+        </Form.Item>
+        <Form.Item name="inUse" valuePropName="checked" style={{ marginBottom: 0 }}>
+          <Checkbox>In use (adds it to Products)</Checkbox>
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}
+
+// Put ticked numbers into a new group or an existing one
+function GroupSelectedModal({ skus, groups, onClose, onGrouped }) {
+  const [mode, setMode] = useState("new");
+  const [name, setName] = useState("");
+  const [groupId, setGroupId] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleOk() {
+    setSaving(true);
+    try {
+      const group = await upcApi.assignGroup(mode === "new" ? { skus, name } : { skus, groupId });
+      message.success(`Grouped ${skus.length} number${skus.length === 1 ? "" : "s"} into ${group.name}`);
+      onGrouped();
+      onClose();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={`Group ${skus.length} number${skus.length === 1 ? "" : "s"}`}
+      open={skus.length > 0}
+      onCancel={onClose}
+      onOk={handleOk}
+      okText="Group"
+      okButtonProps={{ disabled: mode === "new" ? !name.trim() : !groupId }}
+      confirmLoading={saving}
+      destroyOnHidden
+      width={440}
+    >
+      <Segmented
+        value={mode}
+        onChange={setMode}
+        options={[{ value: "new", label: "New group" }, { value: "existing", label: "Add to existing group", disabled: groups.length === 0 }]}
+        style={{ marginBottom: 16 }}
+      />
+      {mode === "new" ? (
+        <Input autoFocus placeholder="Group name, e.g. Shoe Rack" value={name} onChange={(e) => setName(e.target.value)} />
+      ) : (
+        <Select
+          showSearch
+          style={{ width: "100%" }}
+          placeholder="Pick a group"
+          value={groupId}
+          onChange={setGroupId}
+          options={groups.map((g) => ({ value: g.id, label: g.name }))}
+          filterOption={(input, opt) => opt.label.toLowerCase().includes(input.toLowerCase())}
+        />
+      )}
+    </Modal>
+  );
 }
 
 function OtherRangeView({ ranges }) {
   const [range, setRange] = useState(ranges[0]?.code ?? "custom");
   const [rows, setRows] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [editing, setEditing] = useState(null);
   const [savingSku, setSavingSku] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [addingTo, setAddingTo] = useState(null);
+  const [selectedSkus, setSelectedSkus] = useState([]);
+  const [groupingSkus, setGroupingSkus] = useState([]);
   const [reloadKey, setReloadKey] = useState(0);
   const [expandedKeys, setExpandedKeys] = useState([]);
 
   const activeRange = range === "custom" || ranges.some((r) => r.code === range) ? range : ranges[0]?.code ?? "custom";
+  const reload = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
     setLoading(true);
-    (activeRange === "custom" ? upcApi.custom() : upcApi.list(activeRange))
-      .then(setRows)
+    Promise.all([activeRange === "custom" ? upcApi.custom() : upcApi.list(activeRange), upcApi.groups()])
+      .then(([r, g]) => { setRows(r); setGroups(g); })
       .catch((err) => message.error(err.message))
       .finally(() => setLoading(false));
   }, [activeRange, reloadKey]);
@@ -447,7 +714,7 @@ function OtherRangeView({ ranges }) {
     if (rows.some((r) => r.sku === updated.sku)) {
       setRows((prev) => prev.map((r) => (r.sku === updated.sku ? updated : r)));
     } else {
-      setReloadKey((k) => k + 1); // created outside this tab's list
+      reload(); // created outside this tab's list
     }
   }
 
@@ -468,27 +735,51 @@ function OtherRangeView({ ranges }) {
     }
   }
 
+  async function groupAction(fn, done) {
+    try {
+      await fn();
+      if (done) message.success(done);
+      reload();
+    } catch (err) {
+      message.error(err.message);
+    }
+  }
+
+  function renameGroup(group) {
+    let value = group.groupName;
+    Modal.confirm({
+      title: "Rename group",
+      icon: null,
+      content: <Input defaultValue={value} autoFocus onChange={(e) => { value = e.target.value; }} />,
+      okText: "Save",
+      onOk: () => groupAction(() => upcApi.renameGroup(group.groupId, value)),
+    });
+  }
+
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
+    const groupName = new Map(groups.map((g) => [g.id, g.name]));
     return rows.filter((r) => {
       if (status === "inUse" && !r.inUse) return false;
       if (status === "available" && (r.inUse || r.name)) return false;
       if (!term) return true;
-      return [r.sku, r.upc, r.name, r.brand, r.color, r.category, r.product?.name]
+      return [r.sku, r.upc, r.name, r.brand, r.color, r.category, r.product?.name, groupName.get(r.groupId)]
         .some((v) => v && v.toLowerCase().includes(term));
     });
-  }, [rows, search, status]);
+  }, [rows, groups, search, status]);
 
   // "Available" shows every empty number individually; otherwise group them
   const tableRows = useMemo(
-    () => (status === "available" ? filteredRows : groupOtherRows(filteredRows)),
-    [filteredRows, status]
+    () => (status === "available" ? filteredRows : groupOtherRows(filteredRows, groups)),
+    [filteredRows, groups, status]
   );
   const groupKeys = tableRows.filter((r) => r.isGroup).map((r) => r.key);
   // While searching, open every matching group
   const visibleExpandedKeys = search.trim() ? groupKeys : expandedKeys;
+  const colorOptions = useMemo(() => [...new Set(rows.map((r) => r.color).filter(Boolean))].sort(), [rows]);
 
   const dash = <span style={{ color: "#bbb" }}>—</span>;
+  const stop = (e) => e.stopPropagation();
   const columns = [
     {
       title: "SKU",
@@ -513,26 +804,50 @@ function OtherRangeView({ ranges }) {
             </span>
           );
         }
-        if (r.isGroup) return <span style={{ color: "#8c8c8c" }}>{r.children.length} colors</span>;
+        if (r.isGroup) return <span style={{ color: "#8c8c8c" }}>{r.children.length} numbers</span>;
         return <span style={{ fontFamily: "monospace" }}>{formatUpc(v)}</span>;
       },
     },
-    { title: "Name", dataIndex: "name", render: (v, r) => (r.isAvailable ? null : (r.isGroup ? <strong>{v}</strong> : v || dash)) },
-    { title: "Brand", dataIndex: "brand", render: (v, r) => (r.isAvailable ? null : v || dash) },
+    {
+      title: "Name",
+      dataIndex: "name",
+      render: (v, r) => (r.isAvailable ? null : r.isGroup ? <strong>{r.groupName}</strong> : v || dash),
+    },
+    {
+      title: "Brand",
+      dataIndex: "brand",
+      render: (v, r) => (r.isAvailable ? null : r.isGroup ? uniqueJoin(r.children.map((c) => c.brand)) || dash : v || dash),
+    },
     {
       title: "Color",
       dataIndex: "color",
       render: (v, r) => {
         if (r.isAvailable) return null;
         if (r.isGroup) {
-          const colors = [...new Set(r.children.map((c) => c.color).filter(Boolean))].join(", ");
-          return <span style={{ color: "#595959", display: "inline-block", maxWidth: 260 }}>{colors || dash}</span>;
+          return <span style={{ color: "#595959", display: "inline-block", maxWidth: 260 }}>{uniqueJoin(r.children.map((c) => c.color)) || dash}</span>;
         }
         return v || dash;
       },
     },
-    { title: "Category", dataIndex: "category", render: (v, r) => (r.isAvailable ? null : v || dash) },
-    { title: "Pack", dataIndex: "packSize", width: 70, align: "right", render: (v, r) => (r.isAvailable ? null : v || dash) },
+    {
+      title: "Category",
+      dataIndex: "category",
+      render: (v, r) => (r.isAvailable ? null : r.isGroup ? uniqueJoin(r.children.map((c) => c.category)) || dash : v || dash),
+    },
+    {
+      title: "Pack",
+      dataIndex: "packSize",
+      width: 90,
+      align: "right",
+      render: (v, r) => {
+        if (r.isAvailable) return null;
+        if (r.isGroup) {
+          const packs = [...new Set(r.children.map((c) => c.packSize).filter(Boolean))].sort((a, b) => a - b);
+          return packs.length ? packs.join(", ") : dash;
+        }
+        return v || dash;
+      },
+    },
     {
       title: "In use",
       dataIndex: "inUse",
@@ -546,9 +861,40 @@ function OtherRangeView({ ranges }) {
     },
     {
       title: "",
-      key: "edit",
-      width: 48,
-      render: (_, r) => (r.isGroup || r.isAvailable ? null : <Button type="text" icon={<EditOutlined />} onClick={() => setEditing(r)} />),
+      key: "actions",
+      width: 120,
+      render: (_, r) => {
+        if (r.isAvailable) return null;
+        if (r.isGroup) {
+          return (
+            <span onClick={stop} style={{ whiteSpace: "nowrap" }}>
+              <Tooltip title="Add a color or pack size"><Button type="text" icon={<PlusOutlined />} onClick={() => setAddingTo(r)} /></Tooltip>
+              <Tooltip title="Rename group"><Button type="text" icon={<EditOutlined />} onClick={() => renameGroup(r)} /></Tooltip>
+              <Popconfirm
+                title={`Break up ${r.groupName}?`}
+                description="The numbers and products stay; they just won't be grouped."
+                onConfirm={() => groupAction(() => upcApi.deleteGroup(r.groupId), "Group removed")}
+              >
+                <Tooltip title="Ungroup all"><Button type="text" icon={<DisconnectOutlined />} /></Tooltip>
+              </Popconfirm>
+            </span>
+          );
+        }
+        return (
+          <span style={{ whiteSpace: "nowrap" }}>
+            <Button type="text" icon={<EditOutlined />} onClick={() => setEditing(r)} />
+            {r.groupId && (
+              <Tooltip title="Take out of group">
+                <Button
+                  type="text"
+                  icon={<DisconnectOutlined />}
+                  onClick={() => groupAction(() => upcApi.removeFromGroup(r.groupId, r.sku), `${r.sku} taken out of group`)}
+                />
+              </Tooltip>
+            )}
+          </span>
+        );
+      },
     },
   ];
 
@@ -557,18 +903,21 @@ function OtherRangeView({ ranges }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
         <Segmented
           value={activeRange}
-          onChange={setRange}
+          onChange={(v) => { setRange(v); setSelectedSkus([]); }}
           options={[
             ...ranges.map((r) => ({ value: r.code, label: `${r.code} · ${r.name}` })),
             { value: "custom", label: "Other numbers" },
           ]}
           style={{ maxWidth: "100%", overflowX: "auto" }}
         />
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>Create</Button>
+        <Space>
+          <Button icon={<PlusOutlined />} onClick={() => setCreateGroupOpen(true)}>Create group</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>Create</Button>
+        </Space>
       </div>
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
         <Input.Search
-          placeholder="Search SKU, UPC, name, color"
+          placeholder="Search SKU, UPC, name, color, group"
           allowClear
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -584,6 +933,14 @@ function OtherRangeView({ ranges }) {
             { value: "inUse", label: "In use" },
           ]}
         />
+        {selectedSkus.length > 0 && (
+          <>
+            <Button icon={<GroupOutlined />} onClick={() => setGroupingSkus(selectedSkus)}>
+              Group selected ({selectedSkus.length})
+            </Button>
+            <Button type="link" onClick={() => setSelectedSkus([])}>Clear</Button>
+          </>
+        )}
         <span style={{ marginLeft: "auto", color: "#8c8c8c" }}>
           {activeRange === "custom"
             ? `${rows.length} number${rows.length === 1 ? "" : "s"} outside the named ranges`
@@ -596,6 +953,13 @@ function OtherRangeView({ ranges }) {
         loading={loading}
         columns={columns}
         dataSource={tableRows}
+        rowSelection={{
+          checkStrictly: true,
+          selectedRowKeys: selectedSkus,
+          onChange: (keys) => setSelectedSkus(keys.filter((k) => /^\d{5}$/.test(k))),
+          getCheckboxProps: (r) => ({ disabled: !!(r.isGroup || r.isAvailable), style: r.isGroup || r.isAvailable ? { display: "none" } : undefined }),
+          hideSelectAll: true,
+        }}
         expandable={{
           expandedRowKeys: visibleExpandedKeys,
           onExpandedRowsChange: (keys) => setExpandedKeys(keys),
@@ -610,6 +974,20 @@ function OtherRangeView({ ranges }) {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onContinue={(row) => { setCreateOpen(false); setEditing(row); }}
+      />
+      <CreateGroupModal
+        open={createGroupOpen}
+        range={activeRange}
+        colorOptions={colorOptions}
+        onClose={() => setCreateGroupOpen(false)}
+        onCreated={reload}
+      />
+      <AddVariantModal group={addingTo} colorOptions={colorOptions} onClose={() => setAddingTo(null)} onAdded={reload} />
+      <GroupSelectedModal
+        skus={groupingSkus}
+        groups={groups}
+        onClose={() => setGroupingSkus([])}
+        onGrouped={() => setSelectedSkus([])}
       />
     </>
   );

@@ -295,6 +295,7 @@ model UpcAssignment {
   category  String?  @db.VarChar(50)
   packSize  Int?     @map("pack_size")
   attributes Json    @default("{}")
+  groupId   Int?     @map("group_id")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("upc_assignments")
@@ -311,4 +312,14 @@ model ProductField {
   sortOrder  Int    @default(0) @map("sort_order")
 
   @@map("product_fields")
+}
+
+// A product family on the UPC page: numbers that are the same product in
+// different colors and/or pack sizes.
+model UpcGroup {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(200)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("upc_groups")
 }

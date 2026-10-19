@@ -155,6 +155,7 @@ function otherDetails(a) {
     category: a?.category ?? null,
     packSize: a?.packSize ?? null,
     attributes: a?.attributes ?? {},
+    groupId: a?.groupId ?? null,
   };
 }
 
@@ -297,6 +298,21 @@ router.patch(
   })
 );
 
+function createOtherProduct(tx, sku, details) {
+  return createUpcProduct(tx, {
+    sku,
+    name: otherProductName(details),
+    brand: details.brand,
+    color: details.color,
+    category: details.category,
+    attributes: {
+      ...details.attributes,
+      ...(details.color && { color: details.color }),
+      ...(details.packSize && { packSize: String(details.packSize) }),
+    },
+  });
+}
+
 // Other-category number: { inUse?, name?, brand?, color?, category?, packSize? }.
 // Details can be saved any time; marking in use needs a name and creates the
 // product (once) as "Name Color N Pack". Unmarking leaves the product alone.
@@ -333,21 +349,232 @@ async function updateOtherNumber(sku, req, res) {
     });
     const existing = await tx.product.findUnique({ where: { sku }, select: { id: true, sku: true, name: true } });
     if (!inUse || existing) return existing;
-    return createUpcProduct(tx, {
-      sku,
-      name: otherProductName(merged),
-      brand: merged.brand,
-      color: merged.color,
-      category: merged.category,
-      attributes: {
-        ...merged.attributes,
-        ...(merged.color && { color: merged.color }),
-        ...(merged.packSize && { packSize: String(merged.packSize) }),
-      },
-    });
+    return createOtherProduct(tx, sku, merged);
   });
 
   res.json({ sku, upc: fullUpc(sku), ...merged, inUse, product });
+}
+
+// ---- Groups: product families on the Other categories tab ----
+
+// A number is free when nobody has filled it in, marked it in use, or made it a product
+async function freeNumbersFrom(tx, startSku, count) {
+  const prefix = startSku.slice(0, 2);
+  const end = Number(prefix) * 1000 + 999;
+  const candidates = [];
+  for (let n = Number(startSku); n <= end; n++) candidates.push(String(n).padStart(5, "0"));
+  const [assignments, products] = await Promise.all([
+    tx.upcAssignment.findMany({ where: { sku: { in: candidates } } }),
+    tx.product.findMany({ where: { sku: { in: candidates } }, select: { sku: true } }),
+  ]);
+  const taken = new Set([
+    ...assignments.filter((a) => a.inUse || a.name).map((a) => a.sku),
+    ...products.map((pr) => pr.sku),
+  ]);
+  const free = candidates.filter((c) => !taken.has(c)).slice(0, count);
+  if (free.length < count) {
+    throw Object.assign(new Error(`Not enough free numbers left in ${prefix}xxx after ${startSku}`), { status: 400 });
+  }
+  return free;
+}
+
+function cleanText(v) {
+  return v == null || String(v).trim() === "" ? null : String(v).trim();
+}
+
+function cleanPack(v) {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 1) throw Object.assign(new Error("Pack size must be a whole number"), { status: 400 });
+  return n;
+}
+
+// Creates numbers for variants (color/pack combos) of one product in a group
+async function addVariants(tx, groupId, base, variants, startSku, inUse) {
+  const skus = await freeNumbersFrom(tx, startSku, variants.length);
+  const created = [];
+  for (let i = 0; i < variants.length; i++) {
+    const sku = skus[i];
+    const details = {
+      name: base.name,
+      brand: base.brand,
+      category: base.category,
+      attributes: base.attributes || {},
+      color: cleanText(variants[i].color),
+      packSize: cleanPack(variants[i].packSize),
+    };
+    await tx.upcAssignment.upsert({
+      where: { sku },
+      update: { ...details, inUse, groupId },
+      create: { sku, ...details, inUse, groupId },
+    });
+    if (inUse) await createOtherProduct(tx, sku, details);
+    created.push(sku);
+  }
+  return created;
+}
+
+function sendError(res, err) {
+  if (err.status) return res.status(err.status).json({ message: err.message });
+  throw err;
+}
+
+// GET /api/upc/groups
+router.get(
+  "/groups",
+  asyncHandler(async (req, res) => {
+    res.json(await prisma.upcGroup.findMany({ orderBy: { name: "asc" } }));
+  })
+);
+
+// GET /api/upc/next-free?from=23000&count=5 — the free numbers a new group
+// starting at `from` would get (for the Create group preview)
+router.get(
+  "/next-free",
+  asyncHandler(async (req, res) => {
+    const from = String(req.query.from || "");
+    const count = Math.min(Math.max(Number(req.query.count) || 1, 1), 200);
+    if (!/^\d{5}$/.test(from) || isTravelRange(from.slice(0, 2))) {
+      return res.status(400).json({ message: "Enter a non-Travel 5-digit number" });
+    }
+    try {
+      const skus = await freeNumbersFrom(prisma, from, count);
+      res.json(skus.map((sku) => ({ sku, upc: fullUpc(sku) })));
+    } catch (err) {
+      sendError(res, err);
+    }
+  })
+);
+
+// POST /api/upc/groups — { groupName, startSku, base: { name, brand, category,
+// attributes }, variants: [{ color, packSize }], inUse }: a new product family
+// on consecutive free numbers starting at startSku
+router.post(
+  "/groups",
+  asyncHandler(async (req, res) => {
+    const { startSku, variants, inUse = true } = req.body;
+    const base = {
+      name: cleanText(req.body.base?.name),
+      brand: cleanText(req.body.base?.brand),
+      category: cleanText(req.body.base?.category),
+      attributes: req.body.base?.attributes || {},
+    };
+    const groupName = cleanText(req.body.groupName) || base.name;
+    if (!base.name) return res.status(400).json({ message: "Name is required" });
+    if (!Array.isArray(variants) || variants.length === 0) {
+      return res.status(400).json({ message: "Add at least one color or pack size" });
+    }
+    if (!/^\d{5}$/.test(String(startSku)) || isTravelRange(String(startSku).slice(0, 2))) {
+      return res.status(400).json({ message: "Starting number must be a non-Travel 5-digit number" });
+    }
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const group = await tx.upcGroup.create({ data: { name: groupName } });
+        const skus = await addVariants(tx, group.id, base, variants, String(startSku), Boolean(inUse));
+        return { group, skus };
+      }, { timeout: 30000 });
+      res.status(201).json(result);
+    } catch (err) {
+      sendError(res, err);
+    }
+  })
+);
+
+// POST /api/upc/groups/:id/variants — { color, packSize, inUse }: one more
+// color/pack of the group's product, on the next free number after the group
+router.post(
+  "/groups/:id/variants",
+  asyncHandler(async (req, res) => {
+    const groupId = Number(req.params.id);
+    const members = await prisma.upcAssignment.findMany({ where: { groupId }, orderBy: { sku: "asc" } });
+    if (members.length === 0) return res.status(404).json({ message: "Group not found" });
+
+    try {
+      const color = cleanText(req.body.color);
+      const packSize = cleanPack(req.body.packSize);
+      if (members.some((m) => (m.color || null) === color && (m.packSize || null) === packSize)) {
+        return res.status(409).json({ message: "This group already has that color and pack size" });
+      }
+      const first = members[0];
+      const base = { name: first.name, brand: first.brand, category: first.category, attributes: first.attributes };
+      const last = members[members.length - 1].sku;
+      const result = await prisma.$transaction((tx) =>
+        addVariants(tx, groupId, base, [{ color, packSize }], String(Number(last) + 1).padStart(5, "0"), req.body.inUse !== false)
+      );
+      res.status(201).json({ skus: result });
+    } catch (err) {
+      sendError(res, err);
+    }
+  })
+);
+
+// POST /api/upc/groups/assign — { skus, groupId } adds numbers to a group, or
+// { skus, name } puts them in a new group
+router.post(
+  "/groups/assign",
+  asyncHandler(async (req, res) => {
+    const skus = (req.body.skus || []).map(String);
+    if (skus.length === 0) return res.status(400).json({ message: "Pick numbers to group" });
+    if (skus.some((sku) => !/^\d{5}$/.test(sku) || isTravelRange(sku.slice(0, 2)))) {
+      return res.status(400).json({ message: "Only Other-category numbers can be grouped here" });
+    }
+    let groupId = req.body.groupId ? Number(req.body.groupId) : null;
+    if (groupId && !(await prisma.upcGroup.findUnique({ where: { id: groupId } }))) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+    const name = cleanText(req.body.name);
+    if (!groupId && !name) return res.status(400).json({ message: "Name the new group" });
+
+    const group = await prisma.$transaction(async (tx) => {
+      const g = groupId ? await tx.upcGroup.findUnique({ where: { id: groupId } }) : await tx.upcGroup.create({ data: { name } });
+      for (const sku of skus) {
+        await tx.upcAssignment.upsert({ where: { sku }, update: { groupId: g.id }, create: { sku, groupId: g.id } });
+      }
+      return g;
+    });
+    await deleteEmptyGroups();
+    res.json(group);
+  })
+);
+
+// PUT /api/upc/groups/:id — { name }
+router.put(
+  "/groups/:id",
+  asyncHandler(async (req, res) => {
+    const name = cleanText(req.body.name);
+    if (!name) return res.status(400).json({ message: "Name is required" });
+    res.json(await prisma.upcGroup.update({ where: { id: Number(req.params.id) }, data: { name } }));
+  })
+);
+
+// DELETE /api/upc/groups/:id/members/:sku — take one number out of its group
+router.delete(
+  "/groups/:id/members/:sku",
+  asyncHandler(async (req, res) => {
+    await prisma.upcAssignment.updateMany({
+      where: { sku: String(req.params.sku), groupId: Number(req.params.id) },
+      data: { groupId: null },
+    });
+    await deleteEmptyGroups();
+    res.status(204).end();
+  })
+);
+
+// DELETE /api/upc/groups/:id — break up a group (numbers and products stay)
+router.delete(
+  "/groups/:id",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    await prisma.upcAssignment.updateMany({ where: { groupId: id }, data: { groupId: null } });
+    await prisma.upcGroup.deleteMany({ where: { id } });
+    res.status(204).end();
+  })
+);
+
+async function deleteEmptyGroups() {
+  const used = await prisma.upcAssignment.findMany({ where: { groupId: { not: null } }, select: { groupId: true }, distinct: ["groupId"] });
+  await prisma.upcGroup.deleteMany({ where: { id: { notIn: used.map((u) => u.groupId) } } });
 }
 
 module.exports = router;

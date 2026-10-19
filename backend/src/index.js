@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const prisma = require("./prismaClient");
 const { authenticate } = require("./middleware/auth");
-const { seedStorageHangers } = require("./services/upcSeed");
+const { seedStorageHangers, groupExistingUpcNumbers } = require("./services/upcSeed");
 const { seedProductFields } = require("./routes/productFields");
 
 const productsRouter = require("./routes/products");
@@ -154,8 +154,20 @@ async function runStartupMigrations() {
       )
     `;
     await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "attributes" JSONB NOT NULL DEFAULT '{}'`;
+    // First time the groups table appears, group the existing numbers
+    const [{ exists: hadUpcGroups }] = await prisma.$queryRaw`SELECT to_regclass('upc_groups') IS NOT NULL AS exists`;
+    await prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "upc_groups" (
+        "id" SERIAL NOT NULL,
+        "name" VARCHAR(200) NOT NULL,
+        "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "upc_groups_pkey" PRIMARY KEY ("id")
+      )
+    `;
+    await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "group_id" INTEGER`;
     await seedProductFields(prisma);
     await seedStorageHangers(prisma);
+    if (!hadUpcGroups) await groupExistingUpcNumbers(prisma);
     console.log("Startup migrations complete");
   } catch (err) {
     console.error("Startup migration error:", err.message);
