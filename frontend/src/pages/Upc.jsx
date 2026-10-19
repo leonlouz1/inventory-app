@@ -399,6 +399,28 @@ function CreateNumberModal({ open, onClose, onContinue }) {
   );
 }
 
+// Condense the list: numbers with the same name, pack size and brand (the same
+// product in different colors) become one expandable row, and numbers with no
+// details yet become a single "available" row.
+function groupOtherRows(rows) {
+  const groups = new Map();
+  let available = 0;
+  for (const r of rows) {
+    if (!r.name) {
+      available += 1;
+      continue;
+    }
+    const key = `g:${r.name}|${r.packSize ?? ""}|${r.brand ?? ""}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  const result = [...groups.entries()].map(([key, members]) => (
+    members.length === 1 ? members[0] : { key, isGroup: true, ...members[0], children: members }
+  ));
+  if (available > 0) result.push({ key: "available", isAvailable: true, count: available });
+  return result;
+}
+
 function OtherRangeView({ ranges }) {
   const [range, setRange] = useState(ranges[0]?.code ?? "custom");
   const [rows, setRows] = useState([]);
@@ -409,6 +431,7 @@ function OtherRangeView({ ranges }) {
   const [savingSku, setSavingSku] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [expandedKeys, setExpandedKeys] = useState([]);
 
   const activeRange = range === "custom" || ranges.some((r) => r.code === range) ? range : ranges[0]?.code ?? "custom";
 
@@ -456,29 +479,76 @@ function OtherRangeView({ ranges }) {
     });
   }, [rows, search, status]);
 
+  // "Available" shows every empty number individually; otherwise group them
+  const tableRows = useMemo(
+    () => (status === "available" ? filteredRows : groupOtherRows(filteredRows)),
+    [filteredRows, status]
+  );
+  const groupKeys = tableRows.filter((r) => r.isGroup).map((r) => r.key);
+  // While searching, open every matching group
+  const visibleExpandedKeys = search.trim() ? groupKeys : expandedKeys;
+
   const dash = <span style={{ color: "#bbb" }}>—</span>;
   const columns = [
-    { title: "SKU", dataIndex: "sku", width: 90, render: (v) => <strong>{v}</strong> },
-    { title: "UPC", dataIndex: "upc", width: 170, render: (v) => <span style={{ fontFamily: "monospace" }}>{formatUpc(v)}</span> },
-    { title: "Name", dataIndex: "name", render: (v) => v || dash },
-    { title: "Brand", dataIndex: "brand", render: (v) => v || dash },
-    { title: "Color", dataIndex: "color", render: (v) => v || dash },
-    { title: "Category", dataIndex: "category", render: (v) => v || dash },
-    { title: "Pack", dataIndex: "packSize", width: 70, align: "right", render: (v) => v || dash },
+    {
+      title: "SKU",
+      dataIndex: "sku",
+      width: 130,
+      render: (v, r) => {
+        if (r.isAvailable) return null;
+        if (r.isGroup) return <strong>{r.children[0].sku}–{r.children[r.children.length - 1].sku}</strong>;
+        return <strong>{v}</strong>;
+      },
+    },
+    {
+      title: "UPC",
+      dataIndex: "upc",
+      width: 170,
+      render: (v, r) => {
+        if (r.isAvailable) {
+          return (
+            <span style={{ color: "#8c8c8c" }}>
+              {r.count} available number{r.count === 1 ? "" : "s"} ·{" "}
+              <Button type="link" size="small" style={{ padding: 0 }} onClick={() => setStatus("available")}>Show</Button>
+            </span>
+          );
+        }
+        if (r.isGroup) return <span style={{ color: "#8c8c8c" }}>{r.children.length} colors</span>;
+        return <span style={{ fontFamily: "monospace" }}>{formatUpc(v)}</span>;
+      },
+    },
+    { title: "Name", dataIndex: "name", render: (v, r) => (r.isAvailable ? null : (r.isGroup ? <strong>{v}</strong> : v || dash)) },
+    { title: "Brand", dataIndex: "brand", render: (v, r) => (r.isAvailable ? null : v || dash) },
+    {
+      title: "Color",
+      dataIndex: "color",
+      render: (v, r) => {
+        if (r.isAvailable) return null;
+        if (r.isGroup) {
+          const colors = [...new Set(r.children.map((c) => c.color).filter(Boolean))].join(", ");
+          return <span style={{ color: "#595959", display: "inline-block", maxWidth: 260 }}>{colors || dash}</span>;
+        }
+        return v || dash;
+      },
+    },
+    { title: "Category", dataIndex: "category", render: (v, r) => (r.isAvailable ? null : v || dash) },
+    { title: "Pack", dataIndex: "packSize", width: 70, align: "right", render: (v, r) => (r.isAvailable ? null : v || dash) },
     {
       title: "In use",
       dataIndex: "inUse",
       width: 70,
       align: "center",
-      render: (inUse, r) => (
-        <Checkbox checked={inUse} disabled={savingSku === r.sku} onChange={(e) => handleToggle(r, e.target.checked)} />
-      ),
+      render: (inUse, r) => {
+        if (r.isAvailable) return null;
+        if (r.isGroup) return <span style={{ color: "#8c8c8c" }}>{r.children.filter((c) => c.inUse).length}/{r.children.length}</span>;
+        return <Checkbox checked={inUse} disabled={savingSku === r.sku} onChange={(e) => handleToggle(r, e.target.checked)} />;
+      },
     },
     {
       title: "",
       key: "edit",
       width: 48,
-      render: (_, r) => <Button type="text" icon={<EditOutlined />} onClick={() => setEditing(r)} />,
+      render: (_, r) => (r.isGroup || r.isAvailable ? null : <Button type="text" icon={<EditOutlined />} onClick={() => setEditing(r)} />),
     },
   ];
 
@@ -521,11 +591,17 @@ function OtherRangeView({ ranges }) {
         </span>
       </div>
       <Table
-        rowKey="sku"
+        rowKey={(r) => r.key ?? r.sku}
         size="small"
         loading={loading}
         columns={columns}
-        dataSource={filteredRows}
+        dataSource={tableRows}
+        expandable={{
+          expandedRowKeys: visibleExpandedKeys,
+          onExpandedRowsChange: (keys) => setExpandedKeys(keys),
+          expandRowByClick: true,
+        }}
+        onRow={(r) => (r.isGroup ? { style: { cursor: "pointer", background: "#fafafa" } } : {})}
         scroll={{ x: "max-content" }}
         pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50", "100", "200"] }}
       />
