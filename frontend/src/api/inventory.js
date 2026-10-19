@@ -124,6 +124,7 @@ export const shipmentsApi = {
 
 export const upcApi = {
   list: (brand) => apiClient.get(`/upc?brand=${brand}`),
+  grid: () => apiClient.get("/upc/grid"),
   setInUse: (sku, inUse) => apiClient.patch(`/upc/${sku}`, { inUse }),
   codes: () => apiClient.get("/upc/codes"),
   addCode: (kind, code, name) => apiClient.post("/upc/codes", { kind, code, name }),

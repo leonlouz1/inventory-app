@@ -98,6 +98,44 @@ router.delete(
   })
 );
 
+// GET /api/upc/grid — one row per style + color combination, with each
+// brand's number for it (e.g. style 11 + color 1 -> 24111, 25111, ...)
+router.get(
+  "/grid",
+  asyncHandler(async (req, res) => {
+    const codes = await prisma.upcCode.findMany({ orderBy: { code: "asc" } });
+    const brands = codes.filter((c) => c.kind === "brand");
+    const styles = codes.filter((c) => c.kind === "style");
+    const colors = codes.filter((c) => c.kind === "color");
+
+    const combos = styles.flatMap((s) => colors.map((c) => ({ style: s, color: c })));
+    const skus = combos.flatMap(({ style, color }) => brands.map((b) => b.code + style.code + color.code));
+    const [assignments, products] = await Promise.all([
+      prisma.upcAssignment.findMany({ where: { sku: { in: skus } } }),
+      prisma.product.findMany({ where: { sku: { in: skus } }, select: { id: true, sku: true, name: true } }),
+    ]);
+    const inUseBySku = new Map(assignments.map((a) => [a.sku, a.inUse]));
+    const productBySku = new Map(products.map((p) => [p.sku, p]));
+
+    res.json({
+      brands: brands.map((b) => ({ code: b.code, name: b.name })),
+      rows: combos.map(({ style, color }) => ({
+        key: style.code + color.code,
+        styleCode: style.code,
+        colorCode: color.code,
+        styleName: style.name,
+        colorName: color.name,
+        brands: Object.fromEntries(
+          brands.map((b) => {
+            const sku = b.code + style.code + color.code;
+            return [b.code, { sku, inUse: inUseBySku.get(sku) ?? false, product: productBySku.get(sku) ?? null }];
+          })
+        ),
+      })),
+    });
+  })
+);
+
 // GET /api/upc?brand=24 — every number in one brand's range (xx000–xx999)
 router.get(
   "/",

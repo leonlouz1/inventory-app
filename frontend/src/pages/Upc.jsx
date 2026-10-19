@@ -109,8 +109,117 @@ function CodeList({ kind, length, example, codes, onChanged }) {
   );
 }
 
+// One row per style + color, one In use checkbox per brand.
+function AllBrandsGrid({ codesVersion }) {
+  const [data, setData] = useState({ brands: [], rows: [] });
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [usedOnly, setUsedOnly] = useState(false);
+  const [savingSku, setSavingSku] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    upcApi.grid()
+      .then(setData)
+      .catch((err) => message.error(err.message))
+      .finally(() => setLoading(false));
+  }, [codesVersion]);
+
+  async function handleToggle(row, brandCode, inUse) {
+    const cell = row.brands[brandCode];
+    setSavingSku(cell.sku);
+    try {
+      const updated = await upcApi.setInUse(cell.sku, inUse);
+      setData((prev) => ({
+        ...prev,
+        rows: prev.rows.map((r) => r.key !== row.key ? r : {
+          ...r,
+          brands: { ...r.brands, [brandCode]: { sku: cell.sku, inUse: updated.inUse, product: updated.product } },
+        }),
+      }));
+      if (inUse && !cell.product && updated.product) {
+        message.success(`Added "${updated.product.name}" to Products`);
+      }
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setSavingSku(null);
+    }
+  }
+
+  const filteredRows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return data.rows.filter((r) => {
+      if (usedOnly && !Object.values(r.brands).some((c) => c.inUse)) return false;
+      if (!term) return true;
+      return [r.key, r.styleName, r.colorName].some((v) => v.toLowerCase().includes(term));
+    });
+  }, [data.rows, search, usedOnly]);
+
+  const columns = [
+    { title: "Number", dataIndex: "key", width: 90, render: (v) => <strong style={{ fontFamily: "monospace" }}>{v}</strong> },
+    {
+      title: "Style",
+      key: "style",
+      render: (_, r) => <span><span style={{ color: "#8c8c8c" }}>{r.styleCode}</span> {r.styleName}</span>,
+    },
+    {
+      title: "Color",
+      key: "color",
+      render: (_, r) => <span><span style={{ color: "#8c8c8c" }}>{r.colorCode}</span> {r.colorName}</span>,
+    },
+    ...data.brands.map((b) => ({
+      title: <div style={{ textAlign: "center" }}>{b.name}<div style={{ color: "#8c8c8c", fontWeight: 400 }}>{b.code}</div></div>,
+      key: `brand-${b.code}`,
+      align: "center",
+      width: 130,
+      render: (_, r) => {
+        const cell = r.brands[b.code];
+        return (
+          <Tooltip title={cell.product?.name}>
+            <Checkbox
+              checked={cell.inUse}
+              disabled={savingSku === cell.sku}
+              onChange={(e) => handleToggle(r, b.code, e.target.checked)}
+            />
+            <div style={{ fontSize: 11, color: cell.inUse ? undefined : "#bbb", fontFamily: "monospace" }}>{cell.sku}</div>
+          </Tooltip>
+        );
+      },
+    })),
+  ];
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+        <Input.Search
+          placeholder="Search number, style, color"
+          allowClear
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ width: 280 }}
+        />
+        <Checkbox checked={usedOnly} onChange={(e) => setUsedOnly(e.target.checked)}>
+          Only show combinations in use
+        </Checkbox>
+      </div>
+      <Table
+        rowKey="key"
+        size="small"
+        loading={loading}
+        columns={columns}
+        dataSource={filteredRows}
+        scroll={{ x: "max-content" }}
+        locale={{ emptyText: "Add style and color codes under Manage Codes to see combinations here" }}
+        pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50", "100", "200"] }}
+      />
+    </>
+  );
+}
+
 export default function Upc() {
-  const [brand, setBrand] = useState(24);
+  const [brand, setBrand] = useState("all");
+  const [codesVersion, setCodesVersion] = useState(0);
   const [rows, setRows] = useState([]);
   const [codes, setCodes] = useState({ brands: [], styles: [], colors: [] });
   const [loading, setLoading] = useState(true);
@@ -123,6 +232,7 @@ export default function Upc() {
   const loadCodes = useCallback(() => upcApi.codes().then(setCodes), []);
 
   const loadRows = useCallback(() => {
+    if (brand === "all") return Promise.resolve();
     setLoading(true);
     return upcApi
       .list(brand)
@@ -137,6 +247,7 @@ export default function Upc() {
   function handleCodesChanged() {
     loadCodes();
     loadRows();
+    setCodesVersion((v) => v + 1);
   }
 
   async function handleToggle(row, inUse) {
@@ -229,10 +340,14 @@ export default function Upc() {
       <Segmented
         value={brand}
         onChange={setBrand}
-        options={BRAND_RANGES.map((b) => ({ value: b, label: `${b} · ${brandNames[b] || "Unassigned"}` }))}
+        options={[
+          { value: "all", label: "All brands" },
+          ...BRAND_RANGES.map((b) => ({ value: b, label: `${b} · ${brandNames[b] || "Unassigned"}` })),
+        ]}
         style={{ marginBottom: 16, maxWidth: "100%", overflowX: "auto" }}
       />
 
+      {brand === "all" ? <AllBrandsGrid codesVersion={codesVersion} /> : <>
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
         <Input.Search
           placeholder="Search SKU, UPC, style, color"
@@ -265,6 +380,7 @@ export default function Upc() {
         dataSource={filteredRows}
         pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50", "100", "200"] }}
       />
+      </>}
 
       <Modal title="Manage Codes" open={codesOpen} onCancel={() => setCodesOpen(false)} footer={null} width={560} destroyOnHidden>
         <Typography.Paragraph type="secondary">
