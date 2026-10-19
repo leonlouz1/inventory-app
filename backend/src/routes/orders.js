@@ -6,6 +6,12 @@ const { ORDER_STATUSES } = require("../constants/orderStatuses");
 
 const router = express.Router();
 
+// Color lives in the product's own field (set from UPC codes) or in its
+// catalog details (Color, or Bag Color for training pads).
+function productColor(product) {
+  return product.color || product.attributes?.color || product.attributes?.bagColor || null;
+}
+
 // Moves real on-hand stock when an order's status crosses the Shipped
 // boundary. delta=-1 when entering Shipped (goods physically leave), +1 when
 // leaving Shipped (correcting a mistake, or deleting a shipped order) — that
@@ -140,6 +146,7 @@ router.get(
           sku: line.product.sku,
           productName: line.product.name,
           brand: line.product.brand ?? null,
+          color: productColor(line.product),
           groupId: line.product.groupId ?? null,
           groupName: line.product.group?.name ?? null,
           warehouseId: line.warehouseId,
@@ -296,6 +303,7 @@ router.get(
         sku: line.product.sku,
         productName: line.product.name,
         brand: line.product.brand ?? null,
+        color: productColor(line.product),
         warehouseId: line.warehouseId,
         warehouseName: line.warehouse ? line.warehouse.name : null,
         quantity: line.quantity,

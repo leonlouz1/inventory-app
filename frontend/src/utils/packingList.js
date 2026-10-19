@@ -5,13 +5,14 @@ import * as XLSX from "xlsx";
 // a flat conversion factor applied to every line.
 export const UNITS_PER_CASE = 24;
 
-const LINE_HEADER = ["SKU", "Product", "Qty (Units)", "Cases (24/case)", "Container #", "Carton Marking", "PO #"];
-const LINE_COL_WIDTHS = [14, 28, 12, 16, 14, 18, 14].map((wch) => ({ wch }));
+const LINE_HEADER = ["SKU", "Product", "Color", "Qty (Units)", "Cases (24/case)", "Container #", "Carton Marking", "PO #"];
+const LINE_COL_WIDTHS = [14, 28, 14, 12, 16, 14, 18, 14].map((wch) => ({ wch }));
 
 function lineRow(line, poNumber) {
   return [
     line.sku,
     line.productName,
+    line.color || "",
     line.quantity,
     Math.round((line.quantity / UNITS_PER_CASE) * 100) / 100,
     line.containerNumber || "",
