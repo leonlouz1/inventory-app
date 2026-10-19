@@ -76,7 +76,7 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
           <InputNumber min={0} style={{ width: "100%" }} />
         </Form.Item>
 
-        <Typography.Title level={5}>Initial On-Hand</Typography.Title>
+        {warehouses.length > 0 && <Typography.Title level={5}>Initial On-Hand</Typography.Title>}
         <Row gutter={12}>
           {warehouses.map((w) => (
             <Col span={6} key={w.id}>
@@ -120,7 +120,10 @@ export function EditProductModal({ open, onClose, onUpdated, product, warehouses
       const fields = { ...values };
       for (const w of warehouses) delete fields[`stock_${w.id}`];
 
-      await Promise.all([productsApi.update(product.id, fields), productsApi.updateStock(product.id, stock)]);
+      await Promise.all([
+        productsApi.update(product.id, fields),
+        ...(stock.length > 0 ? [productsApi.updateStock(product.id, stock)] : []),
+      ]);
       message.success(`Product ${product.sku} updated`);
       onClose();
       onUpdated();
@@ -152,7 +155,7 @@ export function EditProductModal({ open, onClose, onUpdated, product, warehouses
           <InputNumber min={0} style={{ width: "100%" }} />
         </Form.Item>
 
-        <Typography.Title level={5}>On-Hand Stock</Typography.Title>
+        {warehouses.length > 0 && <Typography.Title level={5}>On-Hand Stock</Typography.Title>}
         <Row gutter={12}>
           {warehouses.map((w) => (
             <Col span={6} key={w.id}>

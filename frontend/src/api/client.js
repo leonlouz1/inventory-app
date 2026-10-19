@@ -11,6 +11,11 @@ async function getToken() {
   }
 }
 
+export async function authHeaders() {
+  const token = await getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function request(path, options = {}) {
   const token = await getToken();
 

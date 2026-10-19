@@ -72,6 +72,12 @@ router.get(
       };
     });
 
+    // Designers see product details only, no stock or order quantities.
+    if (req.role === "designer") {
+      return res.json(result.map((p) => ({
+        id: p.id, sku: p.sku, name: p.name, brand: p.brand, category: p.category, leadTimeDays: p.leadTimeDays,
+      })));
+    }
     res.json(result);
   })
 );
@@ -80,7 +86,9 @@ router.get(
 router.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { sku: rawSku, name, brand, category, leadTimeDays, initialStock } = req.body;
+    const { sku: rawSku, name, brand, category, leadTimeDays } = req.body;
+    // Designers can create products but not set stock.
+    const initialStock = req.role === "designer" ? [] : req.body.initialStock;
     const sku = rawSku ? rawSku.trim().toUpperCase() : rawSku;
     if (!sku || !name) {
       return res.status(400).json({ message: "sku and name are required" });

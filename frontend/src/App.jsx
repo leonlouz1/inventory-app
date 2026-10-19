@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
 import AppLayout from "./components/AppLayout";
 import Dashboard from "./pages/Dashboard";
@@ -18,32 +18,53 @@ import CrmSentTracker from "./pages/crm/CrmSentTracker";
 import SkuGroups from "./pages/SkuGroups";
 import Catalog from "./pages/Catalog";
 import Billing from "./pages/Billing";
+import { useRole, DESIGNER_PATHS } from "./hooks/useRole";
+
+function DesignerRoutes() {
+  return (
+    <Routes>
+      <Route element={<AppLayout />}>
+        <Route path="/products" element={<Products />} />
+        <Route path="/catalog" element={<Catalog />} />
+        <Route path="*" element={<Navigate to={DESIGNER_PATHS[0]} replace />} />
+      </Route>
+    </Routes>
+  );
+}
+
+function AppRoutes() {
+  const { isDesigner } = useRole();
+  if (isDesigner) return <DesignerRoutes />;
+  return (
+    <Routes>
+      <Route element={<AppLayout />}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/orders" element={<Orders />} />
+        <Route path="/shipments" element={<Shipments />} />
+        <Route path="/crm" element={<CrmDashboard />} />
+        <Route path="/crm/accounts" element={<CrmAccounts />} />
+        <Route path="/crm/accounts/:id" element={<CrmAccountDetail />} />
+        <Route path="/crm/activity" element={<CrmActivity />} />
+        <Route path="/crm/sent" element={<CrmSentTracker />} />
+        <Route path="/timeline" element={<Timeline />} />
+        <Route path="/restocks" element={<Restocks />} />
+        <Route path="/products" element={<Products />} />
+        <Route path="/warehouses" element={<Warehouses />} />
+        <Route path="/customers" element={<Customer />} />
+        <Route path="/calendar" element={<CalendarView />} />
+        <Route path="/sku-groups" element={<SkuGroups />} />
+        <Route path="/catalog" element={<Catalog />} />
+        <Route path="/billing" element={<Billing />} />
+      </Route>
+    </Routes>
+  );
+}
 
 export default function App() {
   return (
     <BrowserRouter>
       <SignedIn>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/orders" element={<Orders />} />
-            <Route path="/shipments" element={<Shipments />} />
-            <Route path="/crm" element={<CrmDashboard />} />
-            <Route path="/crm/accounts" element={<CrmAccounts />} />
-            <Route path="/crm/accounts/:id" element={<CrmAccountDetail />} />
-            <Route path="/crm/activity" element={<CrmActivity />} />
-            <Route path="/crm/sent" element={<CrmSentTracker />} />
-            <Route path="/timeline" element={<Timeline />} />
-            <Route path="/restocks" element={<Restocks />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/warehouses" element={<Warehouses />} />
-            <Route path="/customers" element={<Customer />} />
-            <Route path="/calendar" element={<CalendarView />} />
-            <Route path="/sku-groups" element={<SkuGroups />} />
-            <Route path="/catalog" element={<Catalog />} />
-            <Route path="/billing" element={<Billing />} />
-          </Route>
-        </Routes>
+        <AppRoutes />
       </SignedIn>
       <SignedOut>
         <RedirectToSignIn />

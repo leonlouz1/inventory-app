@@ -19,6 +19,7 @@ import {
   DollarOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
+import { useRole, DESIGNER_PATHS } from "../hooks/useRole";
 
 const { Sider, Content, Header } = Layout;
 
@@ -49,6 +50,8 @@ const NAV_ITEMS = [
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDesigner } = useRole();
+  const navItems = isDesigner ? NAV_ITEMS.filter((i) => DESIGNER_PATHS.includes(i.key)) : NAV_ITEMS;
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
@@ -61,7 +64,7 @@ export default function AppLayout() {
           mode="inline"
           selectedKeys={[location.pathname]}
           defaultOpenKeys={["crm-group"]}
-          items={NAV_ITEMS}
+          items={navItems}
           onClick={({ key }) => { if (key !== "crm-group") navigate(key); }}
         />
       </Sider>

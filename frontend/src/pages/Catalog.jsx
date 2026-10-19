@@ -4,6 +4,7 @@ import { DownloadOutlined, EditOutlined } from "@ant-design/icons";
 import { catalogApi } from "../api/catalog";
 import { downloadAvailableToSellReport } from "../utils/availableToSellReport";
 import { CATEGORY_ATTRIBUTES } from "../config/productAttributes";
+import { useRole } from "../hooks/useRole";
 
 const PUBLIC_CATALOG_URL = import.meta.env.VITE_PUBLIC_CATALOG_URL || "";
 
@@ -140,6 +141,7 @@ export default function Catalog() {
   const [reportModal, setReportModal] = useState(false);
   const [reportCategory, setReportCategory] = useState(null);
   const [reportBrand, setReportBrand] = useState(null);
+  const { isDesigner } = useRole();
 
   useEffect(() => {
     catalogApi.list()
@@ -228,12 +230,14 @@ export default function Catalog() {
             style={{ width: 240 }}
             allowClear
           />
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={() => setReportModal(true)}
-          >
-            Available to Sell
-          </Button>
+          {!isDesigner && (
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={() => setReportModal(true)}
+            >
+              Available to Sell
+            </Button>
+          )}
         </div>
       </div>
 

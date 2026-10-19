@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const prisma = require("./prismaClient");
+const { authenticate } = require("./middleware/auth");
 
 const productsRouter = require("./routes/products");
 const ordersRouter = require("./routes/orders");
@@ -29,6 +30,8 @@ app.use(express.json());
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
+
+app.use("/api", authenticate);
 
 app.use("/api/products", productsRouter);
 app.use("/api/orders", ordersRouter);

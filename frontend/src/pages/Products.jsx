@@ -4,6 +4,8 @@ import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Too
 import { PlusOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined, SwapOutlined } from "@ant-design/icons";
 import Papa from "papaparse";
 import { productsApi, warehousesApi } from "../api/inventory";
+import { authHeaders } from "../api/client";
+import { useRole } from "../hooks/useRole";
 import { downloadInventoryReport } from "../utils/inventoryReport";
 import { NewProductModal, EditProductModal } from "../components/ProductModals";
 import BulkImportProductsModal from "../components/BulkImportProductsModal";
@@ -24,6 +26,7 @@ function downloadCsv(filename, csvText) {
 }
 
 export default function Products() {
+  const { isDesigner } = useRole();
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,8 +71,9 @@ export default function Products() {
 
   useEffect(() => {
     loadProducts();
-    warehousesApi.list().then(setWarehouses);
-  }, [loadProducts]);
+    // Designers only see product details, so no warehouse/stock data.
+    if (!isDesigner) warehousesApi.list().then(setWarehouses);
+  }, [loadProducts, isDesigner]);
 
   function downloadStockTemplate() {
     // Wide format: SKU, Product Name, Warehouse1, Warehouse2, ...
@@ -159,7 +163,7 @@ export default function Products() {
       if (rtWarehouseMode === "specific" && rtWarehouseId) {
         params.set("warehouseId", rtWarehouseId);
       }
-      const res = await fetch(`${API_BASE}/reports/rolling-totals?${params}`);
+      const res = await fetch(`${API_BASE}/reports/rolling-totals?${params}`, { headers: await authHeaders() });
       if (!res.ok) throw new Error(await res.text());
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -194,7 +198,7 @@ export default function Products() {
         title: "SKU",
         dataIndex: "sku",
         sorter: (a, b) => a.sku.localeCompare(b.sku),
-        render: (sku) => (
+        render: (sku) => isDesigner ? sku : (
           <Link to={`/timeline?sku=${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
             {sku}
           </Link>
@@ -217,6 +221,7 @@ export default function Products() {
         onFilter: (value, product) => product.category === value,
         sorter: (a, b) => (a.category || "").localeCompare(b.category || ""),
       },
+      ...(isDesigner ? [] : [
       ...warehouses.map((w) => ({
         title: w.name,
         key: `wh-${w.id}`,
@@ -248,13 +253,14 @@ export default function Products() {
         sorter: (a, b) => a.availableToSell - b.availableToSell,
         render: (v) => <span style={{ color: v < 0 ? "#cf1322" : undefined, fontWeight: 600 }}>{v}</span>,
       },
+      ]),
       {
         title: "Lead Time (days)",
         dataIndex: "leadTimeDays",
         align: "right",
         sorter: (a, b) => a.leadTimeDays - b.leadTimeDays,
       },
-      {
+      ...(isDesigner ? [] : [{
         title: "",
         key: "actions",
         render: (_, product) => (
@@ -269,9 +275,9 @@ export default function Products() {
             <Button icon={<DeleteOutlined />} danger type="text" onClick={(e) => e.stopPropagation()} />
           </Popconfirm>
         ),
-      },
+      }]),
     ],
-    [warehouses]
+    [warehouses, isDesigner]
   );
 
   if (error) {
@@ -292,6 +298,7 @@ export default function Products() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          {!isDesigner && <>
           <Button icon={<SwapOutlined />} onClick={() => setTransferOpen(true)}>
             Transfer Stock
           </Button>
@@ -310,13 +317,14 @@ export default function Products() {
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
             Import CSV
           </Button>
+          </>}
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
             Add Product
           </Button>
         </Space>
       </div>
 
-      {selectedSkuIds.length > 0 && (
+      {!isDesigner && selectedSkuIds.length > 0 && (
         <div style={{ background: "#e6f4ff", border: "1px solid #91caff", borderRadius: 6, padding: "8px 16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <span style={{ fontWeight: 600 }}>{selectedSkuIds.length} SKU{selectedSkuIds.length > 1 ? "s" : ""} selected</span>
           <Button
@@ -357,7 +365,7 @@ export default function Products() {
         columns={columns}
         dataSource={filteredProducts}
         rowKey="id"
-        rowSelection={{
+        rowSelection={isDesigner ? undefined : {
           selectedRowKeys: selectedSkuIds,
           onChange: setSelectedSkuIds,
         }}
