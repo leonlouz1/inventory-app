@@ -13,6 +13,7 @@
     "@ant-design/icons": "^6.2.5",
     "@clerk/clerk-react": "^5.61.10",
     "antd": "^6.4.5",
+    "bwip-js": "^4.11.4",
     "exceljs": "^4.4.0",
     "papaparse": "^5.5.4",
     "react": "^19.2.6",

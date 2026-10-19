@@ -3,11 +3,14 @@ import {
   Typography, Table, Input, InputNumber, Select, Checkbox, Button, Segmented, Modal, Tabs, Space, Popconfirm, Tooltip,
   Form, AutoComplete, message,
 } from "antd";
-import { SettingOutlined, DeleteOutlined, PlusOutlined, EditOutlined, DisconnectOutlined, GroupOutlined } from "@ant-design/icons";
+import {
+  SettingOutlined, DeleteOutlined, PlusOutlined, EditOutlined, DisconnectOutlined, GroupOutlined, BarcodeOutlined,
+} from "@ant-design/icons";
 import { upcApi } from "../api/inventory";
 import { PRODUCT_BRANDS } from "../constants/brands";
 import { PRODUCT_CATEGORIES, DEFAULT_CASE_PACK } from "../constants/categories";
 import CategoryFields from "../components/CategoryFields";
+import BarcodeModal from "../components/BarcodeModal";
 import { useRequiredFieldKeys } from "../hooks/useProductFields";
 
 const BRAND_RANGES = [24, 25, 26, 27, 28, 29];
@@ -141,6 +144,7 @@ function CodeList({ kind, length, example, codes, onChanged }) {
 
 // One row per style + color, one In use checkbox per brand.
 function AllBrandsGrid({ codesVersion }) {
+  const [barcode, setBarcode] = useState(null);
   const [data, setData] = useState({ brands: [], rows: [] });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -212,7 +216,19 @@ function AllBrandsGrid({ codesVersion }) {
               disabled={savingSku === cell.sku}
               onChange={(e) => handleToggle(r, b.code, e.target.checked)}
             />
-            <div style={{ fontSize: 11, color: cell.inUse ? undefined : "#bbb", fontFamily: "monospace" }}>{cell.sku}</div>
+            <div style={{ fontSize: 11, color: cell.inUse ? undefined : "#bbb", fontFamily: "monospace" }}>
+              {cell.sku}
+              <Button
+                type="text"
+                size="small"
+                icon={<BarcodeOutlined />}
+                title="Barcode artwork"
+                onClick={() => setBarcode({
+                  upc: upcFor(cell.sku), sku: cell.sku,
+                  label: cell.product?.name || `${b.name} ${r.styleName} ${r.colorName}`,
+                })}
+              />
+            </div>
           </Tooltip>
         );
       },
@@ -243,6 +259,7 @@ function AllBrandsGrid({ codesVersion }) {
         locale={{ emptyText: "Add style and color codes under Manage Codes to see combinations here" }}
         pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50", "100", "200"] }}
       />
+      {barcode && <BarcodeModal {...barcode} onClose={() => setBarcode(null)} />}
     </>
   );
 }
@@ -730,6 +747,7 @@ function OtherRangeView({ ranges }) {
   const [addingTo, setAddingTo] = useState(null);
   const [selectedSkus, setSelectedSkus] = useState([]);
   const [groupingSkus, setGroupingSkus] = useState([]);
+  const [barcode, setBarcode] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [expandedKeys, setExpandedKeys] = useState([]);
 
@@ -916,6 +934,13 @@ function OtherRangeView({ ranges }) {
         }
         return (
           <span style={{ whiteSpace: "nowrap" }}>
+            <Tooltip title="Barcode artwork">
+              <Button
+                type="text"
+                icon={<BarcodeOutlined />}
+                onClick={() => setBarcode({ upc: r.upc, sku: r.sku, label: r.product?.name || r.name })}
+              />
+            </Tooltip>
             <Button type="text" icon={<EditOutlined />} onClick={() => setEditing(r)} />
             {r.groupId && (
               <Tooltip title="Take out of group">
@@ -1004,6 +1029,7 @@ function OtherRangeView({ ranges }) {
         pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50", "100", "200"] }}
       />
       <OtherNumberModal row={editing} onClose={() => setEditing(null)} onSaved={replaceRow} />
+      {barcode && <BarcodeModal {...barcode} onClose={() => setBarcode(null)} />}
       <CreateNumberModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -1029,6 +1055,7 @@ function OtherRangeView({ ranges }) {
 
 export default function Upc() {
   const [section, setSection] = useState("travel");
+  const [barcode, setBarcode] = useState(null);
   const [brand, setBrand] = useState("all");
   const [codesVersion, setCodesVersion] = useState(0);
   const [rows, setRows] = useState([]);
@@ -1135,6 +1162,23 @@ export default function Upc() {
         return <Tooltip title="Set up this number's brand, style and color under Manage Codes first">{box}</Tooltip>;
       },
     },
+    {
+      title: "",
+      key: "barcode",
+      width: 48,
+      render: (_, r) => (
+        <Tooltip title="Barcode artwork">
+          <Button
+            type="text"
+            icon={<BarcodeOutlined />}
+            onClick={() => setBarcode({
+              upc: r.upc, sku: r.sku,
+              label: r.product?.name || [r.brandName, r.styleName, r.colorName].filter(Boolean).join(" "),
+            })}
+          />
+        </Tooltip>
+      ),
+    },
   ];
 
   return (
@@ -1203,6 +1247,8 @@ export default function Upc() {
       />
       </>}
       </>}
+
+      {barcode && <BarcodeModal {...barcode} onClose={() => setBarcode(null)} />}
 
       <Modal title="Manage Codes" open={codesOpen} onCancel={() => setCodesOpen(false)} footer={null} width={560} destroyOnHidden>
         <Typography.Paragraph type="secondary">
