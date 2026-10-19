@@ -9,6 +9,7 @@ import {
 import dayjs from "dayjs";
 import { shipmentsApi, ordersApi, warehousesApi } from "../api/inventory";
 import { downloadShipmentPackingList, downloadShipmentPackingListPerOrder } from "../utils/packingList";
+import { showShadowMessages } from "../utils/shadowMessages";
 
 const STATUS_COLORS = { SCHEDULED: "blue", PICKED_UP: "green", DELIVERED: "purple" };
 const STATUS_OPTIONS = [
@@ -84,7 +85,8 @@ function ShipmentModal({ open, onClose, onSaved, shipment, allOrders, allShipmen
         orderIds: values.orderIds || [],
       };
       if (shipment) {
-        await shipmentsApi.update(shipment.id, payload);
+        const result = await shipmentsApi.update(shipment.id, payload);
+        showShadowMessages(result?.shadowMessages);
         message.success("Shipment updated");
       } else {
         await shipmentsApi.create(payload);
@@ -232,25 +234,44 @@ export default function Shipments() {
     }
   }
 
+  // Right before a slip: put shadow-SKU lines on the SKU whose boxes will ship
+  // (old stock first), then use the up-to-date orders.
+  async function ordersReadyToShip(shipment) {
+    const ids = shipment.orders.map((o) => o.id);
+    const { changes, messages } = await ordersApi.assignShadows(ids);
+    showShadowMessages(messages);
+    let orders = allOrders;
+    if (changes.length) {
+      orders = await ordersApi.list();
+      setAllOrders(orders);
+    }
+    return orders.filter((o) => ids.includes(o.id));
+  }
+
   function handlePackingList(shipment) {
-    const ids = new Set(shipment.orders.map((o) => o.id));
-    const orders = allOrders.filter((o) => ids.has(o.id));
-    if (orders.length === 0) {
+    if (shipment.orders.length === 0) {
       message.warning("Add orders to this shipment first");
       return;
     }
-    if (orders.length === 1) {
-      downloadShipmentPackingList(shipment, orders);
+    if (shipment.orders.length === 1) {
+      ordersReadyToShip(shipment)
+        .then((orders) => downloadShipmentPackingList(shipment, orders))
+        .catch((err) => message.error(`Couldn't make packing list: ${err.message}`));
       return;
     }
-    setPackingChoice({ shipment, orders });
+    setPackingChoice({ shipment, orderCount: shipment.orders.length });
   }
 
-  function handlePackingChoice(perOrder) {
-    const { shipment, orders } = packingChoice;
-    if (perOrder) downloadShipmentPackingListPerOrder(shipment, orders);
-    else downloadShipmentPackingList(shipment, orders);
+  async function handlePackingChoice(perOrder) {
+    const { shipment } = packingChoice;
     setPackingChoice(null);
+    try {
+      const orders = await ordersReadyToShip(shipment);
+      if (perOrder) await downloadShipmentPackingListPerOrder(shipment, orders);
+      else await downloadShipmentPackingList(shipment, orders);
+    } catch (err) {
+      message.error(`Couldn't make packing list: ${err.message}`);
+    }
   }
 
   async function handleDelete(id, shipmentNumber) {
@@ -463,7 +484,7 @@ export default function Shipments() {
         destroyOnHidden
       >
         <Typography.Paragraph type="secondary">
-          This shipment has {packingChoice?.orders.length} orders. How do you want the packing list?
+          This shipment has {packingChoice?.orderCount} orders. How do you want the packing list?
         </Typography.Paragraph>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <Button block type="primary" icon={<FileExcelOutlined />} onClick={() => handlePackingChoice(false)}>

@@ -4,6 +4,7 @@ const asyncHandler = require("../middleware/asyncHandler");
 const { checkShortfallBatch, projectInventoryBatch } = require("../services/projection");
 const { ORDER_STATUSES } = require("../constants/orderStatuses");
 const { adjustStockForShippedTransition, hasUnassignedLine } = require("../services/shippedStock");
+const { assignShadowLines, describeShadowChanges } = require("../services/shadowSkus");
 
 const router = express.Router();
 
@@ -91,7 +92,11 @@ router.get(
   "/",
   asyncHandler(async (req, res) => {
     const orders = await prisma.order.findMany({
-      include: { lines: { include: { product: { include: { group: true } }, warehouse: true } } },
+      include: {
+        lines: {
+          include: { product: { include: { group: true, shadowParent: { select: { sku: true } } } }, warehouse: true },
+        },
+      },
     });
 
     const allLines = orders.flatMap((o) => o.lines);
@@ -127,6 +132,7 @@ router.get(
           productName: line.product.name,
           brand: line.product.brand ?? null,
           color: productColor(line.product),
+          shadowOf: line.product.shadowParent?.sku ?? null,
           groupId: line.product.groupId ?? null,
           groupName: line.product.group?.name ?? null,
           warehouseId: line.warehouseId,
@@ -260,7 +266,7 @@ router.get(
     const id = Number(req.params.id);
     const order = await prisma.order.findUnique({
       where: { id },
-      include: { lines: { include: { product: true, warehouse: true } } },
+      include: { lines: { include: { product: { include: { shadowParent: { select: { sku: true } } } }, warehouse: true } } },
     });
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
@@ -284,6 +290,7 @@ router.get(
         productName: line.product.name,
         brand: line.product.brand ?? null,
         color: productColor(line.product),
+        shadowOf: line.product.shadowParent?.sku ?? null,
         warehouseId: line.warehouseId,
         warehouseName: line.warehouse ? line.warehouse.name : null,
         quantity: line.quantity,
@@ -294,6 +301,18 @@ router.get(
         projection: serializeShortfall(shortfallResults[i]),
       })),
     });
+  })
+);
+
+// POST /api/orders/assign-shadows — { orderIds }: before a packing slip, put
+// each shadow-SKU line on the SKU whose boxes will actually ship (old stock
+// first, then the shadow parent). Returns what changed.
+router.post(
+  "/assign-shadows",
+  asyncHandler(async (req, res) => {
+    const orderIds = (req.body.orderIds || []).map(Number).filter(Boolean);
+    const changes = await prisma.$transaction((tx) => assignShadowLines(tx, orderIds));
+    res.json({ changes, messages: describeShadowChanges(changes) });
   })
 );
 
@@ -393,9 +412,17 @@ router.put(
       return res.status(400).json({ message: `Invalid status "${status}"` });
     }
 
-    const order = await prisma.order.findUnique({ where: { id }, include: { lines: true } });
+    let order = await prisma.order.findUnique({ where: { id }, include: { lines: true } });
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Shipping: shadow-SKU lines go on whichever SKU's boxes actually ship
+    let shadowMessages = [];
+    if (order.status !== "SHIPPED" && status === "SHIPPED") {
+      const changes = await prisma.$transaction((tx) => assignShadowLines(tx, [id]));
+      shadowMessages = describeShadowChanges(changes);
+      if (changes.length) order = await prisma.order.findUnique({ where: { id }, include: { lines: true } });
     }
 
     const wasShipped = order.status === "SHIPPED";
@@ -417,7 +444,12 @@ router.put(
       return tx.order.update({ where: { id }, data: statusData });
     });
 
-    res.json({ id: updated.id, status: updated.status, shippedAt: updated.shippedAt ? updated.shippedAt.toISOString().slice(0, 10) : null });
+    res.json({
+      id: updated.id,
+      status: updated.status,
+      shippedAt: updated.shippedAt ? updated.shippedAt.toISOString().slice(0, 10) : null,
+      shadowMessages,
+    });
   })
 );
 
@@ -697,7 +729,10 @@ router.patch(
     const newProduct = await prisma.product.findUnique({ where: { id: Number(productId) }, include: { group: true } });
     if (!newProduct) return res.status(404).json({ message: "Product not found" });
 
-    if (!line.product.groupId || line.product.groupId !== newProduct.groupId) {
+    const sameGroup = line.product.groupId && line.product.groupId === newProduct.groupId;
+    // A shadow (old) SKU and its parent (new) SKU are the same product
+    const shadowPair = line.product.shadowParentId === newProduct.id || newProduct.shadowParentId === line.product.id;
+    if (!sameGroup && !shadowPair) {
       return res.status(400).json({ message: "Products are not in the same group" });
     }
 

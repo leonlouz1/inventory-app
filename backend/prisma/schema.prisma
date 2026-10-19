@@ -44,6 +44,9 @@ model Product {
   retailPrice   Decimal? @map("retail_price") @db.Decimal(10, 2)
   imageUrl      String?  @map("image_url") @db.VarChar(500)
   casePack      Int?     @map("case_pack") // units per case; blank = unknown
+  // Shadow SKU: an old SKU that moved to a new one (its "shadow parent").
+  // It keeps its own stock; orders on it use that stock first, then the parent's.
+  shadowParentId Int?    @map("shadow_parent_id")
   upc           String?  @db.VarChar(50)
   color         String?  @db.VarChar(100)
   productType   String?  @map("product_type") @db.VarChar(100)
@@ -52,6 +55,8 @@ model Product {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   group      ProductGroup?    @relation(fields: [groupId], references: [id])
+  shadowParent Product?       @relation("ShadowSku", fields: [shadowParentId], references: [id], onDelete: SetNull)
+  shadows      Product[]      @relation("ShadowSku")
   stock      WarehouseStock[]
   orderLines OrderLine[]
   restocks   Restock[]

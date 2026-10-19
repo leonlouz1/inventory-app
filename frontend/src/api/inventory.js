@@ -8,6 +8,8 @@ export const productsApi = {
   updateStock: (id, stock) => apiClient.put(`/products/${id}/stock`, { stock }),
   bulkUpdateStock: (rows) => apiClient.post("/products/bulk-stock", rows),
   projection: (id) => apiClient.get(`/products/${id}/projection`),
+  setShadowParent: (id, parentId) => apiClient.put(`/products/${id}/shadow-parent`, { parentId }),
+  setShadows: (id, shadowIds) => apiClient.put(`/products/${id}/shadows`, { shadowIds }),
 };
 
 export const ordersApi = {
@@ -28,6 +30,7 @@ export const ordersApi = {
   updateLineCartonMarking: (orderId, lineId, cartonMarking) => apiClient.patch(`/orders/${orderId}/lines/${lineId}/carton-marking`, { cartonMarking }),
   assignWarehouse: (id, warehouseId) => apiClient.patch(`/orders/${id}/warehouse`, { warehouseId }),
   nextNumber: () => apiClient.get("/orders/next-number"),
+  assignShadows: (orderIds) => apiClient.post("/orders/assign-shadows", { orderIds }),
   split: (id, lines, shipDate) => apiClient.post(`/orders/${id}/split`, { lines, shipDate }),
 };
 

@@ -2,6 +2,7 @@ const { Router } = require("express");
 const { PrismaClient } = require("@prisma/client");
 
 const { adjustStockForShippedTransition, hasUnassignedLine } = require("../services/shippedStock");
+const { assignShadowLines, describeShadowChanges } = require("../services/shadowSkus");
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -133,6 +134,7 @@ router.put("/:id", async (req, res) => {
     const effectiveWarehouseId =
       warehouseId !== undefined ? warehouseId || null : existing.warehouseId;
 
+    let shadowMessages = [];
     const shipment = await prisma.$transaction(async (tx) => {
       await tx.shipment.update({
         where: { id },
@@ -161,10 +163,12 @@ router.put("/:id", async (req, res) => {
       // stock out of the warehouses (same as marking an order Shipped).
       if (markedPickedUp) {
         const where = { shipmentId: id, status: { notIn: ["SHIPPED", "CANCELLED"] } };
+        const pending = await tx.order.findMany({ where, select: { id: true } });
         if (effectiveWarehouseId) {
-          const pending = await tx.order.findMany({ where, select: { id: true } });
           for (const o of pending) await autoAssignWarehouse(tx, o.id, effectiveWarehouseId);
         }
+        // Shadow-SKU lines go on whichever SKU's boxes actually ship
+        shadowMessages = describeShadowChanges(await assignShadowLines(tx, pending.map((o) => o.id)));
         const toShip = await tx.order.findMany({ where, include: { lines: true } });
         const unassigned = toShip.filter((o) => hasUnassignedLine(o.lines));
         if (unassigned.length > 0) {
@@ -184,9 +188,9 @@ router.put("/:id", async (req, res) => {
 
       await routeScheduledOrders(tx, id);
       return loadShipment(tx, id);
-    });
+    }, { timeout: 30000 });
 
-    res.json(serialize(shipment));
+    res.json({ ...serialize(shipment), shadowMessages });
   } catch (err) {
     res.status(err.status || 500).json({ message: err.message, error: err.message });
   }

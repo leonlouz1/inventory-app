@@ -90,8 +90,23 @@ router.get(
         pendingQty,
         incomingQty,
         availableToSell: totalOnHand - pendingQty,
+        shadowParentId: product.shadowParentId ?? null,
       };
     });
+
+    // Shadow SKUs: tag each side, and give parents a total that includes their shadows
+    const byId = new Map(result.map((p) => [p.id, p]));
+    for (const p of result) {
+      p.shadowParentSku = p.shadowParentId ? byId.get(p.shadowParentId)?.sku ?? null : null;
+      p.shadows = [];
+    }
+    for (const p of result) {
+      const parent = p.shadowParentId && byId.get(p.shadowParentId);
+      if (parent) parent.shadows.push({ id: p.id, sku: p.sku, totalOnHand: p.totalOnHand });
+    }
+    for (const p of result) {
+      p.totalWithShadows = p.shadows.length ? p.totalOnHand + p.shadows.reduce((s, x) => s + x.totalOnHand, 0) : null;
+    }
 
     // Designers see product details only, no stock or order quantities.
     if (req.role === "designer") {
@@ -99,6 +114,9 @@ router.get(
         id: p.id, sku: p.sku, name: p.name, brand: p.brand, category: p.category, leadTimeDays: p.leadTimeDays,
         casePack: p.casePack,
         attributes: p.attributes,
+        shadowParentId: p.shadowParentId,
+        shadowParentSku: p.shadowParentSku,
+        shadows: p.shadows.map(({ id, sku }) => ({ id, sku })),
       })));
     }
     res.json(result);
@@ -185,6 +203,56 @@ router.put(
       }
       throw err;
     }
+  })
+);
+
+// Shadow links are one level deep: a shadow can't have shadows of its own, and
+// a product with shadows can't become a shadow. Returns an error message or null.
+async function shadowLinkProblem(shadowId, parentId) {
+  if (shadowId === parentId) return "A SKU can't be its own shadow";
+  const [shadow, parent] = await Promise.all([
+    prisma.product.findUnique({ where: { id: shadowId }, include: { shadows: { select: { sku: true } } } }),
+    prisma.product.findUnique({ where: { id: parentId } }),
+  ]);
+  if (!shadow || !parent) return "Product not found";
+  if (parent.shadowParentId) return `${parent.sku} is itself a shadow, so it can't be a shadow parent`;
+  if (shadow.shadows.length) return `${shadow.sku} has its own shadows (${shadow.shadows.map((s) => s.sku).join(", ")}), so it can't become a shadow`;
+  return null;
+}
+
+// PUT /api/products/:id/shadow-parent — { parentId | null }: link this (old)
+// SKU to the new SKU it moved to, or unlink it. Nothing else changes.
+router.put(
+  "/:id/shadow-parent",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const parentId = req.body.parentId ? Number(req.body.parentId) : null;
+    if (parentId) {
+      const problem = await shadowLinkProblem(id, parentId);
+      if (problem) return res.status(400).json({ message: problem });
+    }
+    const updated = await prisma.product.update({ where: { id }, data: { shadowParentId: parentId } });
+    res.json({ id: updated.id, shadowParentId: updated.shadowParentId });
+  })
+);
+
+// PUT /api/products/:id/shadows — { shadowIds }: set which old SKUs are
+// shadows of this (new) SKU. Ones left out are unlinked.
+router.put(
+  "/:id/shadows",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const shadowIds = [...new Set((req.body.shadowIds || []).map(Number))];
+    for (const shadowId of shadowIds) {
+      // eslint-disable-next-line no-await-in-loop
+      const problem = await shadowLinkProblem(shadowId, id);
+      if (problem) return res.status(400).json({ message: problem });
+    }
+    await prisma.$transaction([
+      prisma.product.updateMany({ where: { shadowParentId: id, id: { notIn: shadowIds } }, data: { shadowParentId: null } }),
+      prisma.product.updateMany({ where: { id: { in: shadowIds } }, data: { shadowParentId: id } }),
+    ]);
+    res.json({ id, shadowIds });
   })
 );
 

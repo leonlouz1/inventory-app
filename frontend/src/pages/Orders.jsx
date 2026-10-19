@@ -12,6 +12,7 @@ import AddOrderLineModal from "../components/AddOrderLineModal";
 import BulkImportOrdersModal from "../components/BulkImportOrdersModal";
 import { ORDER_STATUSES, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants/orderStatuses";
 import { downloadPackingList } from "../utils/packingList";
+import { showShadowMessages } from "../utils/shadowMessages";
 
 const STATUS_OPTIONS = ORDER_STATUSES.map((s) => ({ value: s, label: ORDER_STATUS_LABELS[s] }));
 
@@ -335,9 +336,24 @@ export default function Orders() {
     }
   }
 
+  // Shadow-SKU lines are put on whichever SKU's boxes will ship (old stock
+  // first) right before the slip, so it always matches the warehouse.
+  async function downloadOrderPackingList(order) {
+    try {
+      const { changes, messages } = await ordersApi.assignShadows([order.id]);
+      showShadowMessages(messages);
+      const fresh = changes.length ? await ordersApi.get(order.id) : order;
+      await downloadPackingList(fresh);
+      if (changes.length) loadOrders();
+    } catch (err) {
+      message.error(`Couldn't make packing list: ${err.message}`);
+    }
+  }
+
   async function applyStatusChange(order, newStatus) {
     try {
-      await ordersApi.updateStatus(order.id, newStatus);
+      const result = await ordersApi.updateStatus(order.id, newStatus);
+      showShadowMessages(result?.shadowMessages);
       message.success(`${order.orderNumber} marked ${ORDER_STATUS_LABELS[newStatus]}`);
       loadOrders();
     } catch (err) {
@@ -444,7 +460,7 @@ export default function Orders() {
             title="Download packing list"
             onClick={(e) => {
               e.stopPropagation();
-              downloadPackingList(order);
+              downloadOrderPackingList(order);
             }}
           />
           <Button
@@ -538,7 +554,13 @@ export default function Orders() {
             onChange={async (newStatus) => {
               setBulkStatusLoading(true);
               try {
-                await Promise.all(selectedOrderIds.map((id) => ordersApi.updateStatus(id, newStatus)));
+                // One at a time so orders don't claim the same old-SKU boxes at once
+                const notes = [];
+                for (const id of selectedOrderIds) {
+                  const result = await ordersApi.updateStatus(id, newStatus);
+                  notes.push(...(result?.shadowMessages || []));
+                }
+                showShadowMessages(notes);
                 message.success(`${selectedOrderIds.length} orders marked ${ORDER_STATUS_LABELS[newStatus]}`);
                 setSelectedOrderIds([]);
                 loadOrders();
@@ -587,10 +609,13 @@ export default function Orders() {
               {
                 title: "SKU",
                 dataIndex: "sku",
-                render: (sku) => (
-                  <Link to={`/timeline?sku=${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
-                    {sku}
-                  </Link>
+                render: (sku, line) => (
+                  <>
+                    <Link to={`/timeline?sku=${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
+                      {sku}
+                    </Link>
+                    {line.shadowOf && <Tag color="purple" style={{ marginLeft: 6 }}>shadow of {line.shadowOf}</Tag>}
+                  </>
                 ),
               },
               { title: "Product", dataIndex: "productName" },
@@ -664,6 +689,26 @@ export default function Orders() {
                 key: "actions",
                 render: (_, line) => (
                   <Space>
+                    {line.shadowOf && order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                      <Popconfirm
+                        title={`Switch this line to ${line.shadowOf}?`}
+                        description="Use this when the warehouse is shipping new-barcode boxes for this line."
+                        okText="Switch"
+                        onConfirm={async () => {
+                          const parent = products.find((p) => p.sku === line.shadowOf);
+                          if (!parent) return message.error(`${line.shadowOf} not found`);
+                          try {
+                            await skuGroupsApi.swapLine(order.id, line.id, parent.id);
+                            message.success(`Switched to ${line.shadowOf}`);
+                            loadOrders();
+                          } catch (err) {
+                            message.error(err.message);
+                          }
+                        }}
+                      >
+                        <Button size="small">Switch to {line.shadowOf}</Button>
+                      </Popconfirm>
+                    )}
                     {line.groupId && order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
                       <Button
                         size="small"

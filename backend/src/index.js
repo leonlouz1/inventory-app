@@ -168,6 +168,15 @@ async function runStartupMigrations() {
     await prisma.$executeRaw`ALTER TABLE "products" ALTER COLUMN "case_pack" DROP NOT NULL`;
     await prisma.$executeRaw`ALTER TABLE "products" ALTER COLUMN "case_pack" DROP DEFAULT`;
     await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "case_pack" INTEGER`;
+    await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "shadow_parent_id" INTEGER`;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        ALTER TABLE "products" ADD CONSTRAINT "products_shadow_parent_id_fkey"
+          FOREIGN KEY ("shadow_parent_id") REFERENCES "products"("id")
+          ON DELETE SET NULL ON UPDATE CASCADE;
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$
+    `;
     await seedProductFields(prisma);
     await seedStorageHangers(prisma);
     if (!hadUpcGroups) await groupExistingUpcNumbers(prisma);

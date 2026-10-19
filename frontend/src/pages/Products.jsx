@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Tooltip, Input, Modal, Radio, Select } from "antd";
+import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Tooltip, Input, Modal, Radio, Select, Tag } from "antd";
 import { PlusOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined, SwapOutlined } from "@ant-design/icons";
 import Papa from "papaparse";
 import { productsApi, warehousesApi } from "../api/inventory";
@@ -198,10 +198,27 @@ export default function Products() {
         title: "SKU",
         dataIndex: "sku",
         sorter: (a, b) => a.sku.localeCompare(b.sku),
-        render: (sku) => isDesigner ? sku : (
-          <Link to={`/timeline?sku=${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
-            {sku}
-          </Link>
+        render: (sku, product) => (
+          <>
+            {isDesigner ? sku : (
+              <Link to={`/timeline?sku=${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
+                {sku}
+              </Link>
+            )}
+            {product.shadowParentSku && (
+              <div><Tag color="purple" style={{ marginTop: 2 }}>shadow of {product.shadowParentSku}</Tag></div>
+            )}
+            {product.shadows?.length > 0 && (
+              <div>
+                <Tooltip title={`Shadows: ${product.shadows.map((s) => s.sku).join(", ")}`}>
+                  <Tag color="geekblue" style={{ marginTop: 2 }}>
+                    {product.shadows.length} shadow{product.shadows.length > 1 ? "s" : ""}
+                    {product.totalWithShadows != null ? ` · ${product.totalWithShadows} total on hand` : ""}
+                  </Tag>
+                </Tooltip>
+              </div>
+            )}
+          </>
         ),
       },
       { title: "Name", dataIndex: "name", sorter: (a, b) => a.name.localeCompare(b.name) },
@@ -384,6 +401,8 @@ export default function Products() {
       />
 
       <EditProductModal
+        products={products}
+        showShadows={!isDesigner}
         open={!!editingProduct}
         onClose={() => setEditingProduct(null)}
         onUpdated={loadProducts}

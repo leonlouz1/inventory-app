@@ -122,7 +122,58 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
   );
 }
 
-export function EditProductModal({ open, onClose, onUpdated, product, warehouses }) {
+// Shadow SKUs: an old SKU (shadow) that moved to a new SKU (shadow parent). It
+// keeps its own stock, and orders on it use that stock first, then the parent's.
+function ShadowFields({ product, products, form }) {
+  const parentId = Form.useWatch("shadowParentId", form);
+  const shadowIds = Form.useWatch("shadowIds", form) || [];
+  const others = products.filter((p) => p.id !== product.id);
+  const label = (p) => `${p.sku} — ${p.name}`;
+  return (
+    <>
+      <Typography.Title level={5} style={{ marginTop: 8 }}>Shadow SKUs</Typography.Title>
+      <Row gutter={12}>
+        <Col span={12}>
+          <Form.Item
+            name="shadowParentId"
+            label="Shadow parent"
+            tooltip="Set this on an old SKU: the new SKU it moved to. Orders on this SKU use its own stock first, then the parent's."
+          >
+            <Select
+              allowClear
+              showSearch
+              disabled={shadowIds.length > 0}
+              placeholder={shadowIds.length ? "Has shadows of its own" : "None"}
+              options={others.filter((p) => !p.shadowParentId).map((p) => ({ value: p.id, label: label(p) }))}
+              filterOption={(input, opt) => opt.label.toLowerCase().includes(input.toLowerCase())}
+            />
+          </Form.Item>
+        </Col>
+        <Col span={12}>
+          <Form.Item
+            name="shadowIds"
+            label="Shadows"
+            tooltip="Set this on a new SKU: the old SKUs that moved to it."
+          >
+            <Select
+              mode="multiple"
+              allowClear
+              showSearch
+              disabled={!!parentId}
+              placeholder={parentId ? "This SKU is a shadow" : "None"}
+              options={others
+                .filter((p) => !p.shadows?.length && (!p.shadowParentId || p.shadowParentId === product.id))
+                .map((p) => ({ value: p.id, label: label(p) }))}
+              filterOption={(input, opt) => opt.label.toLowerCase().includes(input.toLowerCase())}
+            />
+          </Form.Item>
+        </Col>
+      </Row>
+    </>
+  );
+}
+
+export function EditProductModal({ open, onClose, onUpdated, product, warehouses, products = [], showShadows = false }) {
   const [form] = Form.useForm();
   const category = Form.useWatch("category", form);
 
@@ -140,6 +191,8 @@ export function EditProductModal({ open, onClose, onUpdated, product, warehouses
         leadTimeDays: product.leadTimeDays,
         casePack: product.casePack ?? undefined,
         attributes: { ...product.attributes, color: product.attributes?.color ?? product.color ?? undefined },
+        shadowParentId: product.shadowParentId ?? undefined,
+        shadowIds: (product.shadows || []).map((s) => s.id),
         ...stockFields,
       });
     }
@@ -152,13 +205,26 @@ export function EditProductModal({ open, onClose, onUpdated, product, warehouses
         warehouseId: w.id,
         onHand: values[`stock_${w.id}`] ?? 0,
       }));
-      const fields = { ...values };
+      const { shadowParentId, shadowIds, ...fields } = values;
       for (const w of warehouses) delete fields[`stock_${w.id}`];
+
+      // Shadow links change only when edited; linking never moves stock
+      const shadowCalls = [];
+      if (showShadows) {
+        const oldIds = (product.shadows || []).map((s) => s.id).sort().join();
+        if ((shadowParentId ?? null) !== (product.shadowParentId ?? null)) {
+          shadowCalls.push(() => productsApi.setShadowParent(product.id, shadowParentId ?? null));
+        }
+        if ((shadowIds || []).slice().sort().join() !== oldIds) {
+          shadowCalls.push(() => productsApi.setShadows(product.id, shadowIds || []));
+        }
+      }
 
       await Promise.all([
         productsApi.update(product.id, fields),
         ...(stock.length > 0 ? [productsApi.updateStock(product.id, stock)] : []),
       ]);
+      for (const call of shadowCalls) await call();
       message.success(`Product ${product.sku} updated`);
       onClose();
       onUpdated();
@@ -206,6 +272,7 @@ export function EditProductModal({ open, onClose, onUpdated, product, warehouses
             </Col>
           ))}
         </Row>
+        {showShadows && product && <ShadowFields product={product} products={products} form={form} />}
       </Form>
     </Modal>
   );
