@@ -66,7 +66,7 @@ export default function AppLayout() {
     <Layout style={{ minHeight: "100vh" }}>
       <Sider breakpoint="lg" collapsedWidth="0">
         <div style={{ height: 48, margin: 16, color: "#fff", fontWeight: 600, fontSize: 16 }}>
-          Inventory
+          BasicCloud
         </div>
         <Menu
           theme="dark"
@@ -80,7 +80,7 @@ export default function AppLayout() {
       <Layout>
         <Header style={{ background: "#fff", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Typography.Title level={4} style={{ margin: 0 }}>
-            Inventory Management
+            BasicCloud
           </Typography.Title>
           <UserButton afterSignOutUrl="/" />
         </Header>

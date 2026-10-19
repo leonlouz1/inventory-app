@@ -1,6 +1,6 @@
 {
-  "name": "Inventory Manager",
-  "short_name": "Inventory",
+  "name": "BasicCloud",
+  "short_name": "BasicCloud",
   "description": "Wholesale inventory and CRM management",
   "start_url": "/",
   "display": "standalone",
