@@ -21,15 +21,23 @@ function lineRow(line, poNumber) {
   ];
 }
 
-function writeSheet(rows, filename) {
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"] = LINE_COL_WIDTHS;
+// sheets: [{ name, rows }] -> one workbook with a tab per entry
+function writeWorkbook(sheets, filename) {
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Packing List");
+  for (const { name, rows } of sheets) {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = LINE_COL_WIDTHS;
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  }
   XLSX.writeFile(wb, filename);
 }
 
-export function downloadPackingList(order) {
+// Excel tab names: max 31 chars, no : \ / ? * [ ]
+function tabName(name) {
+  return String(name).replace(/[:\\/?*[\]]/g, "-").slice(0, 31) || "Order";
+}
+
+function orderSheetRows(order) {
   const headerRows = [
     ["Packing List"],
     ["Order #", order.orderNumber],
@@ -43,8 +51,11 @@ export function downloadPackingList(order) {
   // PO # is left blank — filled in by hand after export, since each line
   // could ship under a different PO.
   const lineRows = order.lines.map((line) => lineRow(line, ""));
+  return [...headerRows, ...lineRows];
+}
 
-  writeSheet([...headerRows, ...lineRows], `packing_list_${order.orderNumber}.xlsx`);
+export function downloadPackingList(order) {
+  writeWorkbook([{ name: "Packing List", rows: orderSheetRows(order) }], `packing_list_${order.orderNumber}.xlsx`);
 }
 
 // One packing list covering every order on a shipment; each line carries its
@@ -65,5 +76,18 @@ export function downloadShipmentPackingList(shipment, orders) {
 
   const lineRows = orders.flatMap((order) => order.lines.map((line) => lineRow(line, order.customerPo || "")));
 
-  writeSheet([...headerRows, ...lineRows], `packing_list_${shipment.shipmentNumber}.xlsx`);
+  writeWorkbook([{ name: "Packing List", rows: [...headerRows, ...lineRows] }], `packing_list_${shipment.shipmentNumber}.xlsx`);
+}
+
+// One file for the shipment with a separate tab per order, each laid out like
+// the order packing list on the Orders page.
+export function downloadShipmentPackingListPerOrder(shipment, orders) {
+  const used = new Set();
+  const sheets = orders.map((order) => {
+    let name = tabName(order.orderNumber);
+    for (let n = 2; used.has(name); n++) name = tabName(`${order.orderNumber} (${n})`);
+    used.add(name);
+    return { name, rows: orderSheetRows(order) };
+  });
+  writeWorkbook(sheets, `packing_lists_${shipment.shipmentNumber}.xlsx`);
 }

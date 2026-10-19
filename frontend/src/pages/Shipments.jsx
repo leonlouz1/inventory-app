@@ -6,7 +6,7 @@ import {
 import { PlusOutlined, DeleteOutlined, EditOutlined, MinusCircleOutlined, FileExcelOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { shipmentsApi, ordersApi, warehousesApi } from "../api/inventory";
-import { downloadShipmentPackingList } from "../utils/packingList";
+import { downloadShipmentPackingList, downloadShipmentPackingListPerOrder } from "../utils/packingList";
 
 const STATUS_COLORS = { SCHEDULED: "blue", PICKED_UP: "green", DELIVERED: "purple" };
 const STATUS_OPTIONS = [
@@ -141,6 +141,7 @@ export default function Shipments() {
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingShipment, setEditingShipment] = useState(null);
+  const [packingChoice, setPackingChoice] = useState(null); // { shipment, orders }
 
   const load = useCallback(() => {
     setLoading(true);
@@ -164,7 +165,18 @@ export default function Shipments() {
       message.warning("Add orders to this shipment first");
       return;
     }
-    downloadShipmentPackingList(shipment, orders);
+    if (orders.length === 1) {
+      downloadShipmentPackingList(shipment, orders);
+      return;
+    }
+    setPackingChoice({ shipment, orders });
+  }
+
+  function handlePackingChoice(perOrder) {
+    const { shipment, orders } = packingChoice;
+    if (perOrder) downloadShipmentPackingListPerOrder(shipment, orders);
+    else downloadShipmentPackingList(shipment, orders);
+    setPackingChoice(null);
   }
 
   async function handleDelete(id, shipmentNumber) {
@@ -295,6 +307,27 @@ export default function Shipments() {
         allOrders={allOrders}
         warehouses={warehouses}
       />
+
+      <Modal
+        title={`Packing list — ${packingChoice?.shipment.shipmentNumber ?? ""}`}
+        open={!!packingChoice}
+        onCancel={() => setPackingChoice(null)}
+        footer={null}
+        width={420}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary">
+          This shipment has {packingChoice?.orders.length} orders. How do you want the packing list?
+        </Typography.Paragraph>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <Button block type="primary" icon={<FileExcelOutlined />} onClick={() => handlePackingChoice(false)}>
+            One sheet with all orders
+          </Button>
+          <Button block icon={<FileExcelOutlined />} onClick={() => handlePackingChoice(true)}>
+            One sheet per order
+          </Button>
+        </div>
+      </Modal>
     </Spin>
   );
 }
