@@ -188,14 +188,13 @@ function renderBolPdf(data, input) {
     doc,
     y,
     [
-      { title: "Customer Order No. (PO)", width: 170 },
-      { title: "Our Order No.", width: 110 },
+      { title: "Customer Order No. (PO)", width: 230 },
       { title: "# Pkgs", width: 70, align: "right" },
       { title: "Pallet/Slip (Y/N)", width: 80, align: "center" },
-      { title: "Additional Shipper Info", width: WIDTH - 430 },
+      { title: "Additional Shipper Info", width: WIDTH - 380 },
     ],
-    data.orders.map((o) => [o.customerPo || "", o.orderNumber, o.cases || "", input.pallets ? "Y" : "", ""]),
-    { totals: ["GRAND TOTAL", "", data.totalCases || "", "", ""] }
+    data.orders.map((o) => [o.customerPo || "", o.cases || "", input.pallets ? "Y" : "", ""]),
+    { totals: ["GRAND TOTAL", data.totalCases || "", "", ""] }
   );
   y += 8;
 
