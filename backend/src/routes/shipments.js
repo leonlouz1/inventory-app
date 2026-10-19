@@ -1,6 +1,8 @@
 const { Router } = require("express");
 const { PrismaClient } = require("@prisma/client");
 
+const { adjustStockForShippedTransition, hasUnassignedLine } = require("../services/shippedStock");
+
 const router = Router();
 const prisma = new PrismaClient();
 
@@ -155,11 +157,29 @@ router.put("/:id", async (req, res) => {
         }
       }
 
+      // Picked up = every order on the truck is Shipped, which takes its
+      // stock out of the warehouses (same as marking an order Shipped).
       if (markedPickedUp) {
-        await tx.order.updateMany({
-          where: { shipmentId: id, status: { notIn: ["SHIPPED", "CANCELLED"] } },
-          data: { status: "SHIPPED" },
-        });
+        const where = { shipmentId: id, status: { notIn: ["SHIPPED", "CANCELLED"] } };
+        if (effectiveWarehouseId) {
+          const pending = await tx.order.findMany({ where, select: { id: true } });
+          for (const o of pending) await autoAssignWarehouse(tx, o.id, effectiveWarehouseId);
+        }
+        const toShip = await tx.order.findMany({ where, include: { lines: true } });
+        const unassigned = toShip.filter((o) => hasUnassignedLine(o.lines));
+        if (unassigned.length > 0) {
+          const err = new Error(
+            `Can't mark Picked Up: ${unassigned.map((o) => o.orderNumber).join(", ")} ` +
+            "has lines with no warehouse. Set the shipment's warehouse or assign one on the order."
+          );
+          err.status = 400;
+          throw err;
+        }
+        const shippedAt = new Date();
+        for (const o of toShip) {
+          await adjustStockForShippedTransition(tx, o.lines, -1);
+          await tx.order.update({ where: { id: o.id }, data: { status: "SHIPPED", shippedAt } });
+        }
       }
 
       await routeScheduledOrders(tx, id);
@@ -168,7 +188,7 @@ router.put("/:id", async (req, res) => {
 
     res.json(serialize(shipment));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ message: err.message, error: err.message });
   }
 });
 
