@@ -1,6 +1,8 @@
 const PDFDocument = require("pdfkit");
 
-const SHIPPER_NAME = "Quality Silver Inc";
+// Company names that can appear as the shipper (Ship From); the address is
+// always the shipment warehouse's.
+const SHIPPER_NAMES = ["Quality Silver Inc", "Basic Trading Inc"];
 
 // Everything a BOL needs that the app already knows about a shipment: ship
 // from (our name + the shipment warehouse's address), the remembered ship-to
@@ -54,8 +56,9 @@ async function loadBolData(prisma, shipmentId) {
     customers,
     carrier: shipment.carrier,
     proNumber: shipment.csNumber,
+    shipperNames: SHIPPER_NAMES,
     shipFrom: {
-      name: SHIPPER_NAME,
+      name: SHIPPER_NAMES[0],
       warehouse: w?.name ?? null,
       address: w?.address ?? null,
       city: w?.city ?? null,
@@ -149,7 +152,7 @@ function renderBolPdf(data, input) {
 
   // Ship from / carrier
   box(doc, L, y, half, 70, "SHIP FROM");
-  const from = data.shipFrom;
+  const from = { ...data.shipFrom, name: SHIPPER_NAMES.includes(input.shipFromName) ? input.shipFromName : data.shipFrom.name };
   text(doc, [from.name, from.address, cityLine(from), from.phone ? `Phone: ${from.phone}` : null].filter(Boolean).join("\n"), L + 5, y + 17, { width: half - 10 });
   box(doc, R, y, half, 70, "CARRIER");
   text(doc, `Carrier Name: ${data.carrier || ""}`, R + 5, y + 17, { width: half - 10 });

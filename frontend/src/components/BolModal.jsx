@@ -21,7 +21,7 @@ export default function BolModal({ shipment, onClose }) {
       .then((d) => {
         if (!active) return;
         setData(d);
-        form.setFieldsValue({ shipTo: d.shipTo, freightTerms: "PREPAID" });
+        form.setFieldsValue({ shipFromName: d.shipperNames[0], shipTo: d.shipTo, freightTerms: "PREPAID" });
       })
       .catch((err) => { if (active) setError(err.message); });
     return () => { active = false; };
@@ -98,11 +98,19 @@ export default function BolModal({ shipment, onClose }) {
             />
           )}
           <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-            From the shipment: Quality Silver Inc ({from.warehouse || "no warehouse"}) · {data.carrier || "no carrier"}
+            From the shipment: {from.warehouse || "no warehouse"} warehouse · {data.carrier || "no carrier"}
             {data.proNumber ? ` · Pro ${data.proNumber}` : ""} · {data.orders.length} PO{data.orders.length === 1 ? "" : "s"} ·{" "}
             {data.totalCases} cases
           </Typography.Paragraph>
           <Form form={form} layout="vertical">
+            <Form.Item
+              name="shipFromName"
+              label="Ship From name"
+              extra={from.address ? `Address: ${from.address}, ${[from.city, from.state].filter(Boolean).join(", ")} ${from.zip || ""}` : undefined}
+              style={{ maxWidth: 320 }}
+            >
+              <Select options={data.shipperNames.map((n) => ({ value: n, label: n }))} />
+            </Form.Item>
             <Typography.Title level={5}>Ship To</Typography.Title>
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", columnGap: 12 }}>
               <Form.Item name={["shipTo", "name"]} label="Name" rules={[{ required: true, message: "Required" }]}>
