@@ -169,6 +169,24 @@ async function runStartupMigrations() {
     await prisma.$executeRaw`ALTER TABLE "products" ALTER COLUMN "case_pack" DROP DEFAULT`;
     await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "case_pack" INTEGER`;
     await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "shadow_parent_id" INTEGER`;
+    await prisma.$executeRaw`ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "address" VARCHAR(300)`;
+    await prisma.$executeRaw`ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "city" VARCHAR(100)`;
+    await prisma.$executeRaw`ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "state" VARCHAR(50)`;
+    await prisma.$executeRaw`ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "zip" VARCHAR(20)`;
+    await prisma.$executeRaw`ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "phone" VARCHAR(50)`;
+    await prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "ship_to_addresses" (
+        "customer" VARCHAR(200) NOT NULL,
+        "name" VARCHAR(200),
+        "address" VARCHAR(300),
+        "city" VARCHAR(100),
+        "state" VARCHAR(50),
+        "zip" VARCHAR(20),
+        "location_no" VARCHAR(50),
+        "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "ship_to_addresses_pkey" PRIMARY KEY ("customer")
+      )
+    `;
     await prisma.$executeRaw`
       DO $$ BEGIN
         ALTER TABLE "products" ADD CONSTRAINT "products_shadow_parent_id_fkey"

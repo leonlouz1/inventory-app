@@ -4,6 +4,15 @@ const asyncHandler = require("../middleware/asyncHandler");
 
 const router = express.Router();
 
+// Street address used as the ship-from on BOLs (only fields that were sent)
+function addressFields(body) {
+  const out = {};
+  for (const key of ["address", "city", "state", "zip", "phone"]) {
+    if (body[key] !== undefined) out[key] = body[key] ? String(body[key]).trim() : null;
+  }
+  return out;
+}
+
 // GET /api/warehouses — list all warehouses
 router.get(
   "/",
@@ -18,12 +27,13 @@ router.post(
   "/",
   asyncHandler(async (req, res) => {
     const { name, location, email } = req.body;
+    const address = addressFields(req.body);
     if (!name) {
       return res.status(400).json({ message: "name is required" });
     }
 
     try {
-      const warehouse = await prisma.warehouse.create({ data: { name, location, email: email || null } });
+      const warehouse = await prisma.warehouse.create({ data: { name, location, email: email || null, ...address } });
       res.status(201).json(warehouse);
     } catch (err) {
       if (err.code === "P2002") {
@@ -40,6 +50,7 @@ router.put(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const { name, location, email } = req.body;
+    const address = addressFields(req.body);
 
     try {
       const warehouse = await prisma.warehouse.update({
@@ -48,6 +59,7 @@ router.put(
           ...(name !== undefined && { name }),
           ...(location !== undefined && { location }),
           ...(email !== undefined && { email: email || null }),
+          ...address,
         },
       });
       res.json(warehouse);

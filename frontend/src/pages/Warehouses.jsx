@@ -3,6 +3,21 @@ import { Table, Button, Spin, Alert, Typography, Modal, Form, Input, message, Po
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { warehousesApi } from "../api/inventory";
 
+// Street address, printed as the ship-from on BOLs
+const ADDRESS_FIELDS = (
+  <>
+    <Form.Item name="address" label="Street address">
+      <Input placeholder="123 Main St" />
+    </Form.Item>
+    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 12 }}>
+      <Form.Item name="city" label="City"><Input /></Form.Item>
+      <Form.Item name="state" label="State"><Input placeholder="NJ" /></Form.Item>
+      <Form.Item name="zip" label="Zip"><Input /></Form.Item>
+    </div>
+    <Form.Item name="phone" label="Phone"><Input /></Form.Item>
+  </>
+);
+
 function NewWarehouseModal({ open, onClose, onCreated }) {
   const [form] = Form.useForm();
 
@@ -39,6 +54,7 @@ function NewWarehouseModal({ open, onClose, onCreated }) {
         <Form.Item name="location" label="Location">
           <Input placeholder="City, state" />
         </Form.Item>
+        {ADDRESS_FIELDS}
       </Form>
     </Modal>
   );
@@ -69,13 +85,21 @@ function EditWarehouseModal({ open, onClose, onUpdated, warehouse }) {
       okText="Save"
       destroyOnHidden
     >
-      <Form form={form} layout="vertical" initialValues={{ name: warehouse?.name, location: warehouse?.location }}>
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={{
+          name: warehouse?.name, location: warehouse?.location, address: warehouse?.address,
+          city: warehouse?.city, state: warehouse?.state, zip: warehouse?.zip, phone: warehouse?.phone,
+        }}
+      >
         <Form.Item name="name" label="Name" rules={[{ required: true, message: "Required" }]}>
           <Input placeholder="Northeast" />
         </Form.Item>
         <Form.Item name="location" label="Location">
           <Input placeholder="City, state" />
         </Form.Item>
+        {ADDRESS_FIELDS}
       </Form>
     </Modal>
   );
@@ -121,6 +145,11 @@ export default function Warehouses() {
       dataIndex: "location",
       render: (v) => v || "—",
       sorter: (a, b) => (a.location || "").localeCompare(b.location || ""),
+    },
+    {
+      title: "Address",
+      key: "address",
+      render: (_, w) => (w.address ? `${w.address}, ${[w.city, w.state].filter(Boolean).join(", ")} ${w.zip || ""}`.trim() : "—"),
     },
     {
       title: "",

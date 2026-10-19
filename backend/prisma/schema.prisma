@@ -13,6 +13,12 @@ model Warehouse {
   name      String   @unique @db.VarChar(100)
   location  String?  @db.VarChar(200)
   email     String?  @db.VarChar(200)
+  // Ship-from address on BOLs
+  address   String?  @db.VarChar(300)
+  city      String?  @db.VarChar(100)
+  state     String?  @db.VarChar(50)
+  zip       String?  @db.VarChar(20)
+  phone     String?  @db.VarChar(50)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   stock      WarehouseStock[]
@@ -328,4 +334,18 @@ model UpcGroup {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@map("upc_groups")
+}
+
+// Last ship-to address used on a BOL for each customer, prefilled next time
+model ShipToAddress {
+  customer   String   @id @db.VarChar(200)
+  name       String?  @db.VarChar(200)
+  address    String?  @db.VarChar(300)
+  city       String?  @db.VarChar(100)
+  state      String?  @db.VarChar(50)
+  zip        String?  @db.VarChar(20)
+  locationNo String?  @map("location_no") @db.VarChar(50)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("ship_to_addresses")
 }

@@ -3,6 +3,7 @@ const { PrismaClient } = require("@prisma/client");
 
 const { adjustStockForShippedTransition, hasUnassignedLine } = require("../services/shippedStock");
 const { assignShadowLines, describeShadowChanges } = require("../services/shadowSkus");
+const { loadBolData, renderBolPdf } = require("../services/bol");
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -193,6 +194,57 @@ router.put("/:id", async (req, res) => {
     res.json({ ...serialize(shipment), shadowMessages });
   } catch (err) {
     res.status(err.status || 500).json({ message: err.message, error: err.message });
+  }
+});
+
+// GET /api/shipments/:id/bol — what the BOL form starts from
+router.get("/:id/bol", async (req, res) => {
+  try {
+    const data = await loadBolData(prisma, Number(req.params.id));
+    if (!data) return res.status(404).json({ message: "Shipment not found" });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: err.message, error: err.message });
+  }
+});
+
+// POST /api/shipments/:id/bol — { shipTo, pallets, weight, freightClass, nmfc,
+// freightTerms, billTo, specialInstructions, trailerNumber, sealNumber, scac }:
+// remembers the ship-to for the customer and returns the BOL as a PDF.
+router.post("/:id/bol", async (req, res) => {
+  try {
+    const data = await loadBolData(prisma, Number(req.params.id));
+    if (!data) return res.status(404).json({ message: "Shipment not found" });
+    if (data.orders.length === 0) return res.status(400).json({ message: "Add orders to this shipment first" });
+
+    const input = req.body || {};
+    const shipTo = input.shipTo || {};
+    if (!shipTo.name || !shipTo.address) {
+      return res.status(400).json({ message: "Ship To needs a name and address" });
+    }
+    if (data.customer) {
+      const saved = {
+        name: shipTo.name || null,
+        address: shipTo.address || null,
+        city: shipTo.city || null,
+        state: shipTo.state || null,
+        zip: shipTo.zip || null,
+        locationNo: shipTo.locationNo || null,
+      };
+      await prisma.shipToAddress.upsert({
+        where: { customer: data.customer },
+        update: saved,
+        create: { customer: data.customer, ...saved },
+      });
+    }
+
+    const doc = renderBolPdf(data, input);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="BOL_${data.bolNumber}.pdf"`);
+    doc.pipe(res);
+    doc.end();
+  } catch (err) {
+    res.status(500).json({ message: err.message, error: err.message });
   }
 });
 

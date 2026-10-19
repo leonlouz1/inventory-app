@@ -5,11 +5,13 @@ import {
 } from "antd";
 import {
   PlusOutlined, DeleteOutlined, EditOutlined, MinusCircleOutlined, FileExcelOutlined, ScissorOutlined, MergeCellsOutlined,
+  FilePdfOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { shipmentsApi, ordersApi, warehousesApi } from "../api/inventory";
 import { downloadShipmentPackingList, downloadShipmentPackingListPerOrder } from "../utils/packingList";
 import { showShadowMessages } from "../utils/shadowMessages";
+import BolModal from "../components/BolModal";
 
 const STATUS_COLORS = { SCHEDULED: "blue", PICKED_UP: "green", DELIVERED: "purple" };
 const STATUS_OPTIONS = [
@@ -181,6 +183,7 @@ export default function Shipments() {
   const [splitShipment, setSplitShipment] = useState(null);
   const [splitOrderIds, setSplitOrderIds] = useState([]);
   const [working, setWorking] = useState(false);
+  const [bolShipment, setBolShipment] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -322,6 +325,13 @@ export default function Shipments() {
             title="Download packing list for all orders"
             onClick={() => handlePackingList(shipment)}
           />
+          <Button
+            icon={<FilePdfOutlined />}
+            type="text"
+            title="Bill of lading (BOL)"
+            disabled={shipment.orders.length === 0}
+            onClick={() => setBolShipment(shipment)}
+          />
           {shipment.status === "SCHEDULED" && shipment.orders.length > 1 && (
             <Button
               icon={<ScissorOutlined />}
@@ -423,6 +433,8 @@ export default function Shipments() {
         allShipments={shipments}
         warehouses={warehouses}
       />
+
+      {bolShipment && <BolModal key={bolShipment.id} shipment={bolShipment} onClose={() => setBolShipment(null)} />}
 
       <Modal
         title="Combine shipments"

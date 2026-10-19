@@ -126,6 +126,7 @@ export const shipmentsApi = {
   removeOrder: (shipmentId, orderId) => apiClient.delete(`/shipments/${shipmentId}/orders/${orderId}`),
   combine: (shipmentIds, keepId) => apiClient.post("/shipments/combine", { shipmentIds, keepId }),
   split: (id, orderIds) => apiClient.post(`/shipments/${id}/split`, { orderIds }),
+  bolDefaults: (id) => apiClient.get(`/shipments/${id}/bol`),
 };
 
 export const upcApi = {
