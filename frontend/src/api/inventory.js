@@ -121,3 +121,12 @@ export const shipmentsApi = {
   addOrder: (shipmentId, orderId) => apiClient.post(`/shipments/${shipmentId}/orders/${orderId}`, {}),
   removeOrder: (shipmentId, orderId) => apiClient.delete(`/shipments/${shipmentId}/orders/${orderId}`),
 };
+
+export const upcApi = {
+  list: (brand) => apiClient.get(`/upc?brand=${brand}`),
+  setInUse: (sku, inUse) => apiClient.patch(`/upc/${sku}`, { inUse }),
+  codes: () => apiClient.get("/upc/codes"),
+  addCode: (kind, code, name) => apiClient.post("/upc/codes", { kind, code, name }),
+  renameCode: (id, name) => apiClient.put(`/upc/codes/${id}`, { name }),
+  deleteCode: (id) => apiClient.delete(`/upc/codes/${id}`),
+};

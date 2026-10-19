@@ -269,3 +269,25 @@ model RetailerType {
 
   @@map("retailer_types")
 }
+
+// Brand / style / color codes that make up a 5-digit UPC item number
+// (BB brand + SS style + C color). Shared across all brands.
+model UpcCode {
+  id   Int    @id @default(autoincrement())
+  kind String @db.VarChar(10) // "brand" | "style" | "color"
+  code String @db.VarChar(2)
+  name String @db.VarChar(100)
+
+  @@unique([kind, code])
+  @@map("upc_codes")
+}
+
+// Which item numbers are marked "In use". Numbers without a row are available.
+// The linked product is the one whose SKU equals the item number.
+model UpcAssignment {
+  sku       String   @id @db.VarChar(5)
+  inUse     Boolean  @default(false) @map("in_use")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("upc_assignments")
+}

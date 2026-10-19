@@ -6,9 +6,10 @@ const PUBLIC_ROUTES = [
   { method: "GET", path: /^\/catalog\/[^/]+\/?$/ },
 ];
 
-// What a "designer" may do: view and edit product details only. No stock,
-// orders, reports, deletes, or anything outside products/catalog.
+// What a "designer" may do: view and edit product details, and use the UPC
+// page. No stock, orders, reports, deletes, or anything else.
 const DESIGNER_ROUTES = [
+  { method: "*", path: /^\/upc(\/|$)/ },
   { method: "GET", path: /^\/products\/?$/ },
   { method: "POST", path: /^\/products\/?$/ },
   { method: "PUT", path: /^\/products\/\d+\/?$/ },
@@ -16,7 +17,7 @@ const DESIGNER_ROUTES = [
 ];
 
 function matches(routes, req) {
-  return routes.some((r) => r.method === req.method && r.path.test(req.path));
+  return routes.some((r) => (r.method === "*" || r.method === req.method) && r.path.test(req.path));
 }
 
 // Role lives in the Clerk user's public metadata, e.g. { "role": "designer" }.

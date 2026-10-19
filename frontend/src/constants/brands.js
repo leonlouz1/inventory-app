@@ -6,4 +6,5 @@ export const PRODUCT_BRANDS = [
   "JetSet",
   "JetEase",
   "LuxeTails",
+  "Catherine Malandrino",
 ];

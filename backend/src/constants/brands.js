@@ -6,6 +6,7 @@ const PRODUCT_BRANDS = [
   "JetSet",
   "JetEase",
   "LuxeTails",
+  "Catherine Malandrino",
 ];
 
 module.exports = { PRODUCT_BRANDS };

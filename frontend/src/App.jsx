@@ -18,6 +18,7 @@ import CrmSentTracker from "./pages/crm/CrmSentTracker";
 import SkuGroups from "./pages/SkuGroups";
 import Catalog from "./pages/Catalog";
 import Billing from "./pages/Billing";
+import Upc from "./pages/Upc";
 import { useRole, DESIGNER_PATHS } from "./hooks/useRole";
 
 function DesignerRoutes() {
@@ -26,6 +27,7 @@ function DesignerRoutes() {
       <Route element={<AppLayout />}>
         <Route path="/products" element={<Products />} />
         <Route path="/catalog" element={<Catalog />} />
+        <Route path="/upc" element={<Upc />} />
         <Route path="*" element={<Navigate to={DESIGNER_PATHS[0]} replace />} />
       </Route>
     </Routes>
@@ -55,6 +57,7 @@ function AppRoutes() {
         <Route path="/sku-groups" element={<SkuGroups />} />
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/billing" element={<Billing />} />
+        <Route path="/upc" element={<Upc />} />
       </Route>
     </Routes>
   );

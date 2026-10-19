@@ -18,6 +18,7 @@ const reportsRouter = require("./routes/reports");
 const skuGroupsRouter = require("./routes/skuGroups");
 const catalogRouter = require("./routes/catalog");
 const billingRouter = require("./routes/billing");
+const upcRouter = require("./routes/upc");
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use("/api/reports", reportsRouter);
 app.use("/api/sku-groups", skuGroupsRouter);
 app.use("/api/catalog", catalogRouter);
 app.use("/api/billing", billingRouter);
+app.use("/api/upc", upcRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
@@ -106,6 +108,32 @@ async function runStartupMigrations() {
     await prisma.$executeRaw`ALTER TABLE "retailers" ADD COLUMN IF NOT EXISTS "billing_city" VARCHAR(100)`;
     await prisma.$executeRaw`ALTER TABLE "retailers" ADD COLUMN IF NOT EXISTS "billing_state" VARCHAR(100)`;
     await prisma.$executeRaw`ALTER TABLE "retailers" ADD COLUMN IF NOT EXISTS "billing_zip" VARCHAR(20)`;
+    await prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "upc_codes" (
+        "id" SERIAL NOT NULL,
+        "kind" VARCHAR(10) NOT NULL,
+        "code" VARCHAR(2) NOT NULL,
+        "name" VARCHAR(100) NOT NULL,
+        CONSTRAINT "upc_codes_pkey" PRIMARY KEY ("id")
+      )
+    `;
+    await prisma.$executeRaw`CREATE UNIQUE INDEX IF NOT EXISTS "upc_codes_kind_code_key" ON "upc_codes"("kind", "code")`;
+    await prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "upc_assignments" (
+        "sku" VARCHAR(5) NOT NULL,
+        "in_use" BOOLEAN NOT NULL DEFAULT false,
+        "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "upc_assignments_pkey" PRIMARY KEY ("sku")
+      )
+    `;
+    await prisma.$executeRaw`
+      INSERT INTO "upc_codes" ("kind", "code", "name") VALUES
+        ('brand', '24', 'JetSet'),
+        ('brand', '25', 'JetEase'),
+        ('brand', '26', 'Catherine Malandrino'),
+        ('brand', '27', 'Leluxe Travel')
+      ON CONFLICT DO NOTHING
+    `;
     console.log("Startup migrations complete");
   } catch (err) {
     console.error("Startup migration error:", err.message);

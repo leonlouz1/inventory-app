@@ -9,4 +9,4 @@ export function useRole() {
 }
 
 // Pages a designer can open; everything else redirects to the first one.
-export const DESIGNER_PATHS = ["/products", "/catalog"];
+export const DESIGNER_PATHS = ["/products", "/catalog", "/upc"];
