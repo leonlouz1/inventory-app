@@ -3,9 +3,10 @@ import {
   Table, Button, Tag, Spin, Alert, Typography, Space, Popconfirm, message,
   Modal, Form, DatePicker, Input, Select, Divider,
 } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined, MinusCircleOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, EditOutlined, MinusCircleOutlined, FileExcelOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { shipmentsApi, ordersApi, warehousesApi } from "../api/inventory";
+import { downloadShipmentPackingList } from "../utils/packingList";
 
 const STATUS_COLORS = { SCHEDULED: "blue", PICKED_UP: "green", DELIVERED: "purple" };
 const STATUS_OPTIONS = [
@@ -156,6 +157,16 @@ export default function Shipments() {
 
   useEffect(() => { load(); }, [load]);
 
+  function handlePackingList(shipment) {
+    const ids = new Set(shipment.orders.map((o) => o.id));
+    const orders = allOrders.filter((o) => ids.has(o.id));
+    if (orders.length === 0) {
+      message.warning("Add orders to this shipment first");
+      return;
+    }
+    downloadShipmentPackingList(shipment, orders);
+  }
+
   async function handleDelete(id, shipmentNumber) {
     try {
       await shipmentsApi.delete(id);
@@ -198,6 +209,12 @@ export default function Shipments() {
       key: "actions",
       render: (_, shipment) => (
         <Space>
+          <Button
+            icon={<FileExcelOutlined />}
+            type="text"
+            title="Download packing list for all orders"
+            onClick={() => handlePackingList(shipment)}
+          />
           <Button icon={<EditOutlined />} type="text" onClick={() => { setEditingShipment(shipment); setModalOpen(true); }} />
           <Popconfirm title={`Delete ${shipment.shipmentNumber}?`} onConfirm={() => handleDelete(shipment.id, shipment.shipmentNumber)}>
             <Button icon={<DeleteOutlined />} danger type="text" />
