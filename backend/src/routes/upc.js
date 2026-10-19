@@ -202,9 +202,23 @@ router.get(
     }
     const [assignment, product] = await Promise.all([
       prisma.upcAssignment.findUnique({ where: { sku } }),
-      prisma.product.findUnique({ where: { sku }, select: { id: true, sku: true, name: true } }),
+      prisma.product.findUnique({ where: { sku } }),
     ]);
-    res.json(otherRow(sku, assignment, product));
+    const row = otherRow(sku, assignment, product && { id: product.id, sku: product.sku, name: product.name });
+    // Already a product but not on the UPC list yet: prefill from the product
+    if (product && !assignment?.name) {
+      const attributes = product.attributes ?? {};
+      row.prefill = {
+        name: product.name,
+        brand: product.brand,
+        color: product.color || attributes.color || null,
+        category: product.category,
+        packSize: attributes.packSize ? Number(attributes.packSize) || null : null,
+        attributes,
+      };
+    }
+    if (product?.upc && product.upc !== row.upc) row.productUpc = product.upc;
+    res.json(row);
   })
 );
 
@@ -347,8 +361,13 @@ async function updateOtherNumber(sku, req, res) {
       update: { inUse, ...details },
       create: { sku, inUse, ...details },
     });
-    const existing = await tx.product.findUnique({ where: { sku }, select: { id: true, sku: true, name: true } });
-    if (!inUse || existing) return existing;
+    const existing = await tx.product.findUnique({ where: { sku }, select: { id: true, sku: true, name: true, upc: true } });
+    if (existing) {
+      // Linking an existing product: give it its UPC if it has none
+      if (inUse && !existing.upc) await tx.product.update({ where: { id: existing.id }, data: { upc: fullUpc(sku) } });
+      return { id: existing.id, sku: existing.sku, name: existing.name };
+    }
+    if (!inUse) return null;
     return createOtherProduct(tx, sku, merged);
   });
 

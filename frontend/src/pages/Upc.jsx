@@ -257,6 +257,8 @@ function OtherNumberModal({ row, onClose, onSaved }) {
       });
       if (values.inUse && !row.product && updated.product) {
         message.success(`Added "${updated.product.name}" to Products`);
+      } else if (row.linking && values.inUse) {
+        message.success(`Linked existing product "${updated.product.name}"`);
       }
       onSaved(updated);
       onClose();
@@ -277,6 +279,12 @@ function OtherNumberModal({ row, onClose, onSaved }) {
       confirmLoading={saving}
       destroyOnHidden
     >
+      {row?.linking && (
+        <Typography.Paragraph type="secondary">
+          {row.sku} is already a product (&quot;{row.product.name}&quot;). Its details are filled in below. Saving adds it
+          to the UPC list and links it; the product itself isn&apos;t changed{row.productUpc ? "" : ", except its UPC is filled in"}.
+        </Typography.Paragraph>
+      )}
       {row && (
         <Form
           form={form}
@@ -326,7 +334,7 @@ function OtherNumberModal({ row, onClose, onSaved }) {
           <CategoryFields category={category} exclude={["color", "packSize"]} />
           <Form.Item name="inUse" valuePropName="checked" style={{ marginBottom: 0 }}>
             <Checkbox>
-              In use {row.product ? "" : "(adds it to Products)"}
+              In use {row.product ? (row.linking ? "(links the existing product)" : "") : "(adds it to Products)"}
             </Checkbox>
           </Form.Item>
         </Form>
@@ -347,10 +355,11 @@ function CreateNumberModal({ open, onClose, onContinue }) {
     setChecking(true);
     try {
       const row = await upcApi.number(sku);
-      if (row.product) {
-        message.info(`${sku} is already a product: "${row.product.name}"`);
+      if (row.productUpc) {
+        message.warning(`${sku}'s product already has UPC ${row.productUpc}, which doesn't match ${row.upc}. It won't be changed.`);
       }
-      onContinue({ ...row, startInUse: true });
+      // Already a product: fill the form from it so saving just links it
+      onContinue(row.prefill ? { ...row, ...row.prefill, linking: true, startInUse: true } : { ...row, startInUse: true });
       setSku("");
     } catch (err) {
       message.error(err.message);
