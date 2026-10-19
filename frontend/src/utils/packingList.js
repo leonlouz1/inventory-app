@@ -2,18 +2,14 @@
 // print settings: each sheet prints landscape, fit to one page wide, with the
 // column header row repeated on every page.
 
-// Default case size used to convert unit quantities into cases on the
-// packing list. We don't track real case-pack data per SKU yet, so this is
-// a flat conversion factor applied to every line.
-export const UNITS_PER_CASE = 24;
-
 // header, width (characters), alignment; wrap = long text wraps instead of widening the page
 const COLUMNS = [
   { header: "SKU", width: 12 },
   { header: "Product", width: 34, wrap: true },
   { header: "Color", width: 12, wrap: true },
   { header: "Qty (Units)", width: 9, align: "right" },
-  { header: `Cases (${UNITS_PER_CASE}/case)`, width: 9, align: "right" },
+  { header: "Case Pack", width: 8, align: "right" },
+  { header: "Cases", width: 8, align: "right" },
   { header: "Container #", width: 14, wrap: true },
   { header: "Carton Marking", width: 18, wrap: true },
   { header: "PO #", width: 13, wrap: true },
@@ -28,7 +24,9 @@ function lineRow(line, poNumber) {
     line.productName,
     line.color || "",
     line.quantity,
-    Math.round((line.quantity / UNITS_PER_CASE) * 100) / 100,
+    line.casePack || "",
+    // Cases from each product's own case pack; blank when it isn't set
+    line.casePack ? Math.round((line.quantity / line.casePack) * 100) / 100 : "",
     line.containerNumber || "",
     line.cartonMarking || "",
     poNumber,

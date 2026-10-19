@@ -6,7 +6,7 @@ import {
 import { SettingOutlined, DeleteOutlined, PlusOutlined, EditOutlined, DisconnectOutlined, GroupOutlined } from "@ant-design/icons";
 import { upcApi } from "../api/inventory";
 import { PRODUCT_BRANDS } from "../constants/brands";
-import { PRODUCT_CATEGORIES } from "../constants/categories";
+import { PRODUCT_CATEGORIES, DEFAULT_CASE_PACK } from "../constants/categories";
 import CategoryFields from "../components/CategoryFields";
 import { useRequiredFieldKeys } from "../hooks/useProductFields";
 
@@ -19,6 +19,15 @@ const CODE_KINDS = [
 ];
 
 const COMPANY_PREFIX = "689528";
+
+// Picking a category with a standard case pack (Neck Pillows = 24) fills it in
+// when the field is still empty.
+function prefillCasePack(form) {
+  return (changed) => {
+    const preset = DEFAULT_CASE_PACK[changed.category];
+    if ("category" in changed && preset && !form.getFieldValue("casePack")) form.setFieldsValue({ casePack: preset });
+  };
+}
 const TRAVEL_RANGES = new Set(["24", "25", "26", "27", "28", "29"]);
 
 // Full 12-digit UPC-A for a 5-digit item number (same math as the backend)
@@ -289,9 +298,11 @@ function OtherNumberModal({ row, onClose, onSaved }) {
         <Form
           form={form}
           layout="vertical"
+          onValuesChange={prefillCasePack(form)}
           initialValues={{
             name: row.name, brand: row.brand, color: row.color, category: row.category,
-            packSize: row.packSize, inUse: row.inUse || row.startInUse, attributes: row.attributes,
+            packSize: row.packSize, casePack: row.casePack ?? DEFAULT_CASE_PACK[row.category],
+            inUse: row.inUse || row.startInUse, attributes: row.attributes,
           }}
         >
           <Form.Item
@@ -329,6 +340,14 @@ function OtherNumberModal({ row, onClose, onSaved }) {
               rules={requiredKeys.has("packSize") ? [{ required: true, message: "Pack size is required" }] : []}
             >
               <InputNumber min={1} precision={0} style={{ width: "100%" }} placeholder="e.g. 10" />
+            </Form.Item>
+            <Form.Item
+              name="casePack"
+              label="Case pack"
+              tooltip="Units per case"
+              style={{ flex: 1, marginLeft: 12 }}
+            >
+              <InputNumber min={1} precision={0} style={{ width: "100%" }} placeholder="e.g. 24" />
             </Form.Item>
           </Space.Compact>
           <CategoryFields category={category} exclude={["color", "packSize"]} />
@@ -484,7 +503,10 @@ function CreateGroupModal({ open, range, colorOptions, onClose, onCreated }) {
       const result = await upcApi.createGroup({
         groupName: values.groupName,
         startSku: values.startSku,
-        base: { name: values.name, brand: values.brand, category: values.category, attributes: values.attributes || {} },
+        base: {
+          name: values.name, brand: values.brand, category: values.category, casePack: values.casePack,
+          attributes: values.attributes || {},
+        },
         variants,
         inUse: values.inUse,
       });
@@ -512,7 +534,7 @@ function CreateGroupModal({ open, range, colorOptions, onClose, onCreated }) {
       width={680}
       destroyOnHidden
     >
-      <Form form={form} layout="vertical" initialValues={{ inUse: true, colors: [], packs: [] }}>
+      <Form form={form} layout="vertical" initialValues={{ inUse: true, colors: [], packs: [] }} onValuesChange={prefillCasePack(form)}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 12 }}>
           <Form.Item name="name" label="Product name" rules={[{ required: true, whitespace: true, message: "Required" }]}>
             <Input placeholder="e.g. Shoe Rack" />
@@ -536,6 +558,9 @@ function CreateGroupModal({ open, range, colorOptions, onClose, onCreated }) {
             normalize={(v) => (v || []).map((x) => Number(x)).filter((x) => Number.isInteger(x) && x > 0)}
           >
             <Select mode="tags" placeholder="e.g. 1, 2, 4" />
+          </Form.Item>
+          <Form.Item name="casePack" label="Case pack" tooltip="Units per case, the same for every number in the group">
+            <InputNumber min={1} precision={0} style={{ width: "100%" }} placeholder="e.g. 24" />
           </Form.Item>
         </div>
         <CategoryFields category={category} exclude={["color", "packSize"]} />

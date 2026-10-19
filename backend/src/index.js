@@ -165,6 +165,9 @@ async function runStartupMigrations() {
       )
     `;
     await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "group_id" INTEGER`;
+    await prisma.$executeRaw`ALTER TABLE "products" ALTER COLUMN "case_pack" DROP NOT NULL`;
+    await prisma.$executeRaw`ALTER TABLE "products" ALTER COLUMN "case_pack" DROP DEFAULT`;
+    await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "case_pack" INTEGER`;
     await seedProductFields(prisma);
     await seedStorageHangers(prisma);
     if (!hadUpcGroups) await groupExistingUpcNumbers(prisma);

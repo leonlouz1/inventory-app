@@ -59,7 +59,7 @@ router.patch(
         ...(wholesalePrice !== undefined && { wholesalePrice: wholesalePrice || null }),
         ...(retailPrice !== undefined && { retailPrice: retailPrice || null }),
         ...(imageUrl !== undefined && { imageUrl: imageUrl || null }),
-        ...(casePack !== undefined && { casePack: Number(casePack) }),
+        ...(casePack !== undefined && { casePack: casePack ? Number(casePack) : null }),
         ...(upc !== undefined && { upc: upc || null }),
         ...(color !== undefined && { color: color || null }),
         ...(productType !== undefined && { productType: productType || null }),

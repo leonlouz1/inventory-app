@@ -4,8 +4,16 @@ const asyncHandler = require("../middleware/asyncHandler");
 const { buildSkuTimeline } = require("../services/timeline");
 const { applyPendingRestocks } = require("../services/autoReceive");
 const { PENDING_STATUSES } = require("../constants/orderStatuses");
+const { defaultCasePack } = require("../constants/categories");
 
 const router = express.Router();
+
+function cleanCasePack(v) {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+}
 
 // Category fields live in attributes; Color is also kept in the product's own
 // color column so packing lists and UPC codes read the same value.
@@ -75,6 +83,7 @@ router.get(
         category: product.category,
         leadTimeDays: product.leadTimeDays,
         color: product.color,
+        casePack: product.casePack,
         attributes: product.attributes ?? {},
         stockByWarehouse,
         totalOnHand,
@@ -88,6 +97,7 @@ router.get(
     if (req.role === "designer") {
       return res.json(result.map((p) => ({
         id: p.id, sku: p.sku, name: p.name, brand: p.brand, category: p.category, leadTimeDays: p.leadTimeDays,
+        casePack: p.casePack,
         attributes: p.attributes,
       })));
     }
@@ -100,6 +110,7 @@ router.post(
   "/",
   asyncHandler(async (req, res) => {
     const { sku: rawSku, name, brand, category, leadTimeDays, attributes } = req.body;
+    const casePack = cleanCasePack(req.body.casePack);
     // Designers can create products but not set stock.
     const initialStock = req.role === "designer" ? [] : req.body.initialStock;
     const sku = rawSku ? rawSku.trim().toUpperCase() : rawSku;
@@ -119,6 +130,7 @@ router.post(
             brand: brand ?? null,
             category: category ?? null,
             leadTimeDays: leadTimeDays ?? 45,
+            casePack: casePack ?? defaultCasePack(category),
             ...attributeData(attributes),
           },
         });
@@ -150,6 +162,7 @@ router.put(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const { name, brand, category, leadTimeDays, attributes } = req.body;
+    const casePack = cleanCasePack(req.body.casePack);
 
     try {
       // Merge so attributes this form didn't show are kept
@@ -161,6 +174,7 @@ router.put(
           ...(brand !== undefined && { brand }),
           ...(category !== undefined && { category }),
           ...(leadTimeDays !== undefined && { leadTimeDays }),
+          ...(casePack !== undefined && { casePack }),
           ...(attributes && attributeData({ ...(current?.attributes ?? {}), ...attributes })),
         },
       });

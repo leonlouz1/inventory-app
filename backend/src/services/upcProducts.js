@@ -1,8 +1,9 @@
 const { fullUpc } = require("./upc");
+const { defaultCasePack } = require("../constants/categories");
 
 // Creates the product for a UPC item number (SKU = the 5 middle digits) with
 // zero stock in every warehouse. Returns { id, sku, name }.
-async function createUpcProduct(tx, { sku, name, brand, productType, color, category, attributes }) {
+async function createUpcProduct(tx, { sku, name, brand, productType, color, category, casePack, attributes }) {
   const created = await tx.product.create({
     data: {
       sku,
@@ -12,6 +13,7 @@ async function createUpcProduct(tx, { sku, name, brand, productType, color, cate
       color: color || null,
       category: category || null,
       upc: fullUpc(sku),
+      casePack: casePack || defaultCasePack(category),
       ...(attributes && { attributes }),
     },
     select: { id: true, sku: true, name: true },

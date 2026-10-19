@@ -2,11 +2,32 @@ import { useEffect } from "react";
 import { Modal, Form, Input, InputNumber, Select, Row, Col, Typography, message } from "antd";
 import { productsApi } from "../api/inventory";
 import CategoryFields from "./CategoryFields";
-import { PRODUCT_CATEGORIES } from "../constants/categories";
+import { PRODUCT_CATEGORIES, DEFAULT_CASE_PACK } from "../constants/categories";
 import { PRODUCT_BRANDS } from "../constants/brands";
 
 const CATEGORY_OPTIONS = PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c }));
 const BRAND_OPTIONS = PRODUCT_BRANDS.map((b) => ({ value: b, label: b }));
+
+// Picking a category with a standard case pack (Neck Pillows = 24) fills it in
+// when the field is still empty.
+function prefillCasePack(form) {
+  return (changed) => {
+    const preset = DEFAULT_CASE_PACK[changed.category];
+    if ("category" in changed && preset && !form.getFieldValue("casePack")) form.setFieldsValue({ casePack: preset });
+  };
+}
+
+const CASE_PACK_ITEM = (
+  <Form.Item
+    name="casePack"
+    label="Case Pack"
+    tooltip="Units per case, used to calculate cases on orders and packing lists"
+    rules={[{ required: true, message: "Required" }]}
+    style={{ maxWidth: 180 }}
+  >
+    <InputNumber min={1} precision={0} style={{ width: "100%" }} placeholder="e.g. 24" />
+  </Form.Item>
+);
 
 export function NewProductModal({ open, onClose, onCreated, warehouses }) {
   const [form] = Form.useForm();
@@ -25,6 +46,7 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
         brand: values.brand,
         category: values.category,
         leadTimeDays: values.leadTimeDays ?? 45,
+        casePack: values.casePack,
         attributes: values.attributes,
         initialStock,
       });
@@ -50,7 +72,7 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
       okText="Create"
       destroyOnHidden
     >
-      <Form form={form} layout="vertical" initialValues={{ leadTimeDays: 45 }}>
+      <Form form={form} layout="vertical" initialValues={{ leadTimeDays: 45 }} onValuesChange={prefillCasePack(form)}>
         <Row gutter={12}>
           <Col span={12}>
             <Form.Item name="sku" label="SKU" rules={[{ required: true, message: "Required" }]}>
@@ -75,9 +97,14 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
             </Form.Item>
           </Col>
         </Row>
-        <Form.Item name="leadTimeDays" label="Lead Time (days)" style={{ maxWidth: 180 }}>
-          <InputNumber min={0} style={{ width: "100%" }} />
-        </Form.Item>
+        <Row gutter={12}>
+          <Col span={12}>
+            <Form.Item name="leadTimeDays" label="Lead Time (days)">
+              <InputNumber min={0} style={{ width: "100%" }} />
+            </Form.Item>
+          </Col>
+          <Col span={12}>{CASE_PACK_ITEM}</Col>
+        </Row>
         <CategoryFields category={category} />
 
         {warehouses.length > 0 && <Typography.Title level={5}>Initial On-Hand</Typography.Title>}
@@ -111,6 +138,7 @@ export function EditProductModal({ open, onClose, onUpdated, product, warehouses
         brand: product.brand,
         category: product.category,
         leadTimeDays: product.leadTimeDays,
+        casePack: product.casePack ?? undefined,
         attributes: { ...product.attributes, color: product.attributes?.color ?? product.color ?? undefined },
         ...stockFields,
       });
@@ -142,7 +170,7 @@ export function EditProductModal({ open, onClose, onUpdated, product, warehouses
 
   return (
     <Modal title={`Edit Product — ${product?.sku ?? ""}`} open={open} onCancel={onClose} onOk={handleOk} okText="Save" destroyOnHidden>
-      <Form form={form} layout="vertical">
+      <Form form={form} layout="vertical" onValuesChange={prefillCasePack(form)}>
         <Form.Item name="name" label="Name" rules={[{ required: true, message: "Required" }]}>
           <Input />
         </Form.Item>
@@ -158,9 +186,14 @@ export function EditProductModal({ open, onClose, onUpdated, product, warehouses
             </Form.Item>
           </Col>
         </Row>
-        <Form.Item name="leadTimeDays" label="Lead Time (days)" style={{ maxWidth: 180 }}>
-          <InputNumber min={0} style={{ width: "100%" }} />
-        </Form.Item>
+        <Row gutter={12}>
+          <Col span={12}>
+            <Form.Item name="leadTimeDays" label="Lead Time (days)">
+              <InputNumber min={0} style={{ width: "100%" }} />
+            </Form.Item>
+          </Col>
+          <Col span={12}>{CASE_PACK_ITEM}</Col>
+        </Row>
         <CategoryFields category={category} />
 
         {warehouses.length > 0 && <Typography.Title level={5}>On-Hand Stock</Typography.Title>}

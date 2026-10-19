@@ -154,6 +154,7 @@ function otherDetails(a) {
     color: a?.color ?? null,
     category: a?.category ?? null,
     packSize: a?.packSize ?? null,
+    casePack: a?.casePack ?? null,
     attributes: a?.attributes ?? {},
     groupId: a?.groupId ?? null,
   };
@@ -214,6 +215,7 @@ router.get(
         color: product.color || attributes.color || null,
         category: product.category,
         packSize: attributes.packSize ? Number(attributes.packSize) || null : null,
+        casePack: product.casePack,
         attributes,
       };
     }
@@ -319,6 +321,7 @@ function createOtherProduct(tx, sku, details) {
     brand: details.brand,
     color: details.color,
     category: details.category,
+    casePack: details.casePack,
     attributes: {
       ...details.attributes,
       ...(details.color && { color: details.color }),
@@ -336,6 +339,13 @@ async function updateOtherNumber(sku, req, res) {
   const details = {};
   for (const key of ["name", "brand", "color", "category"]) {
     if (body[key] !== undefined) details[key] = text(body[key]);
+  }
+  if (body.casePack !== undefined) {
+    const n = body.casePack === null || body.casePack === "" ? null : Number(body.casePack);
+    if (n !== null && (!Number.isInteger(n) || n < 1)) {
+      return res.status(400).json({ message: "Case pack must be a whole number" });
+    }
+    details.casePack = n;
   }
   if (body.attributes !== undefined) {
     details.attributes = body.attributes && typeof body.attributes === "object" ? body.attributes : {};
@@ -418,6 +428,7 @@ async function addVariants(tx, groupId, base, variants, startSku, inUse) {
       name: base.name,
       brand: base.brand,
       category: base.category,
+      casePack: base.casePack ?? null,
       attributes: base.attributes || {},
       color: cleanText(variants[i].color),
       packSize: cleanPack(variants[i].packSize),
@@ -476,6 +487,8 @@ router.post(
       name: cleanText(req.body.base?.name),
       brand: cleanText(req.body.base?.brand),
       category: cleanText(req.body.base?.category),
+      casePack: Number.isInteger(Number(req.body.base?.casePack)) && Number(req.body.base?.casePack) > 0
+        ? Number(req.body.base.casePack) : null,
       attributes: req.body.base?.attributes || {},
     };
     const groupName = cleanText(req.body.groupName) || base.name;
@@ -516,7 +529,7 @@ router.post(
         return res.status(409).json({ message: "This group already has that color and pack size" });
       }
       const first = members[0];
-      const base = { name: first.name, brand: first.brand, category: first.category, attributes: first.attributes };
+      const base = { name: first.name, brand: first.brand, category: first.category, casePack: first.casePack, attributes: first.attributes };
       const last = members[members.length - 1].sku;
       const result = await prisma.$transaction((tx) =>
         addVariants(tx, groupId, base, [{ color, packSize }], String(Number(last) + 1).padStart(5, "0"), req.body.inUse !== false)

@@ -1,5 +1,6 @@
 const { Router } = require("express");
 const { PrismaClient } = require("@prisma/client");
+const { defaultCasePack } = require("../constants/categories");
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -63,7 +64,7 @@ router.post("/", async (req, res) => {
     const result = await prisma.product.upsert({
       where: { sku },
       update: data,
-      create: { sku, ...data },
+      create: { sku, ...data, casePack: Number(p.casePack) || defaultCasePack(data.category) },
     });
     productMap[sku] = result.id;
     if (before) { summary.products.updated++; } else { summary.products.created++; }

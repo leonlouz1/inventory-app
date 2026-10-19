@@ -43,7 +43,7 @@ model Product {
   wholesalePrice Decimal? @map("wholesale_price") @db.Decimal(10, 2)
   retailPrice   Decimal? @map("retail_price") @db.Decimal(10, 2)
   imageUrl      String?  @map("image_url") @db.VarChar(500)
-  casePack      Int      @default(24) @map("case_pack")
+  casePack      Int?     @map("case_pack") // units per case; blank = unknown
   upc           String?  @db.VarChar(50)
   color         String?  @db.VarChar(100)
   productType   String?  @map("product_type") @db.VarChar(100)
@@ -294,6 +294,7 @@ model UpcAssignment {
   color     String?  @db.VarChar(100)
   category  String?  @db.VarChar(50)
   packSize  Int?     @map("pack_size")
+  casePack  Int?     @map("case_pack")
   attributes Json    @default("{}")
   groupId   Int?     @map("group_id")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz

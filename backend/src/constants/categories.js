@@ -14,4 +14,12 @@ const PRODUCT_CATEGORIES = [
   "Storage & Organization",
 ];
 
-module.exports = { PRODUCT_CATEGORIES };
+// Case pack (units per case) filled in automatically for new products in
+// these categories when none is given.
+const DEFAULT_CASE_PACK = { "Neck Pillows": 24 };
+
+function defaultCasePack(category) {
+  return DEFAULT_CASE_PACK[category] ?? null;
+}
+
+module.exports = { PRODUCT_CATEGORIES, DEFAULT_CASE_PACK, defaultCasePack };

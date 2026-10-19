@@ -13,3 +13,6 @@ export const PRODUCT_CATEGORIES = [
   "Soap Pumps",
   "Storage & Organization",
 ];
+
+// Case pack (units per case) prefilled when one of these categories is picked
+export const DEFAULT_CASE_PACK = { "Neck Pillows": 24 };
