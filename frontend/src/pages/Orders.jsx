@@ -734,6 +734,19 @@ export default function Orders() {
                         .filter((s) => s.status !== "DELIVERED")
                         .map((s) => ({ value: s.id, label: `${s.shipmentNumber} · ${dayjs(s.pickupDate).format("MMM D")}` }))}
                       onChange={async (shipmentId) => {
+                        if (order.status === "ROUTED") {
+                          const current = shipments.find((s) => s.id === order.shipmentId)?.shipmentNumber;
+                          const ok = await new Promise((resolve) => Modal.confirm({
+                            title: "This order is already routed",
+                            content: current
+                              ? `${order.orderNumber} is on ${current}. Move it to this shipment?`
+                              : `${order.orderNumber} is already routed. Add it to this shipment anyway?`,
+                            okText: "Add anyway",
+                            onOk: () => resolve(true),
+                            onCancel: () => resolve(false),
+                          }));
+                          if (!ok) return;
+                        }
                         try {
                           await shipmentsApi.addOrder(shipmentId, order.id);
                           message.success(`Added to shipment`);

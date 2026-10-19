@@ -15,7 +15,35 @@ const STATUS_OPTIONS = [
   { value: "DELIVERED", label: "Delivered" },
 ];
 
-function ShipmentModal({ open, onClose, onSaved, shipment, allOrders, warehouses }) {
+// Orders being added that are already Routed (usually on another shipment).
+function alreadyRoutedOrders(orderIds, shipment, allOrders) {
+  const current = new Set((shipment?.orders || []).map((o) => o.id));
+  return allOrders.filter((o) => orderIds.includes(o.id) && !current.has(o.id) && o.status === "ROUTED");
+}
+
+function confirmRouted(orders, shipments) {
+  const shipmentName = (id) => shipments.find((s) => s.id === id)?.shipmentNumber;
+  return new Promise((resolve) => {
+    Modal.confirm({
+      title: orders.length === 1 ? "This order is already routed" : `${orders.length} orders are already routed`,
+      content: (
+        <ul style={{ paddingLeft: 18, margin: 0 }}>
+          {orders.map((o) => (
+            <li key={o.id}>
+              {o.orderNumber} — {o.customer}
+              {o.shipmentId && shipmentName(o.shipmentId) ? ` (on ${shipmentName(o.shipmentId)}, will move here)` : ""}
+            </li>
+          ))}
+        </ul>
+      ),
+      okText: "Add anyway",
+      onOk: () => resolve(true),
+      onCancel: () => resolve(false),
+    });
+  });
+}
+
+function ShipmentModal({ open, onClose, onSaved, shipment, allOrders, allShipments, warehouses }) {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
 
@@ -41,6 +69,8 @@ function ShipmentModal({ open, onClose, onSaved, shipment, allOrders, warehouses
   async function handleOk() {
     try {
       const values = await form.validateFields();
+      const routed = alreadyRoutedOrders(values.orderIds || [], shipment, allOrders);
+      if (routed.length > 0 && !(await confirmRouted(routed, allShipments))) return;
       setSaving(true);
       const payload = {
         pickupDate: values.pickupDate.toISOString(),
@@ -77,7 +107,7 @@ function ShipmentModal({ open, onClose, onSaved, shipment, allOrders, warehouses
     })
     .map((o) => ({
       value: o.id,
-      label: `${o.orderNumber} — ${o.customer}${o.customerPo ? ` (PO: ${o.customerPo})` : ""}`,
+      label: `${o.orderNumber} — ${o.customer}${o.customerPo ? ` (PO: ${o.customerPo})` : ""}${o.status === "ROUTED" ? " · Routed" : ""}`,
     }));
 
   return (
@@ -305,6 +335,7 @@ export default function Shipments() {
         onSaved={load}
         shipment={editingShipment}
         allOrders={allOrders}
+        allShipments={shipments}
         warehouses={warehouses}
       />
 

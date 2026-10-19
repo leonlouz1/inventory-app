@@ -44,6 +44,23 @@ async function autoAssignWarehouse(tx, orderId, warehouseId) {
   });
 }
 
+// A scheduled shipment means its orders are routed: move any Draft/Confirmed
+// order on it to Routed. Later statuses (Allocated, Shipped) are left alone.
+const ROUTABLE_STATUSES = ["DRAFT", "CONFIRMED"];
+
+async function routeScheduledOrders(tx, shipmentId) {
+  const shipment = await tx.shipment.findUnique({ where: { id: shipmentId } });
+  if (shipment?.status !== "SCHEDULED") return;
+  await tx.order.updateMany({
+    where: { shipmentId, status: { in: ROUTABLE_STATUSES } },
+    data: { status: "ROUTED" },
+  });
+}
+
+function loadShipment(tx, id) {
+  return tx.shipment.findUnique({ where: { id }, include: { orders: true, warehouse: true } });
+}
+
 // GET /api/shipments
 router.get("/", async (req, res) => {
   try {
@@ -83,7 +100,8 @@ router.post("/", async (req, res) => {
         }
       }
 
-      return created;
+      await routeScheduledOrders(tx, created.id);
+      return loadShipment(tx, created.id);
     });
 
     res.status(201).json(serialize(shipment));
@@ -114,7 +132,7 @@ router.put("/:id", async (req, res) => {
       warehouseId !== undefined ? warehouseId || null : existing.warehouseId;
 
     const shipment = await prisma.$transaction(async (tx) => {
-      const updated = await tx.shipment.update({
+      await tx.shipment.update({
         where: { id },
         data: {
           ...(pickupDate && { pickupDate: new Date(pickupDate) }),
@@ -144,7 +162,8 @@ router.put("/:id", async (req, res) => {
         });
       }
 
-      return updated;
+      await routeScheduledOrders(tx, id);
+      return loadShipment(tx, id);
     });
 
     res.json(serialize(shipment));
@@ -174,11 +193,12 @@ router.post("/:id/orders/:orderId", async (req, res) => {
     const shipment = await prisma.$transaction(async (tx) => {
       await tx.order.update({ where: { id: orderId }, data: { shipmentId: id } });
 
-      const s = await tx.shipment.findUnique({ where: { id }, include: { orders: true, warehouse: true } });
+      const s = await tx.shipment.findUnique({ where: { id } });
       if (s.warehouseId) {
         await autoAssignWarehouse(tx, orderId, s.warehouseId);
       }
-      return s;
+      await routeScheduledOrders(tx, id);
+      return loadShipment(tx, id);
     });
 
     res.json(serialize(shipment));
