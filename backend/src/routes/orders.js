@@ -297,6 +297,87 @@ router.get(
   })
 );
 
+// POST /api/orders/:id/split — { lines: [{ lineId, quantity }], shipDate? }
+// Moves those quantities into a new order (same customer, PO and dates; not on
+// any shipment) so part of an order can ship later. A full line moves as-is;
+// a partial one is split in two. shipDate, if given, applies to the moved lines.
+router.post(
+  "/:id/split",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const order = await prisma.order.findUnique({ where: { id }, include: { lines: true } });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+    if (["SHIPPED", "CANCELLED"].includes(order.status)) {
+      return res.status(400).json({ message: `A ${order.status.toLowerCase()} order can't be split` });
+    }
+
+    const lineById = new Map(order.lines.map((l) => [l.id, l]));
+    const moves = (req.body.lines || [])
+      .map((m) => ({ line: lineById.get(Number(m.lineId)), quantity: Number(m.quantity) }))
+      .filter((m) => m.quantity > 0);
+    if (moves.length === 0) return res.status(400).json({ message: "Enter a quantity to move for at least one line" });
+    for (const m of moves) {
+      if (!m.line) return res.status(400).json({ message: "A line doesn't belong to this order" });
+      if (!Number.isInteger(m.quantity) || m.quantity > m.line.quantity) {
+        return res.status(400).json({ message: `Can't move more than ${m.line.quantity} from a line` });
+      }
+    }
+    const movedUnits = moves.reduce((sum, m) => sum + m.quantity, 0);
+    const totalUnits = order.lines.reduce((sum, l) => sum + l.quantity, 0);
+    if (movedUnits === totalUnits) {
+      return res.status(400).json({ message: "Leave at least some quantity on the original order" });
+    }
+    const shipDate = req.body.shipDate ? new Date(req.body.shipDate) : null;
+
+    // New order number: original + -B, -C, ... (first one not taken)
+    let orderNumber;
+    for (let i = 1; !orderNumber; i++) {
+      const suffix = i <= 25 ? String.fromCharCode(65 + i) : String(i + 1);
+      const candidate = `${order.orderNumber}-${suffix}`;
+      // eslint-disable-next-line no-await-in-loop
+      if (!(await prisma.order.findUnique({ where: { orderNumber: candidate } }))) orderNumber = candidate;
+    }
+
+    const created = await prisma.$transaction(async (tx) => {
+      const newOrder = await tx.order.create({
+        data: {
+          orderNumber,
+          customer: order.customer,
+          customerPo: order.customerPo,
+          orderDate: order.orderDate,
+          notes: order.notes,
+          // Not on a shipment, so not routed (yet)
+          status: order.status === "DRAFT" ? "DRAFT" : "CONFIRMED",
+        },
+      });
+      for (const { line, quantity } of moves) {
+        if (quantity === line.quantity) {
+          await tx.orderLine.update({
+            where: { id: line.id },
+            data: { orderId: newOrder.id, ...(shipDate && { shipDate }) },
+          });
+        } else {
+          await tx.orderLine.update({ where: { id: line.id }, data: { quantity: line.quantity - quantity } });
+          await tx.orderLine.create({
+            data: {
+              orderId: newOrder.id,
+              productId: line.productId,
+              warehouseId: line.warehouseId,
+              quantity,
+              shipDate: shipDate || line.shipDate,
+              containerNumber: line.containerNumber,
+              cartonMarking: line.cartonMarking,
+            },
+          });
+        }
+      }
+      return newOrder;
+    });
+
+    res.status(201).json({ id: created.id, orderNumber: created.orderNumber });
+  })
+);
+
 // PUT /api/orders/:id/status — transition status. Crossing into/out of
 // Shipped moves real on-hand stock (see adjustStockForShippedTransition);
 // any other transition (e.g. Confirmed <-> Routed, or into/out of Draft or

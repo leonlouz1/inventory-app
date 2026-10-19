@@ -192,6 +192,85 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+function httpError(status, message) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
+}
+
+// POST /api/shipments/combine — { shipmentIds, keepId }: move every order onto
+// the kept shipment and delete the others. Scheduled shipments only.
+router.post("/combine", async (req, res) => {
+  try {
+    const shipmentIds = (req.body.shipmentIds || []).map(Number);
+    const keepId = Number(req.body.keepId);
+    if (shipmentIds.length < 2) throw httpError(400, "Pick at least two shipments to combine");
+    if (!shipmentIds.includes(keepId)) throw httpError(400, "The shipment to keep must be one of the selected shipments");
+
+    const shipments = await prisma.shipment.findMany({ where: { id: { in: shipmentIds } } });
+    if (shipments.length !== shipmentIds.length) throw httpError(404, "One or more shipments not found");
+    const notScheduled = shipments.filter((s) => s.status !== "SCHEDULED");
+    if (notScheduled.length > 0) {
+      throw httpError(400, `Only Scheduled shipments can be combined (${notScheduled.map((s) => s.shipmentNumber).join(", ")} isn't)`);
+    }
+
+    const keep = shipments.find((s) => s.id === keepId);
+    const otherIds = shipmentIds.filter((sid) => sid !== keepId);
+
+    const shipment = await prisma.$transaction(async (tx) => {
+      const moving = await tx.order.findMany({ where: { shipmentId: { in: otherIds } }, select: { id: true } });
+      await tx.order.updateMany({ where: { shipmentId: { in: otherIds } }, data: { shipmentId: keepId } });
+      for (const o of moving) await autoAssignWarehouse(tx, o.id, keep.warehouseId);
+      await tx.shipment.deleteMany({ where: { id: { in: otherIds } } });
+      await routeScheduledOrders(tx, keepId);
+      return loadShipment(tx, keepId);
+    });
+
+    res.json(serialize(shipment));
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message, error: err.message });
+  }
+});
+
+// POST /api/shipments/:id/split — { orderIds }: move those orders onto a new
+// shipment with the same pickup date, carrier and warehouse.
+router.post("/:id/split", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const orderIds = (req.body.orderIds || []).map(Number);
+
+    const source = await prisma.shipment.findUnique({ where: { id }, include: { orders: true } });
+    if (!source) throw httpError(404, "Shipment not found");
+    if (source.status !== "SCHEDULED") throw httpError(400, "Only Scheduled shipments can be split");
+    const onShipment = new Set(source.orders.map((o) => o.id));
+    if (orderIds.length === 0 || orderIds.some((oid) => !onShipment.has(oid))) {
+      throw httpError(400, "Pick orders that are on this shipment");
+    }
+    if (orderIds.length === source.orders.length) {
+      throw httpError(400, "Leave at least one order on the original shipment");
+    }
+
+    const shipmentNumber = await nextShipmentNumber();
+    const created = await prisma.$transaction(async (tx) => {
+      const s = await tx.shipment.create({
+        data: {
+          shipmentNumber,
+          pickupDate: source.pickupDate,
+          carrier: source.carrier,
+          warehouseId: source.warehouseId,
+          status: "SCHEDULED",
+          orders: { connect: orderIds.map((oid) => ({ id: oid })) },
+        },
+      });
+      return loadShipment(tx, s.id);
+    });
+
+    res.status(201).json(serialize(created));
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message, error: err.message });
+  }
+});
+
 // DELETE /api/shipments/:id
 router.delete("/:id", async (req, res) => {
   try {

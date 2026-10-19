@@ -28,6 +28,7 @@ export const ordersApi = {
   updateLineCartonMarking: (orderId, lineId, cartonMarking) => apiClient.patch(`/orders/${orderId}/lines/${lineId}/carton-marking`, { cartonMarking }),
   assignWarehouse: (id, warehouseId) => apiClient.patch(`/orders/${id}/warehouse`, { warehouseId }),
   nextNumber: () => apiClient.get("/orders/next-number"),
+  split: (id, lines, shipDate) => apiClient.post(`/orders/${id}/split`, { lines, shipDate }),
 };
 
 export const restocksApi = {
@@ -120,6 +121,8 @@ export const shipmentsApi = {
   delete: (id) => apiClient.delete(`/shipments/${id}`),
   addOrder: (shipmentId, orderId) => apiClient.post(`/shipments/${shipmentId}/orders/${orderId}`, {}),
   removeOrder: (shipmentId, orderId) => apiClient.delete(`/shipments/${shipmentId}/orders/${orderId}`),
+  combine: (shipmentIds, keepId) => apiClient.post("/shipments/combine", { shipmentIds, keepId }),
+  split: (id, orderIds) => apiClient.post(`/shipments/${id}/split`, { orderIds }),
 };
 
 export const upcApi = {

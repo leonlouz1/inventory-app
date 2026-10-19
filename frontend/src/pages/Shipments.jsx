@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   Table, Button, Tag, Spin, Alert, Typography, Space, Popconfirm, message,
-  Modal, Form, DatePicker, Input, Select, Divider,
+  Modal, Form, DatePicker, Input, Select, Divider, Radio, Checkbox,
 } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined, MinusCircleOutlined, FileExcelOutlined } from "@ant-design/icons";
+import {
+  PlusOutlined, DeleteOutlined, EditOutlined, MinusCircleOutlined, FileExcelOutlined, ScissorOutlined, MergeCellsOutlined,
+} from "@ant-design/icons";
 import dayjs from "dayjs";
 import { shipmentsApi, ordersApi, warehousesApi } from "../api/inventory";
 import { downloadShipmentPackingList, downloadShipmentPackingListPerOrder } from "../utils/packingList";
@@ -172,6 +174,11 @@ export default function Shipments() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingShipment, setEditingShipment] = useState(null);
   const [packingChoice, setPackingChoice] = useState(null); // { shipment, orders }
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [combineKeepId, setCombineKeepId] = useState(null); // set = combine dialog open
+  const [splitShipment, setSplitShipment] = useState(null);
+  const [splitOrderIds, setSplitOrderIds] = useState([]);
+  const [working, setWorking] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -187,6 +194,43 @@ export default function Shipments() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const selectedShipments = shipments.filter((s) => selectedIds.includes(s.id));
+
+  function openCombine() {
+    const earliest = [...selectedShipments].sort((a, b) => a.pickupDate.localeCompare(b.pickupDate))[0];
+    setCombineKeepId(earliest.id);
+  }
+
+  async function handleCombine() {
+    setWorking(true);
+    try {
+      const kept = await shipmentsApi.combine(selectedIds, combineKeepId);
+      message.success(`Combined into ${kept.shipmentNumber}`);
+      setCombineKeepId(null);
+      setSelectedIds([]);
+      load();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function handleSplit() {
+    setWorking(true);
+    try {
+      const created = await shipmentsApi.split(splitShipment.id, splitOrderIds);
+      message.success(`Moved ${splitOrderIds.length} order${splitOrderIds.length > 1 ? "s" : ""} to ${created.shipmentNumber}`);
+      setSplitShipment(null);
+      setSplitOrderIds([]);
+      load();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setWorking(false);
+    }
+  }
 
   function handlePackingList(shipment) {
     const ids = new Set(shipment.orders.map((o) => o.id));
@@ -257,6 +301,14 @@ export default function Shipments() {
             title="Download packing list for all orders"
             onClick={() => handlePackingList(shipment)}
           />
+          {shipment.status === "SCHEDULED" && shipment.orders.length > 1 && (
+            <Button
+              icon={<ScissorOutlined />}
+              type="text"
+              title="Split into two shipments"
+              onClick={() => { setSplitShipment(shipment); setSplitOrderIds([]); }}
+            />
+          )}
           <Button icon={<EditOutlined />} type="text" onClick={() => { setEditingShipment(shipment); setModalOpen(true); }} />
           <Popconfirm title={`Delete ${shipment.shipmentNumber}?`} onConfirm={() => handleDelete(shipment.id, shipment.shipmentNumber)}>
             <Button icon={<DeleteOutlined />} danger type="text" />
@@ -272,15 +324,27 @@ export default function Shipments() {
     <Spin spinning={loading}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
         <Typography.Title level={5} style={{ margin: 0 }}>Shipments</Typography.Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingShipment(null); setModalOpen(true); }}>
-          New Shipment
-        </Button>
+        <Space>
+          {selectedIds.length >= 2 && (
+            <Button icon={<MergeCellsOutlined />} onClick={openCombine}>
+              Combine {selectedIds.length} shipments
+            </Button>
+          )}
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingShipment(null); setModalOpen(true); }}>
+            New Shipment
+          </Button>
+        </Space>
       </div>
 
       <Table
         columns={columns}
         dataSource={shipments}
         rowKey="id"
+        rowSelection={{
+          selectedRowKeys: selectedIds,
+          onChange: setSelectedIds,
+          getCheckboxProps: (s) => ({ disabled: s.status !== "SCHEDULED", title: s.status !== "SCHEDULED" ? "Only Scheduled shipments can be combined" : undefined }),
+        }}
         pagination={{ defaultPageSize: 15, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
         expandable={{
           expandedRowRender: (shipment) => (
@@ -338,6 +402,57 @@ export default function Shipments() {
         allShipments={shipments}
         warehouses={warehouses}
       />
+
+      <Modal
+        title="Combine shipments"
+        open={combineKeepId != null}
+        onCancel={() => setCombineKeepId(null)}
+        onOk={handleCombine}
+        okText="Combine"
+        confirmLoading={working}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary">
+          All orders move onto the shipment you keep. The others are deleted.
+        </Typography.Paragraph>
+        <Typography.Text strong>Keep:</Typography.Text>
+        <Radio.Group
+          value={combineKeepId}
+          onChange={(e) => setCombineKeepId(e.target.value)}
+          style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}
+        >
+          {selectedShipments.map((s) => (
+            <Radio key={s.id} value={s.id}>
+              <strong>{s.shipmentNumber}</strong> · {dayjs(s.pickupDate).format("MMM D, h:mm A")}
+              {s.carrier ? ` · ${s.carrier}` : ""} · {s.orders.length} order{s.orders.length === 1 ? "" : "s"}
+            </Radio>
+          ))}
+        </Radio.Group>
+      </Modal>
+
+      <Modal
+        title={`Split ${splitShipment?.shipmentNumber ?? ""}`}
+        open={!!splitShipment}
+        onCancel={() => setSplitShipment(null)}
+        onOk={handleSplit}
+        okText="Move to new shipment"
+        okButtonProps={{ disabled: splitOrderIds.length === 0 || splitOrderIds.length === splitShipment?.orders.length }}
+        confirmLoading={working}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary">
+          Pick the orders to move onto a new shipment. It gets the same pickup date, carrier and warehouse, which you can then edit.
+        </Typography.Paragraph>
+        <Checkbox.Group
+          value={splitOrderIds}
+          onChange={setSplitOrderIds}
+          style={{ display: "flex", flexDirection: "column", gap: 8 }}
+          options={(splitShipment?.orders || []).map((o) => ({
+            value: o.id,
+            label: `${o.orderNumber} — ${o.customer}${o.customerPo ? ` (PO: ${o.customerPo})` : ""}`,
+          }))}
+        />
+      </Modal>
 
       <Modal
         title={`Packing list — ${packingChoice?.shipment.shipmentNumber ?? ""}`}

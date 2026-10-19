@@ -2,10 +2,11 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input, DatePicker } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined, TruckOutlined, MailOutlined, DownloadOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined, TruckOutlined, MailOutlined, DownloadOutlined, ScissorOutlined } from "@ant-design/icons";
 import { ordersApi, productsApi, warehousesApi, restocksApi, shipmentsApi, skuGroupsApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
 import EmailOrderModal from "../components/EmailOrderModal";
+import SplitOrderModal from "../components/SplitOrderModal";
 import EditOrderLineModal from "../components/EditOrderLineModal";
 import AddOrderLineModal from "../components/AddOrderLineModal";
 import BulkImportOrdersModal from "../components/BulkImportOrdersModal";
@@ -196,6 +197,7 @@ export default function Orders() {
   const [addingLineToOrder, setAddingLineToOrder] = useState(null); // order
   const [alertOrder, setAlertOrder] = useState(null);
   const [emailOrder, setEmailOrder] = useState(null);
+  const [splitOrder, setSplitOrder] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightId = searchParams.get("highlight") ? Number(searchParams.get("highlight")) : null;
   const [expandedRowKeys, setExpandedRowKeys] = useState(highlightId ? [highlightId] : []);
@@ -451,6 +453,14 @@ export default function Orders() {
             title="Send email"
             onClick={(e) => { e.stopPropagation(); setEmailOrder(order); }}
           />
+          {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+            <Button
+              icon={<ScissorOutlined />}
+              type="text"
+              title="Split into two orders"
+              onClick={(e) => { e.stopPropagation(); setSplitOrder(order); }}
+            />
+          )}
           <Popconfirm title="Delete this order?" onConfirm={() => handleDelete(order.id)}>
             <Button icon={<DeleteOutlined />} danger type="text" />
           </Popconfirm>
@@ -850,6 +860,8 @@ export default function Orders() {
         products={products}
         warehouses={warehouses}
       />
+
+      <SplitOrderModal key={splitOrder?.id ?? "none"} order={splitOrder} onClose={() => setSplitOrder(null)} onSplit={loadOrders} />
 
       <EmailOrderModal
         open={!!emailOrder}
