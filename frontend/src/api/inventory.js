@@ -135,3 +135,8 @@ export const upcApi = {
   renameCode: (id, name) => apiClient.put(`/upc/codes/${id}`, { name }),
   deleteCode: (id) => apiClient.delete(`/upc/codes/${id}`),
 };
+
+export const productFieldsApi = {
+  list: () => apiClient.get("/product-fields"),
+  addOption: (key, value) => apiClient.post(`/product-fields/${encodeURIComponent(key)}/options`, { value }),
+};

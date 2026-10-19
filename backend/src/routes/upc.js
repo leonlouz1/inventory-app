@@ -154,6 +154,7 @@ function otherDetails(a) {
     color: a?.color ?? null,
     category: a?.category ?? null,
     packSize: a?.packSize ?? null,
+    attributes: a?.attributes ?? {},
   };
 }
 
@@ -271,6 +272,9 @@ async function updateOtherNumber(sku, req, res) {
   for (const key of ["name", "brand", "color", "category"]) {
     if (body[key] !== undefined) details[key] = text(body[key]);
   }
+  if (body.attributes !== undefined) {
+    details.attributes = body.attributes && typeof body.attributes === "object" ? body.attributes : {};
+  }
   if (body.packSize !== undefined) {
     const n = body.packSize === null || body.packSize === "" ? null : Number(body.packSize);
     if (n !== null && (!Number.isInteger(n) || n < 1)) {
@@ -300,7 +304,11 @@ async function updateOtherNumber(sku, req, res) {
       brand: merged.brand,
       color: merged.color,
       category: merged.category,
-      attributes: merged.packSize ? { packSize: String(merged.packSize) } : undefined,
+      attributes: {
+        ...merged.attributes,
+        ...(merged.color && { color: merged.color }),
+        ...(merged.packSize && { packSize: String(merged.packSize) }),
+      },
     });
   });
 

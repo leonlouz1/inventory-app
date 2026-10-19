@@ -7,6 +7,16 @@ const { PENDING_STATUSES } = require("../constants/orderStatuses");
 
 const router = express.Router();
 
+// Category fields live in attributes; Color is also kept in the product's own
+// color column so packing lists and UPC codes read the same value.
+function attributeData(attributes) {
+  if (!attributes || typeof attributes !== "object") return {};
+  return {
+    attributes,
+    ...(attributes.color !== undefined && { color: attributes.color || null }),
+  };
+}
+
 // GET /api/products — list all products with on_hand per warehouse
 router.get(
   "/",
@@ -64,6 +74,8 @@ router.get(
         brand: product.brand,
         category: product.category,
         leadTimeDays: product.leadTimeDays,
+        color: product.color,
+        attributes: product.attributes ?? {},
         stockByWarehouse,
         totalOnHand,
         pendingQty,
@@ -76,6 +88,7 @@ router.get(
     if (req.role === "designer") {
       return res.json(result.map((p) => ({
         id: p.id, sku: p.sku, name: p.name, brand: p.brand, category: p.category, leadTimeDays: p.leadTimeDays,
+        attributes: p.attributes,
       })));
     }
     res.json(result);
@@ -86,7 +99,7 @@ router.get(
 router.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { sku: rawSku, name, brand, category, leadTimeDays } = req.body;
+    const { sku: rawSku, name, brand, category, leadTimeDays, attributes } = req.body;
     // Designers can create products but not set stock.
     const initialStock = req.role === "designer" ? [] : req.body.initialStock;
     const sku = rawSku ? rawSku.trim().toUpperCase() : rawSku;
@@ -106,6 +119,7 @@ router.post(
             brand: brand ?? null,
             category: category ?? null,
             leadTimeDays: leadTimeDays ?? 45,
+            ...attributeData(attributes),
           },
         });
 
@@ -135,9 +149,11 @@ router.put(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    const { name, brand, category, leadTimeDays } = req.body;
+    const { name, brand, category, leadTimeDays, attributes } = req.body;
 
     try {
+      // Merge so attributes this form didn't show are kept
+      const current = attributes ? await prisma.product.findUnique({ where: { id }, select: { attributes: true } }) : null;
       const product = await prisma.product.update({
         where: { id },
         data: {
@@ -145,6 +161,7 @@ router.put(
           ...(brand !== undefined && { brand }),
           ...(category !== undefined && { category }),
           ...(leadTimeDays !== undefined && { leadTimeDays }),
+          ...(attributes && attributeData({ ...(current?.attributes ?? {}), ...attributes })),
         },
       });
       res.json(product);

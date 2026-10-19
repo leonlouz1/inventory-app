@@ -1,59 +1,16 @@
 import { useEffect, useState } from "react";
-import { Table, Typography, Button, Input, InputNumber, Spin, message, Form, Modal, Image, Select, Divider } from "antd";
+import { Table, Typography, Button, Input, InputNumber, Spin, message, Form, Modal, Image, Select } from "antd";
 import { DownloadOutlined, EditOutlined } from "@ant-design/icons";
 import { catalogApi } from "../api/catalog";
 import { downloadAvailableToSellReport } from "../utils/availableToSellReport";
-import { CATEGORY_ATTRIBUTES } from "../config/productAttributes";
+import CategoryFields from "../components/CategoryFields";
 import { useRole } from "../hooks/useRole";
 
 const PUBLIC_CATALOG_URL = import.meta.env.VITE_PUBLIC_CATALOG_URL || "";
 
-function AttributeFields({ category, attrs, onChange }) {
-  const schema = CATEGORY_ATTRIBUTES[category];
-  if (!schema) return null;
-
-  function handleChange(key, value) {
-    onChange({ ...attrs, [key]: value });
-  }
-
-  return (
-    <>
-      <Divider orientation="left" style={{ fontSize: 13, color: "#888", marginTop: 8 }}>
-        {category} Details
-      </Divider>
-      {schema.map((field) => {
-        if (field.dependsOn) {
-          const depVal = attrs[field.dependsOn.field];
-          if (!field.dependsOn.values.includes(depVal)) return null;
-        }
-        return (
-          <Form.Item key={field.key} label={field.label}>
-            {field.type === "select" ? (
-              <Select
-                value={attrs[field.key] || undefined}
-                onChange={(v) => handleChange(field.key, v)}
-                allowClear
-                placeholder={`Select ${field.label}`}
-                options={field.options.map((o) => ({ value: o, label: o }))}
-                style={{ width: "100%" }}
-              />
-            ) : (
-              <Input
-                value={attrs[field.key] || ""}
-                onChange={(e) => handleChange(field.key, e.target.value)}
-              />
-            )}
-          </Form.Item>
-        );
-      })}
-    </>
-  );
-}
-
 function EditCatalogModal({ product, onClose, onSaved }) {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
-  const [attrs, setAttrs] = useState({});
 
   useEffect(() => {
     if (product) {
@@ -64,16 +21,22 @@ function EditCatalogModal({ product, onClose, onSaved }) {
         imageUrl: product.imageUrl || "",
         casePack: product.casePack,
         upc: product.upc || "",
+        attributes: { ...product.attributes, color: product.attributes?.color ?? product.color ?? undefined },
       });
-      setAttrs(product.attributes || {});
     }
   }, [product, form]);
 
   async function handleSave() {
-    const values = form.getFieldsValue();
+    let values;
+    try {
+      values = await form.validateFields();
+    } catch {
+      return; // required category fields are shown inline
+    }
     setSaving(true);
     try {
-      const updated = await catalogApi.update(product.id, { ...values, attributes: attrs });
+      const attributes = { ...product.attributes, ...values.attributes };
+      const updated = await catalogApi.update(product.id, { ...values, attributes });
       onSaved(updated);
       onClose();
       message.success("Catalog updated");
@@ -122,11 +85,7 @@ function EditCatalogModal({ product, onClose, onSaved }) {
             <Input />
           </Form.Item>
         </div>
-        <AttributeFields
-          category={product?.category}
-          attrs={attrs}
-          onChange={setAttrs}
-        />
+        <CategoryFields category={product?.category} />
       </Form>
     </Modal>
   );

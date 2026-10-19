@@ -1,0 +1,259 @@
+[
+ {
+  "key": "color",
+  "label": "Color",
+  "options": null,
+  "categories": {
+   "Neck Pillows": "required",
+   "Luggage Sets": "optional",
+   "Duffle Bags": "optional",
+   "Travel Accessories": "optional",
+   "Slippers": "required",
+   "Bath Mats": "optional",
+   "Bed Sheets": "required",
+   "Comforter Sets": "required",
+   "Pet Accessories": "optional",
+   "Training Pads": "optional",
+   "Towels": "optional",
+   "Soap Pumps": "optional",
+   "Storage & Organization": "optional"
+  }
+ },
+ {
+  "key": "packSize",
+  "label": "Pack Size",
+  "options": null,
+  "categories": {
+   "Luggage Sets": "optional",
+   "Duffle Bags": "optional",
+   "Travel Accessories": "optional",
+   "Bath Mats": "optional",
+   "Bed Sheets": "optional",
+   "Comforter Sets": "optional",
+   "Pet Accessories": "optional",
+   "Training Pads": "required",
+   "Towels": "required",
+   "Soap Pumps": "optional",
+   "Storage & Organization": "required"
+  }
+ },
+ {
+  "key": "size",
+  "label": "Size / Dimensions",
+  "options": null,
+  "categories": {
+   "Neck Pillows": "optional",
+   "Luggage Sets": "optional",
+   "Duffle Bags": "optional",
+   "Travel Accessories": "optional",
+   "Slippers": "optional",
+   "Bath Mats": "optional",
+   "Bed Sheets": "optional",
+   "Comforter Sets": "optional",
+   "Pet Accessories": "optional",
+   "Training Pads": "optional",
+   "Towels": "optional",
+   "Soap Pumps": "optional",
+   "Storage & Organization": "optional"
+  }
+ },
+ {
+  "key": "material",
+  "label": "Material",
+  "options": null,
+  "categories": {
+   "Neck Pillows": "optional",
+   "Luggage Sets": "optional",
+   "Duffle Bags": "optional",
+   "Travel Accessories": "optional",
+   "Slippers": "optional",
+   "Bath Mats": "optional",
+   "Bed Sheets": "optional",
+   "Comforter Sets": "optional",
+   "Pet Accessories": "optional",
+   "Training Pads": "optional",
+   "Towels": "optional",
+   "Soap Pumps": "optional",
+   "Storage & Organization": "optional"
+  }
+ },
+ {
+  "key": "fabric",
+  "label": "Fabric",
+  "options": null,
+  "categories": {
+   "Neck Pillows": "optional",
+   "Luggage Sets": "optional",
+   "Duffle Bags": "optional",
+   "Travel Accessories": "optional",
+   "Slippers": "optional",
+   "Bath Mats": "optional",
+   "Bed Sheets": "optional",
+   "Comforter Sets": "optional",
+   "Pet Accessories": "optional",
+   "Training Pads": "optional",
+   "Towels": "optional",
+   "Soap Pumps": "optional",
+   "Storage & Organization": "optional"
+  }
+ },
+ {
+  "key": "print",
+  "label": "Pattern / Print",
+  "options": null,
+  "categories": {
+   "Neck Pillows": "optional",
+   "Luggage Sets": "optional",
+   "Duffle Bags": "optional",
+   "Travel Accessories": "optional",
+   "Slippers": "optional",
+   "Bath Mats": "optional",
+   "Bed Sheets": "optional",
+   "Comforter Sets": "optional",
+   "Pet Accessories": "optional",
+   "Training Pads": "optional",
+   "Towels": "optional",
+   "Soap Pumps": "optional",
+   "Storage & Organization": "optional"
+  }
+ },
+ {
+  "key": "pillowType",
+  "label": "Pillow Type",
+  "options": [
+   "U-Shaped",
+   "Neck Roll",
+   "Rectangular",
+   "Wrap-Around",
+   "High Neck"
+  ],
+  "categories": {
+   "Neck Pillows": "required"
+  }
+ },
+ {
+  "key": "filling",
+  "label": "Filling",
+  "options": null,
+  "categories": {
+   "Neck Pillows": "optional"
+  }
+ },
+ {
+  "key": "embossment",
+  "label": "Embossment",
+  "options": null,
+  "categories": {
+   "Neck Pillows": "optional"
+  }
+ },
+ {
+  "key": "pieceCount",
+  "label": "Piece Count",
+  "options": null,
+  "categories": {
+   "Luggage Sets": "optional",
+   "Duffle Bags": "optional",
+   "Travel Accessories": "optional",
+   "Bath Mats": "optional",
+   "Bed Sheets": "optional",
+   "Comforter Sets": "optional",
+   "Pet Accessories": "optional",
+   "Towels": "optional",
+   "Soap Pumps": "optional",
+   "Storage & Organization": "optional"
+  }
+ },
+ {
+  "key": "wheels",
+  "label": "Wheels",
+  "options": null,
+  "categories": {
+   "Luggage Sets": "optional",
+   "Duffle Bags": "optional"
+  }
+ },
+ {
+  "key": "threadCount",
+  "label": "Thread Count",
+  "options": null,
+  "categories": {
+   "Bed Sheets": "optional",
+   "Comforter Sets": "optional"
+  }
+ },
+ {
+  "key": "bedSize",
+  "label": "Bed Size",
+  "options": [
+   "Twin",
+   "Full",
+   "Queen",
+   "King",
+   "Cal King",
+   "Split King",
+   "F/Q"
+  ],
+  "categories": {
+   "Bed Sheets": "required",
+   "Comforter Sets": "required"
+  }
+ },
+ {
+  "key": "shoeSize",
+  "label": "Shoe Size",
+  "options": null,
+  "categories": {
+   "Slippers": "required"
+  }
+ },
+ {
+  "key": "padSize",
+  "label": "Pad Size",
+  "options": null,
+  "categories": {
+   "Training Pads": "required"
+  }
+ },
+ {
+  "key": "scent",
+  "label": "Scent",
+  "options": [
+   "Unscented",
+   "Lavender",
+   "Jasmine",
+   "Clean Cotton"
+  ],
+  "categories": {
+   "Training Pads": "required"
+  }
+ },
+ {
+  "key": "bagColor",
+  "label": "Bag Color",
+  "options": null,
+  "categories": {
+   "Training Pads": "required"
+  }
+ },
+ {
+  "key": "weight",
+  "label": "Weight",
+  "options": null,
+  "categories": {
+   "Neck Pillows": "optional",
+   "Luggage Sets": "optional",
+   "Duffle Bags": "optional",
+   "Travel Accessories": "optional",
+   "Slippers": "optional",
+   "Bath Mats": "optional",
+   "Bed Sheets": "optional",
+   "Comforter Sets": "optional",
+   "Pet Accessories": "optional",
+   "Training Pads": "optional",
+   "Towels": "optional",
+   "Soap Pumps": "optional",
+   "Storage & Organization": "optional"
+  }
+ }
+]

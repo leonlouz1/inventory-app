@@ -65,6 +65,8 @@ router.patch(
         ...(productType !== undefined && { productType: productType || null }),
         ...(embossment !== undefined && { embossment: embossment || null }),
         ...(attributes !== undefined && { attributes }),
+        // Keep the color column in sync with the Color field
+        ...(attributes?.color !== undefined && { color: attributes.color || null }),
       },
     });
     res.json(serializeCatalog(product));

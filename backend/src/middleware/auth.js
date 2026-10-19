@@ -10,6 +10,8 @@ const PUBLIC_ROUTES = [
 // page. No stock, orders, reports, deletes, or anything else.
 const DESIGNER_ROUTES = [
   { method: "*", path: /^\/upc(\/|$)/ },
+  { method: "GET", path: /^\/product-fields\/?$/ },
+  { method: "POST", path: /^\/product-fields\/[^/]+\/options\/?$/ },
   { method: "GET", path: /^\/products\/?$/ },
   { method: "POST", path: /^\/products\/?$/ },
   { method: "PUT", path: /^\/products\/\d+\/?$/ },

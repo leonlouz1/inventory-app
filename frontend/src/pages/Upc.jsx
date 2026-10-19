@@ -7,6 +7,8 @@ import { SettingOutlined, DeleteOutlined, PlusOutlined, EditOutlined } from "@an
 import { upcApi } from "../api/inventory";
 import { PRODUCT_BRANDS } from "../constants/brands";
 import { PRODUCT_CATEGORIES } from "../constants/categories";
+import CategoryFields from "../components/CategoryFields";
+import { useRequiredFieldKeys } from "../hooks/useProductFields";
 
 const BRAND_RANGES = [24, 25, 26, 27, 28, 29];
 const CODE_KINDS = [
@@ -225,13 +227,19 @@ function AllBrandsGrid({ codesVersion }) {
 // anything, so each one gets a typed-in name, brand, color, category and pack size.
 function OtherNumberModal({ row, onClose, onSaved }) {
   const [form] = Form.useForm();
+  const category = Form.useWatch("category", form);
+  const requiredKeys = useRequiredFieldKeys(category);
   const [saving, setSaving] = useState(false);
 
   async function handleOk() {
     const values = await form.validateFields();
     setSaving(true);
     try {
-      const updated = await upcApi.saveNumber(row.sku, { ...values, inUse: Boolean(values.inUse) });
+      const updated = await upcApi.saveNumber(row.sku, {
+        ...values,
+        attributes: { ...row.attributes, ...values.attributes },
+        inUse: Boolean(values.inUse),
+      });
       if (values.inUse && !row.product && updated.product) {
         message.success(`Added "${updated.product.name}" to Products`);
       }
@@ -260,7 +268,7 @@ function OtherNumberModal({ row, onClose, onSaved }) {
           layout="vertical"
           initialValues={{
             name: row.name, brand: row.brand, color: row.color, category: row.category,
-            packSize: row.packSize, inUse: row.inUse,
+            packSize: row.packSize, inUse: row.inUse, attributes: row.attributes,
           }}
         >
           <Form.Item
@@ -278,7 +286,12 @@ function OtherNumberModal({ row, onClose, onSaved }) {
             <Form.Item name="brand" label="Brand" style={{ flex: 1 }}>
               <Select allowClear placeholder="None" options={PRODUCT_BRANDS.map((b) => ({ value: b, label: b }))} />
             </Form.Item>
-            <Form.Item name="color" label="Color" style={{ flex: 1, marginLeft: 12 }}>
+            <Form.Item
+              name="color"
+              label="Color"
+              style={{ flex: 1, marginLeft: 12 }}
+              rules={requiredKeys.has("color") ? [{ required: true, whitespace: true, message: "Color is required" }] : []}
+            >
               <Input placeholder="e.g. Black" />
             </Form.Item>
           </Space.Compact>
@@ -286,10 +299,16 @@ function OtherNumberModal({ row, onClose, onSaved }) {
             <Form.Item name="category" label="Category" style={{ flex: 2 }}>
               <Select allowClear placeholder="None" options={PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c }))} />
             </Form.Item>
-            <Form.Item name="packSize" label="Pack size" style={{ flex: 1, marginLeft: 12 }}>
+            <Form.Item
+              name="packSize"
+              label="Pack size"
+              style={{ flex: 1, marginLeft: 12 }}
+              rules={requiredKeys.has("packSize") ? [{ required: true, message: "Pack size is required" }] : []}
+            >
               <InputNumber min={1} precision={0} style={{ width: "100%" }} placeholder="e.g. 10" />
             </Form.Item>
           </Space.Compact>
+          <CategoryFields category={category} exclude={["color", "packSize"]} />
           <Form.Item name="inUse" valuePropName="checked" style={{ marginBottom: 0 }}>
             <Checkbox>
               In use {row.product ? "" : "(adds it to Products)"}

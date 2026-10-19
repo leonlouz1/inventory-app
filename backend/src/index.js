@@ -4,6 +4,7 @@ const cors = require("cors");
 const prisma = require("./prismaClient");
 const { authenticate } = require("./middleware/auth");
 const { seedStorageHangers } = require("./services/upcSeed");
+const { seedProductFields } = require("./routes/productFields");
 
 const productsRouter = require("./routes/products");
 const ordersRouter = require("./routes/orders");
@@ -20,6 +21,7 @@ const skuGroupsRouter = require("./routes/skuGroups");
 const catalogRouter = require("./routes/catalog");
 const billingRouter = require("./routes/billing");
 const upcRouter = require("./routes/upc");
+const { router: productFieldsRouter } = require("./routes/productFields");
 
 const app = express();
 
@@ -50,6 +52,7 @@ app.use("/api/sku-groups", skuGroupsRouter);
 app.use("/api/catalog", catalogRouter);
 app.use("/api/billing", billingRouter);
 app.use("/api/upc", upcRouter);
+app.use("/api/product-fields", productFieldsRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
@@ -140,6 +143,18 @@ async function runStartupMigrations() {
     await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "color" VARCHAR(100)`;
     await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "category" VARCHAR(50)`;
     await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "pack_size" INTEGER`;
+    await prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "product_fields" (
+        "key" VARCHAR(50) NOT NULL,
+        "label" VARCHAR(100) NOT NULL,
+        "options" JSONB,
+        "categories" JSONB NOT NULL DEFAULT '{}',
+        "sort_order" INTEGER NOT NULL DEFAULT 0,
+        CONSTRAINT "product_fields_pkey" PRIMARY KEY ("key")
+      )
+    `;
+    await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "attributes" JSONB NOT NULL DEFAULT '{}'`;
+    await seedProductFields(prisma);
     await seedStorageHangers(prisma);
     console.log("Startup migrations complete");
   } catch (err) {

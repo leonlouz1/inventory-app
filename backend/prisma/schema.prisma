@@ -294,7 +294,21 @@ model UpcAssignment {
   color     String?  @db.VarChar(100)
   category  String?  @db.VarChar(50)
   packSize  Int?     @map("pack_size")
+  attributes Json    @default("{}")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("upc_assignments")
+}
+
+// Category-specific product fields (stored in Product.attributes by key).
+// categories: { "<category>": "required" | "optional" }; options: dropdown
+// choices (null = typed in), which users can add to while filling in.
+model ProductField {
+  key        String @id @db.VarChar(50)
+  label      String @db.VarChar(100)
+  options    Json?
+  categories Json   @default("{}")
+  sortOrder  Int    @default(0) @map("sort_order")
+
+  @@map("product_fields")
 }

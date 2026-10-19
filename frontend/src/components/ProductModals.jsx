@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Modal, Form, Input, InputNumber, Select, Row, Col, Typography, message } from "antd";
 import { productsApi } from "../api/inventory";
+import CategoryFields from "./CategoryFields";
 import { PRODUCT_CATEGORIES } from "../constants/categories";
 import { PRODUCT_BRANDS } from "../constants/brands";
 
@@ -9,6 +10,7 @@ const BRAND_OPTIONS = PRODUCT_BRANDS.map((b) => ({ value: b, label: b }));
 
 export function NewProductModal({ open, onClose, onCreated, warehouses }) {
   const [form] = Form.useForm();
+  const category = Form.useWatch("category", form);
 
   async function handleOk() {
     try {
@@ -23,6 +25,7 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
         brand: values.brand,
         category: values.category,
         leadTimeDays: values.leadTimeDays ?? 45,
+        attributes: values.attributes,
         initialStock,
       });
       message.success(`Product ${values.sku} created`);
@@ -75,6 +78,7 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
         <Form.Item name="leadTimeDays" label="Lead Time (days)" style={{ maxWidth: 180 }}>
           <InputNumber min={0} style={{ width: "100%" }} />
         </Form.Item>
+        <CategoryFields category={category} />
 
         {warehouses.length > 0 && <Typography.Title level={5}>Initial On-Hand</Typography.Title>}
         <Row gutter={12}>
@@ -93,6 +97,7 @@ export function NewProductModal({ open, onClose, onCreated, warehouses }) {
 
 export function EditProductModal({ open, onClose, onUpdated, product, warehouses }) {
   const [form] = Form.useForm();
+  const category = Form.useWatch("category", form);
 
   useEffect(() => {
     if (product) {
@@ -100,11 +105,13 @@ export function EditProductModal({ open, onClose, onUpdated, product, warehouses
       for (const w of warehouses) {
         stockFields[`stock_${w.id}`] = product.stockByWarehouse?.[w.id] ?? 0;
       }
+      form.resetFields(); // drop the previous product's category fields
       form.setFieldsValue({
         name: product.name,
         brand: product.brand,
         category: product.category,
         leadTimeDays: product.leadTimeDays,
+        attributes: { ...product.attributes, color: product.attributes?.color ?? product.color ?? undefined },
         ...stockFields,
       });
     }
@@ -154,6 +161,7 @@ export function EditProductModal({ open, onClose, onUpdated, product, warehouses
         <Form.Item name="leadTimeDays" label="Lead Time (days)" style={{ maxWidth: 180 }}>
           <InputNumber min={0} style={{ width: "100%" }} />
         </Form.Item>
+        <CategoryFields category={category} />
 
         {warehouses.length > 0 && <Typography.Title level={5}>On-Hand Stock</Typography.Title>}
         <Row gutter={12}>
