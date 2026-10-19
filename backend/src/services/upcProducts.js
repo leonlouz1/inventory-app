@@ -1,4 +1,4 @@
-const { fullUpc } = require("./upc");
+const { fullUpc, isTravelRange } = require("./upc");
 const { defaultCasePack } = require("../constants/categories");
 
 // Creates the product for a UPC item number (SKU = the 5 middle digits) with
@@ -25,4 +25,14 @@ async function createUpcProduct(tx, { sku, name, brand, productType, color, cate
   return created;
 }
 
-module.exports = { createUpcProduct };
+// The UPC a product must have when its SKU is a number from the UPC system
+// (Travel 24-29, or any number on the UPC page); null for other SKUs, whose
+// UPC stays free to edit.
+async function systemUpcFor(db, sku) {
+  if (!/^\d{5}$/.test(sku || "")) return null;
+  if (isTravelRange(sku.slice(0, 2))) return fullUpc(sku);
+  const assignment = await db.upcAssignment.findUnique({ where: { sku } });
+  return assignment ? fullUpc(sku) : null;
+}
+
+module.exports = { createUpcProduct, systemUpcFor };

@@ -1,95 +1,12 @@
 import { useEffect, useState } from "react";
-import { Table, Typography, Button, Input, InputNumber, Spin, message, Form, Modal, Image, Select } from "antd";
+import { Table, Typography, Button, Input, Spin, message, Form, Modal, Image, Select } from "antd";
 import { DownloadOutlined, EditOutlined } from "@ant-design/icons";
 import { catalogApi } from "../api/catalog";
 import { downloadAvailableToSellReport } from "../utils/availableToSellReport";
-import CategoryFields from "../components/CategoryFields";
+import ProductWindow from "../components/ProductWindow";
 import { useRole } from "../hooks/useRole";
 
 const PUBLIC_CATALOG_URL = import.meta.env.VITE_PUBLIC_CATALOG_URL || "";
-
-function EditCatalogModal({ product, onClose, onSaved }) {
-  const [form] = Form.useForm();
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (product) {
-      form.setFieldsValue({
-        description: product.description || "",
-        wholesalePrice: product.wholesalePrice,
-        retailPrice: product.retailPrice,
-        imageUrl: product.imageUrl || "",
-        casePack: product.casePack,
-        upc: product.upc || "",
-        attributes: { ...product.attributes, color: product.attributes?.color ?? product.color ?? undefined },
-      });
-    }
-  }, [product, form]);
-
-  async function handleSave() {
-    let values;
-    try {
-      values = await form.validateFields();
-    } catch {
-      return; // required category fields are shown inline
-    }
-    setSaving(true);
-    try {
-      const attributes = { ...product.attributes, ...values.attributes };
-      const updated = await catalogApi.update(product.id, { ...values, attributes });
-      onSaved(updated);
-      onClose();
-      message.success("Catalog updated");
-    } catch (err) {
-      message.error(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal
-      title={`Edit Catalog — ${product?.sku}`}
-      open={!!product}
-      onCancel={onClose}
-      onOk={handleSave}
-      confirmLoading={saving}
-      okText="Save"
-      width={560}
-    >
-      <Form form={form} layout="vertical">
-        <Form.Item label="Image URL" name="imageUrl">
-          <Input placeholder="https://..." />
-        </Form.Item>
-        {form.getFieldValue("imageUrl") && (
-          <div style={{ marginBottom: 12 }}>
-            <Image src={form.getFieldValue("imageUrl")} height={120} style={{ objectFit: "contain" }} />
-          </div>
-        )}
-        <Form.Item label="Description" name="description">
-          <Input.TextArea rows={3} />
-        </Form.Item>
-        <div style={{ display: "flex", gap: 16 }}>
-          <Form.Item label="Wholesale Price" name="wholesalePrice" style={{ flex: 1 }}>
-            <InputNumber prefix="$" style={{ width: "100%" }} precision={2} min={0} />
-          </Form.Item>
-          <Form.Item label="Retail Price" name="retailPrice" style={{ flex: 1 }}>
-            <InputNumber prefix="$" style={{ width: "100%" }} precision={2} min={0} />
-          </Form.Item>
-        </div>
-        <div style={{ display: "flex", gap: 16 }}>
-          <Form.Item label="Case Pack" name="casePack" style={{ flex: 1 }}>
-            <InputNumber style={{ width: "100%" }} min={1} />
-          </Form.Item>
-          <Form.Item label="UPC" name="upc" style={{ flex: 1 }}>
-            <Input />
-          </Form.Item>
-        </div>
-        <CategoryFields category={product?.category} />
-      </Form>
-    </Modal>
-  );
-}
 
 export default function Catalog() {
   const [products, setProducts] = useState([]);
@@ -244,11 +161,15 @@ export default function Catalog() {
         </Form>
       </Modal>
 
-      <EditCatalogModal
-        product={editing}
-        onClose={() => setEditing(null)}
-        onSaved={(updated) => setProducts((prev) => prev.map((p) => p.id === updated.id ? { ...p, ...updated } : p))}
-      />
+      {editing && (
+        <ProductWindow
+          key={editing.id}
+          productId={editing.id}
+          initialTab="catalog"
+          onClose={() => setEditing(null)}
+          onSaved={() => catalogApi.list().then(setProducts)}
+        />
+      )}
     </Spin>
   );
 }

@@ -13,6 +13,7 @@ const DESIGNER_ROUTES = [
   { method: "GET", path: /^\/product-fields\/?$/ },
   { method: "POST", path: /^\/product-fields\/[^/]+\/options\/?$/ },
   { method: "GET", path: /^\/products\/?$/ },
+  { method: "GET", path: /^\/products\/\d+\/full\/?$/ },
   { method: "POST", path: /^\/products\/?$/ },
   { method: "PUT", path: /^\/products\/\d+\/?$/ },
   { method: "PATCH", path: /^\/catalog\/\d+\/?$/ },

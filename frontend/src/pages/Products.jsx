@@ -7,7 +7,8 @@ import { productsApi, warehousesApi } from "../api/inventory";
 import { authHeaders } from "../api/client";
 import { useRole } from "../hooks/useRole";
 import { downloadInventoryReport } from "../utils/inventoryReport";
-import { NewProductModal, EditProductModal } from "../components/ProductModals";
+import { NewProductModal } from "../components/ProductModals";
+import ProductWindow from "../components/ProductWindow";
 import BulkImportProductsModal from "../components/BulkImportProductsModal";
 import WarehouseTransferModal from "../components/WarehouseTransferModal";
 import { PRODUCT_CATEGORIES } from "../constants/categories";
@@ -194,6 +195,14 @@ export default function Products() {
 
   const columns = useMemo(
     () => [
+      {
+        title: "",
+        dataIndex: "imageUrl",
+        width: 52,
+        render: (url) => (url
+          ? <img src={url} alt="" style={{ width: 36, height: 36, objectFit: "contain", borderRadius: 4 }} />
+          : <div style={{ width: 36, height: 36, background: "#f5f5f5", borderRadius: 4 }} />),
+      },
       {
         title: "SKU",
         dataIndex: "sku",
@@ -400,15 +409,14 @@ export default function Products() {
         warehouses={warehouses}
       />
 
-      <EditProductModal
-        products={products}
-        showShadows={!isDesigner}
-        open={!!editingProduct}
-        onClose={() => setEditingProduct(null)}
-        onUpdated={loadProducts}
-        product={editingProduct}
-        warehouses={warehouses}
-      />
+      {editingProduct && (
+        <ProductWindow
+          key={editingProduct.id}
+          productId={editingProduct.id}
+          onClose={() => setEditingProduct(null)}
+          onSaved={loadProducts}
+        />
+      )}
 
       <BulkImportProductsModal
         open={importOpen}

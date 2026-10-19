@@ -5,6 +5,7 @@ const { buildSkuTimeline } = require("../services/timeline");
 const { applyPendingRestocks } = require("../services/autoReceive");
 const { PENDING_STATUSES } = require("../constants/orderStatuses");
 const { defaultCasePack } = require("../constants/categories");
+const { systemUpcFor } = require("../services/upcProducts");
 
 const router = express.Router();
 
@@ -84,6 +85,7 @@ router.get(
         leadTimeDays: product.leadTimeDays,
         color: product.color,
         casePack: product.casePack,
+        imageUrl: product.imageUrl,
         attributes: product.attributes ?? {},
         stockByWarehouse,
         totalOnHand,
@@ -113,6 +115,7 @@ router.get(
       return res.json(result.map((p) => ({
         id: p.id, sku: p.sku, name: p.name, brand: p.brand, category: p.category, leadTimeDays: p.leadTimeDays,
         casePack: p.casePack,
+        imageUrl: p.imageUrl,
         attributes: p.attributes,
         shadowParentId: p.shadowParentId,
         shadowParentSku: p.shadowParentSku,
@@ -174,17 +177,59 @@ router.post(
   })
 );
 
-// PUT /api/products/:id — update product (name, reorder_point, reorder_qty, lead_time_days)
+// GET /api/products/:id/full — everything about one product, for the product
+// window shared by Products, Catalog and UPC Codes (no stock for designers)
+router.get(
+  "/:id/full",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: {
+        stock: true,
+        shadowParent: { select: { id: true, sku: true } },
+        shadows: { select: { id: true, sku: true } },
+      },
+    });
+    if (!product) return res.status(404).json({ message: "Product not found" });
+    const [assignment, systemUpc] = await Promise.all([
+      prisma.upcAssignment.findUnique({ where: { sku: product.sku } }),
+      systemUpcFor(prisma, product.sku),
+    ]);
+    const group = assignment?.groupId ? await prisma.upcGroup.findUnique({ where: { id: assignment.groupId } }) : null;
+    const { stock, ...rest } = product;
+    res.json({
+      ...rest,
+      wholesalePrice: product.wholesalePrice != null ? Number(product.wholesalePrice) : null,
+      retailPrice: product.retailPrice != null ? Number(product.retailPrice) : null,
+      upcLocked: Boolean(systemUpc),
+      upc: systemUpc || product.upc,
+      upcStatus: assignment ? { inUse: assignment.inUse, groupName: group?.name ?? null } : null,
+      ...(req.role !== "designer" && {
+        stockByWarehouse: Object.fromEntries(stock.map((s) => [s.warehouseId, s.onHand])),
+      }),
+    });
+  })
+);
+
+// PUT /api/products/:id — update any of the product's details, including the
+// catalog ones (description, prices, image, UPC). A UPC-system SKU always keeps
+// its system UPC.
 router.put(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    const { name, brand, category, leadTimeDays, attributes } = req.body;
+    const { name, brand, category, leadTimeDays, attributes, description, imageUrl } = req.body;
     const casePack = cleanCasePack(req.body.casePack);
+    const money = (v) => (v === undefined ? undefined : v === null || v === "" ? null : Number(v));
+    const wholesalePrice = money(req.body.wholesalePrice);
+    const retailPrice = money(req.body.retailPrice);
 
     try {
-      // Merge so attributes this form didn't show are kept
-      const current = attributes ? await prisma.product.findUnique({ where: { id }, select: { attributes: true } }) : null;
+      const current = await prisma.product.findUnique({ where: { id }, select: { sku: true, attributes: true } });
+      if (!current) return res.status(404).json({ message: "Product not found" });
+      const systemUpc = await systemUpcFor(prisma, current.sku);
+      const upc = systemUpc ?? (req.body.upc !== undefined ? req.body.upc || null : undefined);
       const product = await prisma.product.update({
         where: { id },
         data: {
@@ -193,7 +238,13 @@ router.put(
           ...(category !== undefined && { category }),
           ...(leadTimeDays !== undefined && { leadTimeDays }),
           ...(casePack !== undefined && { casePack }),
-          ...(attributes && attributeData({ ...(current?.attributes ?? {}), ...attributes })),
+          ...(description !== undefined && { description: description || null }),
+          ...(imageUrl !== undefined && { imageUrl: imageUrl || null }),
+          ...(wholesalePrice !== undefined && { wholesalePrice }),
+          ...(retailPrice !== undefined && { retailPrice }),
+          ...(upc !== undefined && { upc }),
+          // Merge so attributes this form didn't show are kept
+          ...(attributes && attributeData({ ...(current.attributes ?? {}), ...attributes })),
         },
       });
       res.json(product);

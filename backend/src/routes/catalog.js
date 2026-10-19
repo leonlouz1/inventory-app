@@ -2,6 +2,7 @@ const express = require("express");
 const prisma = require("../prismaClient");
 const asyncHandler = require("../middleware/asyncHandler");
 const { PENDING_STATUSES } = require("../constants/orderStatuses");
+const { systemUpcFor } = require("../services/upcProducts");
 
 const router = express.Router();
 
@@ -50,7 +51,12 @@ router.patch(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    const { description, wholesalePrice, retailPrice, imageUrl, casePack, upc, color, productType, embossment, attributes } = req.body;
+    const { description, wholesalePrice, retailPrice, imageUrl, casePack, color, productType, embossment, attributes } = req.body;
+    // A UPC-system SKU always keeps its system UPC
+    const current = await prisma.product.findUnique({ where: { id }, select: { sku: true } });
+    if (!current) return res.status(404).json({ message: "Product not found" });
+    const systemUpc = await systemUpcFor(prisma, current.sku);
+    const upc = systemUpc ?? req.body.upc;
 
     const product = await prisma.product.update({
       where: { id },

@@ -8,6 +8,7 @@ export const productsApi = {
   updateStock: (id, stock) => apiClient.put(`/products/${id}/stock`, { stock }),
   bulkUpdateStock: (rows) => apiClient.post("/products/bulk-stock", rows),
   projection: (id) => apiClient.get(`/products/${id}/projection`),
+  full: (id) => apiClient.get(`/products/${id}/full`),
   setShadowParent: (id, parentId) => apiClient.put(`/products/${id}/shadow-parent`, { parentId }),
   setShadows: (id, shadowIds) => apiClient.put(`/products/${id}/shadows`, { shadowIds }),
 };

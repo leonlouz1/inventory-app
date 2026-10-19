@@ -123,7 +123,7 @@ router.get(
     const skus = combos.flatMap(({ style, color }) => brands.map((b) => b.code + style.code + color.code));
     const [assignments, products] = await Promise.all([
       prisma.upcAssignment.findMany({ where: { sku: { in: skus } } }),
-      prisma.product.findMany({ where: { sku: { in: skus } }, select: { id: true, sku: true, name: true } }),
+      prisma.product.findMany({ where: { sku: { in: skus } }, select: PRODUCT_LIVE }),
     ]);
     const inUseBySku = new Map(assignments.map((a) => [a.sku, a.inUse]));
     const productBySku = new Map(products.map((p) => [p.sku, p]));
@@ -139,7 +139,7 @@ router.get(
         brands: Object.fromEntries(
           brands.map((b) => {
             const sku = b.code + style.code + color.code;
-            return [b.code, { sku, inUse: inUseBySku.get(sku) ?? false, product: productBySku.get(sku) ?? null }];
+            return [b.code, { sku, inUse: inUseBySku.get(sku) ?? false, product: productSummary(productBySku.get(sku)) }];
           })
         ),
       })),
@@ -165,13 +165,38 @@ async function isKnownRange(prefix) {
   return Boolean(await prisma.upcCode.findUnique({ where: { kind_code: { kind: "range", code: prefix } } }));
 }
 
+// Product fields the UPC page shows live once a number is a product
+const PRODUCT_LIVE = {
+  id: true, sku: true, name: true, brand: true, color: true, category: true,
+  casePack: true, attributes: true, imageUrl: true,
+};
+
+function productSummary(product) {
+  return product ? { id: product.id, sku: product.sku, name: product.name, imageUrl: product.imageUrl ?? null } : null;
+}
+
+// Once a number is a product, the product is the source of truth: its current
+// name, brand, color, category, pack and case pack are shown, not the copy made
+// when the number was first filled in.
 function otherRow(sku, assignment, product) {
+  const details = otherDetails(assignment);
+  const live = product
+    ? {
+        name: product.name,
+        brand: product.brand,
+        color: product.color || product.attributes?.color || null,
+        category: product.category,
+        packSize: Number(product.attributes?.packSize) || details.packSize,
+        casePack: product.casePack,
+      }
+    : {};
   return {
     sku,
     upc: fullUpc(sku),
-    ...otherDetails(assignment),
+    ...details,
+    ...live,
     inUse: assignment?.inUse ?? false,
-    product: product ?? null,
+    product: productSummary(product),
   };
 }
 
@@ -185,7 +210,7 @@ router.get(
       .filter((a) => !isTravelRange(a.sku.slice(0, 2)) && !ranges.has(a.sku.slice(0, 2)));
     const products = await prisma.product.findMany({
       where: { sku: { in: assignments.map((a) => a.sku) } },
-      select: { id: true, sku: true, name: true },
+      select: PRODUCT_LIVE,
     });
     const productBySku = new Map(products.map((p) => [p.sku, p]));
     res.json(assignments.map((a) => otherRow(a.sku, a, productBySku.get(a.sku))));
@@ -239,7 +264,7 @@ router.get(
     if (!isTravelRange(prefix)) {
       const [assignments, products] = await Promise.all([
         prisma.upcAssignment.findMany({ where: { sku: { in: skus } } }),
-        prisma.product.findMany({ where: { sku: { in: skus } }, select: { id: true, sku: true, name: true } }),
+        prisma.product.findMany({ where: { sku: { in: skus } }, select: PRODUCT_LIVE }),
       ]);
       const assignmentBySku = new Map(assignments.map((a) => [a.sku, a]));
       const productBySku = new Map(products.map((p) => [p.sku, p]));
@@ -249,7 +274,7 @@ router.get(
     const [names, assignments, products] = await Promise.all([
       loadCodeNames(),
       prisma.upcAssignment.findMany({ where: { sku: { in: skus } } }),
-      prisma.product.findMany({ where: { sku: { in: skus } }, select: { id: true, sku: true, name: true } }),
+      prisma.product.findMany({ where: { sku: { in: skus } }, select: PRODUCT_LIVE }),
     ]);
     const inUseBySku = new Map(assignments.map((a) => [a.sku, a.inUse]));
     const productBySku = new Map(products.map((p) => [p.sku, p]));
@@ -260,7 +285,7 @@ router.get(
         upc: fullUpc(sku),
         ...describe(sku, names),
         inUse: inUseBySku.get(sku) ?? false,
-        product: productBySku.get(sku) ?? null,
+        product: productSummary(productBySku.get(sku)),
       }))
     );
   })

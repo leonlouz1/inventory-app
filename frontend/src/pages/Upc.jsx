@@ -11,6 +11,7 @@ import { PRODUCT_BRANDS } from "../constants/brands";
 import { PRODUCT_CATEGORIES, DEFAULT_CASE_PACK } from "../constants/categories";
 import CategoryFields from "../components/CategoryFields";
 import BarcodeModal from "../components/BarcodeModal";
+import ProductWindow from "../components/ProductWindow";
 import { useRequiredFieldKeys } from "../hooks/useProductFields";
 
 const BRAND_RANGES = [24, 25, 26, 27, 28, 29];
@@ -43,6 +44,12 @@ function upcFor(sku) {
     else even += Number(first11[i]);
   }
   return first11 + ((10 - ((odd * 3 + even) % 10)) % 10);
+}
+
+function Thumb({ url }) {
+  return url
+    ? <img src={url} alt="" style={{ width: 28, height: 28, objectFit: "contain", borderRadius: 4, marginRight: 8, verticalAlign: "middle" }} />
+    : null;
 }
 
 // 689528241111 -> 6-89528-24111-1
@@ -748,6 +755,7 @@ function OtherRangeView({ ranges }) {
   const [selectedSkus, setSelectedSkus] = useState([]);
   const [groupingSkus, setGroupingSkus] = useState([]);
   const [barcode, setBarcode] = useState(null);
+  const [openProduct, setOpenProduct] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [expandedKeys, setExpandedKeys] = useState([]);
 
@@ -863,7 +871,11 @@ function OtherRangeView({ ranges }) {
     {
       title: "Name",
       dataIndex: "name",
-      render: (v, r) => (r.isAvailable ? null : r.isGroup ? <strong>{r.groupName}</strong> : v || dash),
+      render: (v, r) => {
+        if (r.isAvailable) return null;
+        if (r.isGroup) return <><Thumb url={r.children.find((c) => c.product?.imageUrl)?.product.imageUrl} /><strong>{r.groupName}</strong></>;
+        return v ? <><Thumb url={r.product?.imageUrl} />{v}</> : dash;
+      },
     },
     {
       title: "Brand",
@@ -941,7 +953,12 @@ function OtherRangeView({ ranges }) {
                 onClick={() => setBarcode({ upc: r.upc, sku: r.sku, label: r.product?.name || r.name })}
               />
             </Tooltip>
-            <Button type="text" icon={<EditOutlined />} onClick={() => setEditing(r)} />
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              title={r.product ? "Open product" : "Edit details"}
+              onClick={() => (r.product ? setOpenProduct(r.product) : setEditing(r))}
+            />
             {r.groupId && (
               <Tooltip title="Take out of group">
                 <Button
@@ -1030,6 +1047,9 @@ function OtherRangeView({ ranges }) {
       />
       <OtherNumberModal row={editing} onClose={() => setEditing(null)} onSaved={replaceRow} />
       {barcode && <BarcodeModal {...barcode} onClose={() => setBarcode(null)} />}
+      {openProduct && (
+        <ProductWindow key={openProduct.id} productId={openProduct.id} onClose={() => setOpenProduct(null)} onSaved={reload} />
+      )}
       <CreateNumberModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -1056,6 +1076,7 @@ function OtherRangeView({ ranges }) {
 export default function Upc() {
   const [section, setSection] = useState("travel");
   const [barcode, setBarcode] = useState(null);
+  const [openProduct, setOpenProduct] = useState(null);
   const [brand, setBrand] = useState("all");
   const [codesVersion, setCodesVersion] = useState(0);
   const [rows, setRows] = useState([]);
@@ -1143,7 +1164,13 @@ export default function Upc() {
         </span>
       ),
     },
-    { title: "Product", key: "product", render: (_, r) => r.product?.name || <span style={{ color: "#bbb" }}>—</span> },
+    {
+      title: "Product",
+      key: "product",
+      render: (_, r) => (r.product
+        ? <Button type="link" style={{ padding: 0 }} onClick={() => setOpenProduct(r.product)}><Thumb url={r.product.imageUrl} />{r.product.name}</Button>
+        : <span style={{ color: "#bbb" }}>—</span>),
+    },
     {
       title: "In use",
       dataIndex: "inUse",
@@ -1249,6 +1276,9 @@ export default function Upc() {
       </>}
 
       {barcode && <BarcodeModal {...barcode} onClose={() => setBarcode(null)} />}
+      {openProduct && (
+        <ProductWindow key={openProduct.id} productId={openProduct.id} onClose={() => setOpenProduct(null)} onSaved={loadRows} />
+      )}
 
       <Modal title="Manage Codes" open={codesOpen} onCancel={() => setCodesOpen(false)} footer={null} width={560} destroyOnHidden>
         <Typography.Paragraph type="secondary">
