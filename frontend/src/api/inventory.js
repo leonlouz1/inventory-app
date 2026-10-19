@@ -128,6 +128,8 @@ export const shipmentsApi = {
 export const upcApi = {
   list: (range) => apiClient.get(`/upc?range=${range}`),
   saveNumber: (sku, data) => apiClient.patch(`/upc/${sku}`, data),
+  number: (sku) => apiClient.get(`/upc/number/${sku}`),
+  custom: () => apiClient.get("/upc/custom"),
   grid: () => apiClient.get("/upc/grid"),
   setInUse: (sku, inUse) => apiClient.patch(`/upc/${sku}`, { inUse }),
   codes: () => apiClient.get("/upc/codes"),

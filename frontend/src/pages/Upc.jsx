@@ -18,6 +18,21 @@ const CODE_KINDS = [
   { kind: "range", label: "Other categories", length: 2, example: "30" },
 ];
 
+const COMPANY_PREFIX = "689528";
+const TRAVEL_RANGES = new Set(["24", "25", "26", "27", "28", "29"]);
+
+// Full 12-digit UPC-A for a 5-digit item number (same math as the backend)
+function upcFor(sku) {
+  const first11 = COMPANY_PREFIX + sku;
+  let odd = 0;
+  let even = 0;
+  for (let i = 0; i < 11; i++) {
+    if (i % 2 === 0) odd += Number(first11[i]);
+    else even += Number(first11[i]);
+  }
+  return first11 + ((10 - ((odd * 3 + even) % 10)) % 10);
+}
+
 // 689528241111 -> 6-89528-24111-1
 function formatUpc(upc) {
   return `${upc[0]}-${upc.slice(1, 6)}-${upc.slice(6, 11)}-${upc[11]}`;
@@ -268,7 +283,7 @@ function OtherNumberModal({ row, onClose, onSaved }) {
           layout="vertical"
           initialValues={{
             name: row.name, brand: row.brand, color: row.color, category: row.category,
-            packSize: row.packSize, inUse: row.inUse, attributes: row.attributes,
+            packSize: row.packSize, inUse: row.inUse || row.startInUse, attributes: row.attributes,
           }}
         >
           <Form.Item
@@ -320,28 +335,97 @@ function OtherNumberModal({ row, onClose, onSaved }) {
   );
 }
 
+// Step 1 of creating a number by hand: type the 5 digits, see the UPC, then
+// continue to the details form.
+function CreateNumberModal({ open, onClose, onContinue }) {
+  const [sku, setSku] = useState("");
+  const [checking, setChecking] = useState(false);
+  const valid = /^\d{5}$/.test(sku);
+  const travel = valid && TRAVEL_RANGES.has(sku.slice(0, 2));
+
+  async function handleContinue() {
+    setChecking(true);
+    try {
+      const row = await upcApi.number(sku);
+      if (row.product) {
+        message.info(`${sku} is already a product: "${row.product.name}"`);
+      }
+      onContinue({ ...row, startInUse: true });
+      setSku("");
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Create a UPC"
+      open={open}
+      onCancel={() => { setSku(""); onClose(); }}
+      onOk={handleContinue}
+      okText="Continue"
+      okButtonProps={{ disabled: !valid || travel }}
+      confirmLoading={checking}
+      destroyOnHidden
+      width={420}
+    >
+      <Typography.Paragraph type="secondary">
+        Enter the 5-digit item number (it becomes the SKU). The check digit is calculated for you.
+      </Typography.Paragraph>
+      <Input
+        autoFocus
+        size="large"
+        maxLength={5}
+        placeholder="e.g. 22048"
+        value={sku}
+        onChange={(e) => setSku(e.target.value.replace(/\D/g, ""))}
+        onPressEnter={() => { if (valid && !travel) handleContinue(); }}
+        style={{ fontFamily: "monospace" }}
+      />
+      <div style={{ marginTop: 16, minHeight: 48 }}>
+        {valid && !travel && (
+          <>
+            <div style={{ color: "#8c8c8c", fontSize: 12 }}>UPC</div>
+            <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 600 }}>{formatUpc(upcFor(sku))}</div>
+          </>
+        )}
+        {travel && (
+          <Typography.Text type="warning">24xxx–29xxx are Travel numbers. Create those on the Travel tab.</Typography.Text>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function OtherRangeView({ ranges }) {
-  const [range, setRange] = useState(ranges[0]?.code ?? null);
+  const [range, setRange] = useState(ranges[0]?.code ?? "custom");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [editing, setEditing] = useState(null);
   const [savingSku, setSavingSku] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const activeRange = ranges.some((r) => r.code === range) ? range : ranges[0]?.code ?? null;
+  const activeRange = range === "custom" || ranges.some((r) => r.code === range) ? range : ranges[0]?.code ?? "custom";
 
   useEffect(() => {
-    if (!activeRange) return;
     setLoading(true);
-    upcApi.list(activeRange)
+    (activeRange === "custom" ? upcApi.custom() : upcApi.list(activeRange))
       .then(setRows)
       .catch((err) => message.error(err.message))
       .finally(() => setLoading(false));
-  }, [activeRange]);
+  }, [activeRange, reloadKey]);
 
   function replaceRow(updated) {
-    setRows((prev) => prev.map((r) => (r.sku === updated.sku ? updated : r)));
+    if (rows.some((r) => r.sku === updated.sku)) {
+      setRows((prev) => prev.map((r) => (r.sku === updated.sku ? updated : r)));
+    } else {
+      setReloadKey((k) => k + 1); // created outside this tab's list
+    }
   }
 
   async function handleToggle(row, inUse) {
@@ -372,14 +456,6 @@ function OtherRangeView({ ranges }) {
     });
   }, [rows, search, status]);
 
-  if (ranges.length === 0) {
-    return (
-      <Typography.Paragraph type="secondary">
-        No other-category ranges yet. Add one under Manage Codes → Other categories (e.g. 23 Storage &amp; Organization).
-      </Typography.Paragraph>
-    );
-  }
-
   const dash = <span style={{ color: "#bbb" }}>—</span>;
   const columns = [
     { title: "SKU", dataIndex: "sku", width: 90, render: (v) => <strong>{v}</strong> },
@@ -408,12 +484,18 @@ function OtherRangeView({ ranges }) {
 
   return (
     <>
-      <Segmented
-        value={activeRange}
-        onChange={setRange}
-        options={ranges.map((r) => ({ value: r.code, label: `${r.code} · ${r.name}` }))}
-        style={{ marginBottom: 16, maxWidth: "100%", overflowX: "auto" }}
-      />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <Segmented
+          value={activeRange}
+          onChange={setRange}
+          options={[
+            ...ranges.map((r) => ({ value: r.code, label: `${r.code} · ${r.name}` })),
+            { value: "custom", label: "Other numbers" },
+          ]}
+          style={{ maxWidth: "100%", overflowX: "auto" }}
+        />
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>Create</Button>
+      </div>
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
         <Input.Search
           placeholder="Search SKU, UPC, name, color"
@@ -432,7 +514,11 @@ function OtherRangeView({ ranges }) {
             { value: "inUse", label: "In use" },
           ]}
         />
-        <span style={{ marginLeft: "auto", color: "#8c8c8c" }}>{rows.filter((r) => r.inUse).length} of 1000 in use</span>
+        <span style={{ marginLeft: "auto", color: "#8c8c8c" }}>
+          {activeRange === "custom"
+            ? `${rows.length} number${rows.length === 1 ? "" : "s"} outside the named ranges`
+            : `${rows.filter((r) => r.inUse).length} of 1000 in use`}
+        </span>
       </div>
       <Table
         rowKey="sku"
@@ -444,6 +530,11 @@ function OtherRangeView({ ranges }) {
         pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50", "100", "200"] }}
       />
       <OtherNumberModal row={editing} onClose={() => setEditing(null)} onSaved={replaceRow} />
+      <CreateNumberModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onContinue={(row) => { setCreateOpen(false); setEditing(row); }}
+      />
     </>
   );
 }

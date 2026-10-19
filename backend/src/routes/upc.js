@@ -163,6 +163,50 @@ async function isKnownRange(prefix) {
   return Boolean(await prisma.upcCode.findUnique({ where: { kind_code: { kind: "range", code: prefix } } }));
 }
 
+function otherRow(sku, assignment, product) {
+  return {
+    sku,
+    upc: fullUpc(sku),
+    ...otherDetails(assignment),
+    inUse: assignment?.inUse ?? false,
+    product: product ?? null,
+  };
+}
+
+// GET /api/upc/custom — non-Travel numbers outside any named range (e.g. a
+// 22xxx number created by hand)
+router.get(
+  "/custom",
+  asyncHandler(async (req, res) => {
+    const ranges = new Set((await prisma.upcCode.findMany({ where: { kind: "range" } })).map((r) => r.code));
+    const assignments = (await prisma.upcAssignment.findMany({ orderBy: { sku: "asc" } }))
+      .filter((a) => !isTravelRange(a.sku.slice(0, 2)) && !ranges.has(a.sku.slice(0, 2)));
+    const products = await prisma.product.findMany({
+      where: { sku: { in: assignments.map((a) => a.sku) } },
+      select: { id: true, sku: true, name: true },
+    });
+    const productBySku = new Map(products.map((p) => [p.sku, p]));
+    res.json(assignments.map((a) => otherRow(a.sku, a, productBySku.get(a.sku))));
+  })
+);
+
+// GET /api/upc/number/:sku — one non-Travel number, for the Create form
+router.get(
+  "/number/:sku",
+  asyncHandler(async (req, res) => {
+    const sku = String(req.params.sku);
+    if (!/^\d{5}$/.test(sku)) return res.status(400).json({ message: "Enter a 5-digit number" });
+    if (isTravelRange(sku.slice(0, 2))) {
+      return res.status(400).json({ message: `${FIRST_BRAND}xxx–${LAST_BRAND}xxx are Travel numbers; use the Travel tab` });
+    }
+    const [assignment, product] = await Promise.all([
+      prisma.upcAssignment.findUnique({ where: { sku } }),
+      prisma.product.findUnique({ where: { sku }, select: { id: true, sku: true, name: true } }),
+    ]);
+    res.json(otherRow(sku, assignment, product));
+  })
+);
+
 // GET /api/upc?range=24 — every number in one range (xx000–xx999). Travel
 // ranges decode brand/style/color; other ranges return typed-in details.
 router.get(
@@ -182,15 +226,7 @@ router.get(
       ]);
       const assignmentBySku = new Map(assignments.map((a) => [a.sku, a]));
       const productBySku = new Map(products.map((p) => [p.sku, p]));
-      return res.json(
-        skus.map((sku) => ({
-          sku,
-          upc: fullUpc(sku),
-          ...otherDetails(assignmentBySku.get(sku)),
-          inUse: assignmentBySku.get(sku)?.inUse ?? false,
-          product: productBySku.get(sku) ?? null,
-        }))
-      );
+      return res.json(skus.map((sku) => otherRow(sku, assignmentBySku.get(sku), productBySku.get(sku))));
     }
 
     const [names, assignments, products] = await Promise.all([
@@ -220,9 +256,8 @@ router.patch(
   "/:sku",
   asyncHandler(async (req, res) => {
     const sku = String(req.params.sku);
-    if (!/^\d{5}$/.test(sku) || !(await isKnownRange(sku.slice(0, 2)))) {
-      return res.status(400).json({ message: `${sku} is not a valid item number` });
-    }
+    if (!/^\d{5}$/.test(sku)) return res.status(400).json({ message: `${sku} is not a valid item number` });
+    // Any non-Travel number can be filled in, even outside a named range
     if (!isTravelRange(sku.slice(0, 2))) return updateOtherNumber(sku, req, res);
     const inUse = Boolean(req.body.inUse);
     const names = await loadCodeNames();
