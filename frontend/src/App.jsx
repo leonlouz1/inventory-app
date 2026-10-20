@@ -19,6 +19,7 @@ import SkuGroups from "./pages/SkuGroups";
 import Catalog from "./pages/Catalog";
 import Billing from "./pages/Billing";
 import Upc from "./pages/Upc";
+import Upcoming from "./pages/Upcoming";
 import OrderPage from "./pages/detail/OrderPage";
 import ProductPage from "./pages/detail/ProductPage";
 import ShipmentPage from "./pages/detail/ShipmentPage";
@@ -46,6 +47,7 @@ function AppRoutes() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/upcoming" element={<Upcoming />} />
         <Route path="/orders" element={<Orders />} />
         <Route path="/shipments" element={<Shipments />} />
         <Route path="/crm" element={<CrmDashboard />} />

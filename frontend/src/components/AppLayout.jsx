@@ -18,6 +18,7 @@ import {
   BookOutlined,
   DollarOutlined,
   BarcodeOutlined,
+  ScheduleOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useRole, DESIGNER_PATHS } from "../hooks/useRole";
@@ -26,6 +27,7 @@ const { Sider, Content, Header } = Layout;
 
 const NAV_ITEMS = [
   { key: "/", label: "Dashboard", icon: <DashboardOutlined /> },
+  { key: "/upcoming", label: "Upcoming", icon: <ScheduleOutlined /> },
   { key: "/orders", label: "Orders", icon: <ShoppingCartOutlined /> },
   { key: "/shipments", label: "Shipments", icon: <TruckOutlined /> },
   { key: "/billing", label: "Billing", icon: <DollarOutlined /> },
