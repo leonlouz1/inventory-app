@@ -57,6 +57,24 @@ function ToProduct({ product, children }) {
   );
 }
 
+// Old SKUs (shadows) that moved to a number's product, linked to their pages
+function OldSkus({ skus }) {
+  if (!skus?.length) return <span style={{ color: "#bbb" }}>—</span>;
+  return (
+    <span>
+      {skus.map((sku, i) => (
+        <span key={sku}>
+          {i > 0 && ", "}
+          <Link to={`/products/${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()} style={{ color: "#722ed1" }}>{sku}</Link>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+// Old SKUs across a group's numbers
+const groupOldSkus = (children) => children.flatMap((c) => c.product?.oldSkus || []);
+
 function Thumb({ url }) {
   return url
     ? <img src={url} alt="" style={{ width: 28, height: 28, objectFit: "contain", borderRadius: 4, marginRight: 8, verticalAlign: "middle" }} />
@@ -265,6 +283,9 @@ function AllBrandsGrid({ codesVersion }) {
             />
             <div style={{ fontSize: 11, color: cell.inUse ? undefined : "#bbb", fontFamily: "monospace" }}>
               <ToProduct product={cell.product}>{cell.sku}</ToProduct>
+              {cell.product?.oldSkus?.length > 0 && (
+                <div style={{ fontFamily: "inherit" }}>was <OldSkus skus={cell.product.oldSkus} /></div>
+              )}
               <Button
                 type="text"
                 size="small"
@@ -898,6 +919,18 @@ function OtherRangeView({ ranges }) {
       },
     },
     {
+      title: "Old SKU",
+      key: "oldSkus",
+      render: (_, r) => {
+        if (r.isAvailable || r.isUnused) return null;
+        if (r.isGroup || r.isStyleGroup) {
+          const old = groupOldSkus(r.children);
+          return old.length ? <OldSkus skus={old} /> : null;
+        }
+        return <OldSkus skus={r.product?.oldSkus} />;
+      },
+    },
+    {
       title: "UPC",
       dataIndex: "upc",
       width: 170,
@@ -1233,6 +1266,18 @@ export default function Upc() {
         if (r.isUnused) return null;
         if (r.isStyleGroup) return <strong>{r.children[0].sku}–{r.children[r.children.length - 1].sku}</strong>;
         return <ToProduct product={r.product}><strong>{v}</strong></ToProduct>;
+      },
+    },
+    {
+      title: "Old SKU",
+      key: "oldSkus",
+      render: (_, r) => {
+        if (r.isAvailable || r.isUnused) return null;
+        if (r.isGroup || r.isStyleGroup) {
+          const old = groupOldSkus(r.children);
+          return old.length ? <OldSkus skus={old} /> : null;
+        }
+        return <OldSkus skus={r.product?.oldSkus} />;
       },
     },
     {

@@ -169,10 +169,20 @@ async function isKnownRange(prefix) {
 const PRODUCT_LIVE = {
   id: true, sku: true, name: true, brand: true, color: true, category: true,
   casePack: true, attributes: true, imageUrl: true,
+  shadows: { select: { sku: true } },
 };
 
 function productSummary(product) {
-  return product ? { id: product.id, sku: product.sku, name: product.name, imageUrl: product.imageUrl ?? null } : null;
+  return product
+    ? {
+        id: product.id,
+        sku: product.sku,
+        name: product.name,
+        imageUrl: product.imageUrl ?? null,
+        // Old SKUs that moved to this one (shadow SKUs)
+        oldSkus: (product.shadows || []).map((s) => s.sku),
+      }
+    : null;
 }
 
 // Once a number is a product, the product is the source of truth: its current
