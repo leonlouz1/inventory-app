@@ -149,6 +149,11 @@ export default function ProductPage() {
               pagination={false}
               dataSource={page.restocks}
               columns={[
+                {
+                  title: "Container",
+                  dataIndex: "containerNumber",
+                  render: (n, r) => (r.containerId ? <Link to={`/restocks/${r.containerId}`}>{n || "Open"}</Link> : "—"),
+                },
                 { title: "Qty", dataIndex: "quantity", align: "right" },
                 { title: "Expected", dataIndex: "expectedDate" },
                 { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "—" },

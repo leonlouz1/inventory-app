@@ -25,6 +25,7 @@ model Warehouse {
   orderLines OrderLine[]
   restocks   Restock[]
   shipments  Shipment[]
+  containers Container[]
 
   @@map("warehouses")
 }
@@ -167,10 +168,15 @@ model Restock {
   status         String   @default("IN_PRODUCTION") @map("status") @db.VarChar(20)
   receivedAt     DateTime? @map("received_at") @db.Timestamptz
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  // The container this line arrives on. `quantity` is what was ordered;
+  // `receivedQuantity` is what actually arrived (set when received).
+  containerId      Int?    @map("container_id")
+  receivedQuantity Int?    @map("received_quantity")
 
   product      Product   @relation(fields: [productId], references: [id])
   warehouse    Warehouse @relation(fields: [warehouseId], references: [id])
   linkedOrder  Order?    @relation(fields: [linkedOrderId], references: [id])
+  container    Container? @relation(fields: [containerId], references: [id], onDelete: Cascade)
 
   // Projection queries always filter productId+warehouseId then range on expectedDate.
   @@index([productId, warehouseId, expectedDate])
@@ -348,4 +354,27 @@ model ShipToAddress {
   updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("ship_to_addresses")
+}
+
+// A container of incoming merchandise. Its lines are Restock rows; the ETA,
+// warehouse, supplier and status are copied onto each line so stock
+// projections and the timeline keep reading lines as before.
+model Container {
+  id              Int       @id @default(autoincrement())
+  containerNumber String?   @map("container_number") @db.VarChar(50)
+  poNumber        String?   @map("po_number") @db.VarChar(200)
+  supplier        String?   @db.VarChar(200)
+  warehouseId     Int       @map("warehouse_id")
+  etd             DateTime? @db.Date
+  eta             DateTime  @db.Date
+  blNumber        String?   @map("bl_number") @db.VarChar(100)
+  notes           String?
+  status          String    @default("IN_PRODUCTION") @db.VarChar(20)
+  receivedAt      DateTime? @map("received_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  lines     Restock[]
+
+  @@map("containers")
 }

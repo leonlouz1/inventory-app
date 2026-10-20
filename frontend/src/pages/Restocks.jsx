@@ -1,66 +1,36 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Table, Button, Tag, Spin, Alert, Typography, Popconfirm, message, Select } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from "@ant-design/icons";
-
-const STATUS_OPTIONS = [
-  { value: "DRAFT", label: "Draft" },
-  { value: "ON_HOLD", label: "On Hold" },
-  { value: "IN_PRODUCTION", label: "In Production" },
-  { value: "EN_ROUTE", label: "En Route" },
-  { value: "RECEIVED", label: "Received" },
-];
-const STATUS_COLORS = {
-  DRAFT: "default",
-  ON_HOLD: "orange",
-  IN_PRODUCTION: "blue",
-  EN_ROUTE: "purple",
-  RECEIVED: "green",
-};
-import { restocksApi, productsApi, warehousesApi, ordersApi } from "../api/inventory";
-import { NewRestockModal, EditRestockModal, AddRestockSkuModal } from "../components/RestockModals";
+import { Table, Button, Tag, Spin, Alert, Typography, Popconfirm, Select, Input, Space, Segmented, message } from "antd";
+import { PlusOutlined, DeleteOutlined, UploadOutlined, InboxOutlined, ScissorOutlined } from "@ant-design/icons";
+import { containersApi, productsApi, warehousesApi, ordersApi } from "../api/inventory";
+import {
+  ContainerFormModal, ReceiveContainerModal, SplitContainerModal, DifferenceTag,
+} from "../components/ContainerModals";
+import { CONTAINER_STATUS_OPTIONS, CONTAINER_STATUS_COLORS, CONTAINER_STATUS_LABELS } from "../constants/containers";
 import BulkImportRestocksModal from "../components/BulkImportRestocksModal";
 
-// Groups flat restock rows back into shipments: rows sharing a shipmentId
-// (logged together via "Add SKU" in the modal) become one expandable row;
-// standalone rows (no shipmentId, including legacy data) are their own group.
-function groupByShipment(restocks) {
-  const groups = new Map();
-  for (const r of restocks) {
-    const key = r.shipmentId || `single-${r.id}`;
-    if (!groups.has(key)) {
-      groups.set(key, {
-        key,
-        warehouseId: r.warehouseId,
-        warehouseName: r.warehouseName,
-        expectedDate: r.expectedDate,
-        supplier: r.supplier,
-        lines: [],
-      });
-    }
-    groups.get(key).lines.push(r);
-  }
-  return [...groups.values()].sort((a, b) => a.expectedDate.localeCompare(b.expectedDate));
-}
-
+// Restocks arrive in containers: one row per container, with its SKUs,
+// ordered vs received units and the difference once it's received.
 export default function Restocks() {
-  const [restocks, setRestocks] = useState([]);
+  const [containers, setContainers] = useState([]);
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [orders, setOrders] = useState([]);
-  const [addOpen, setAddOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useState("INCOMING");
+  const [creating, setCreating] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [editingRestock, setEditingRestock] = useState(null);
-  const [addingSkuToGroup, setAddingSkuToGroup] = useState(null);
+  const [receiving, setReceiving] = useState(null);
+  const [splitting, setSplitting] = useState(null);
 
-  const loadRestocks = useCallback(() => {
+  const load = useCallback(() => {
     setLoading(true);
-    return restocksApi
+    return containersApi
       .list()
       .then((data) => {
-        setRestocks(data);
+        setContainers(data);
         setError(null);
       })
       .catch((err) => setError(err.message))
@@ -68,261 +38,172 @@ export default function Restocks() {
   }, []);
 
   useEffect(() => {
-    loadRestocks();
+    load();
     productsApi.list().then(setProducts);
     warehousesApi.list().then(setWarehouses);
     ordersApi.list().then(setOrders);
-  }, [loadRestocks]);
+  }, [load]);
 
-  async function handleDelete(id) {
+  async function handleStatus(container, status) {
     try {
-      await restocksApi.delete(id);
-      message.success("Restock deleted");
-      loadRestocks();
+      const updated = await containersApi.update(container.id, { status });
+      setContainers((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
     } catch (err) {
-      message.error(`Failed to delete restock: ${err.message}`);
+      message.error(err.message);
     }
   }
 
-  async function handleStatusChange(id, status) {
+  async function handleDelete(container) {
     try {
-      const updated = await restocksApi.updateStatus(id, status);
-      setRestocks((prev) => prev.map((r) => r.id === id ? { ...r, ...updated } : r));
-      if (status === "RECEIVED") message.success("Stock added to inventory");
+      await containersApi.delete(container.id);
+      message.success("Container deleted");
+      load();
     } catch (err) {
-      message.error(`Failed to update status: ${err.message}`);
+      message.error(err.message);
     }
   }
 
-  async function handleGroupStatusChange(group, status) {
-    try {
-      await Promise.all(group.lines.map((r) => restocksApi.updateStatus(r.id, status)));
-      setRestocks((prev) => prev.map((r) =>
-        group.lines.some((l) => l.id === r.id)
-          ? { ...r, status, receivedAt: status === "RECEIVED" ? new Date().toISOString() : null }
-          : r
-      ));
-      if (status === "RECEIVED") message.success(`Stock added to inventory for all ${group.lines.length} SKUs`);
-    } catch (err) {
-      message.error(`Failed to update status: ${err.message}`);
-    }
-  }
-
-  const shipments = useMemo(() => groupByShipment(restocks), [restocks]);
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return containers.filter((c) => {
+      if (view === "INCOMING" && c.status === "RECEIVED") return false;
+      if (view !== "INCOMING" && view !== "ALL" && c.status !== view) return false;
+      if (!term) return true;
+      return [c.containerNumber, c.poNumber, c.supplier, c.blNumber, ...c.lines.map((l) => l.sku)]
+        .some((v) => v && v.toLowerCase().includes(term));
+    });
+  }, [containers, search, view]);
 
   const columns = [
     {
-      title: "SKU",
-      key: "sku",
-      render: (_, group) =>
-        group.lines.length === 1 ? (
-          <Link to={`/products/${encodeURIComponent(group.lines[0].sku)}`} onClick={(e) => e.stopPropagation()}>
-            {group.lines[0].sku}
-          </Link>
-        ) : (
-          <Tag>{group.lines.length} SKUs</Tag>
-        ),
+      title: "Container #",
+      dataIndex: "containerNumber",
+      render: (n, c) => <Link to={`/restocks/${c.id}`}>{n || <span style={{ color: "#8c8c8c" }}>No # yet</span>}</Link>,
     },
-    {
-      title: "Product Name",
-      key: "productName",
-      render: (_, group) => (group.lines.length === 1 ? group.lines[0].productName : "—"),
-    },
+    { title: "PO #", dataIndex: "poNumber", render: (v) => v || "—" },
+    { title: "Supplier", dataIndex: "supplier", render: (v) => v || "—" },
     { title: "Warehouse", dataIndex: "warehouseName" },
+    { title: "ETD", dataIndex: "etd", render: (v) => v || "—" },
+    { title: "ETA", dataIndex: "eta", sorter: (a, b) => a.eta.localeCompare(b.eta), defaultSortOrder: "ascend" },
     {
-      title: "Units Arriving",
-      key: "quantity",
-      align: "right",
-      render: (_, group) => group.lines.reduce((sum, l) => sum + l.quantity, 0),
+      title: "SKUs",
+      key: "skus",
+      render: (_, c) => (c.skuCount === 1
+        ? <Link to={`/products/${encodeURIComponent(c.lines[0].sku)}`}>{c.lines[0].sku}</Link>
+        : <Tag>{c.skuCount} SKUs</Tag>),
     },
-    { title: "Expected Date", dataIndex: "expectedDate" },
-    { title: "Supplier / PO", dataIndex: "supplier", render: (v) => v || "—" },
+    { title: "Ordered", dataIndex: "orderedUnits", align: "right" },
+    {
+      title: "Received",
+      key: "received",
+      align: "right",
+      render: (_, c) => (c.receivedUnits == null ? "—" : <span>{c.receivedUnits} <DifferenceTag value={c.difference} /></span>),
+    },
     {
       title: "Status",
       key: "status",
-      render: (_, group) => {
-        if (group.lines.length === 1) {
-          const r = group.lines[0];
-          return (
-            <Select
-              size="small"
-              value={r.status || "IN_PRODUCTION"}
-              style={{ width: 140 }}
-              options={STATUS_OPTIONS}
-              onChange={(val) => handleStatusChange(r.id, val)}
-              onClick={(e) => e.stopPropagation()}
-            />
-          );
-        }
-        // For grouped shipments — show a single dropdown that updates all lines
-        const statuses = [...new Set(group.lines.map((l) => l.status || "IN_PRODUCTION"))];
-        const sharedStatus = statuses.length === 1 ? statuses[0] : null;
-        return (
-          <Select
-            size="small"
-            value={sharedStatus}
-            placeholder="Mixed"
-            style={{ width: 140 }}
-            options={STATUS_OPTIONS}
-            onChange={(val) => handleGroupStatusChange(group, val)}
-            onClick={(e) => e.stopPropagation()}
-          />
-        );
-      },
-    },
-    {
-      title: "Linked Order",
-      key: "linkedOrder",
-      render: (_, group) => {
-        if (group.lines.length === 1) {
-          const r = group.lines[0];
-          return r.linkedOrderNumber
-            ? <Link to={`/orders/${r.linkedOrderId}`} onClick={(e) => e.stopPropagation()}>{r.linkedOrderNumber}</Link>
-            : "—";
-        }
-        const linked = group.lines.filter((l) => l.linkedOrderNumber);
-        if (linked.length === 0) return "—";
-        return linked.map((l) => (
-          <div key={l.id}>
-            <Link to={`/orders/${l.linkedOrderId}`} onClick={(e) => e.stopPropagation()}>{l.linkedOrderNumber}</Link>
-            {" "}<span style={{ color: "#999", fontSize: 12 }}>({l.sku})</span>
-          </div>
-        ));
-      },
+      render: (_, c) => (c.status === "RECEIVED"
+        ? <Tag color={CONTAINER_STATUS_COLORS.RECEIVED}>Received {c.receivedAt ? c.receivedAt.slice(0, 10) : ""}</Tag>
+        : <Select size="small" value={c.status} style={{ width: 140 }} options={CONTAINER_STATUS_OPTIONS} onChange={(v) => handleStatus(c, v)} />),
     },
     {
       title: "",
       key: "actions",
-      render: (_, group) =>
-        group.lines.length === 1 && (
-          <>
-            <Button icon={<EditOutlined />} type="text" onClick={() => setEditingRestock(group.lines[0])} />
-            <Popconfirm title="Delete this restock?" onConfirm={() => handleDelete(group.lines[0].id)}>
-              <Button icon={<DeleteOutlined />} danger type="text" />
-            </Popconfirm>
-          </>
-        ),
+      render: (_, c) => (
+        <Space size={4}>
+          {c.status !== "RECEIVED" && (
+            <>
+              <Button size="small" type="primary" icon={<InboxOutlined />} onClick={() => setReceiving(c)}>Receive</Button>
+              <Button size="small" icon={<ScissorOutlined />} title="Split into another container" onClick={() => setSplitting(c)} />
+            </>
+          )}
+          <Popconfirm
+            title="Delete this container?"
+            description={c.status === "RECEIVED" ? "Its received stock will be taken back out." : undefined}
+            okText="Delete"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => handleDelete(c)}
+          >
+            <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
+      ),
     },
   ];
 
-  if (error) {
-    return <Alert type="error" message="Failed to load restocks" description={error} showIcon />;
-  }
+  if (error) return <Alert type="error" message="Failed to load containers" description={error} showIcon />;
 
   return (
     <Spin spinning={loading}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-        <Typography.Title level={5} style={{ margin: 0 }}>
-          Restocks
-        </Typography.Title>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
-            Import CSV
-          </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
-            Log Restock
-          </Button>
-        </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <Typography.Title level={5} style={{ margin: 0 }}>Restocks — Containers</Typography.Title>
+        <Space wrap>
+          <Input.Search placeholder="Container, PO, supplier, SKU" allowClear value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: 240 }} />
+          <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>Import CSV</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>Log container</Button>
+        </Space>
       </div>
+
+      <Segmented
+        value={view}
+        onChange={setView}
+        style={{ marginBottom: 16, maxWidth: "100%", overflowX: "auto" }}
+        options={[
+          { value: "INCOMING", label: `Incoming (${containers.filter((c) => c.status !== "RECEIVED").length})` },
+          ...["IN_PRODUCTION", "EN_ROUTE", "ON_HOLD", "DRAFT", "RECEIVED"].map((s) => ({
+            value: s,
+            label: `${CONTAINER_STATUS_LABELS[s]} (${containers.filter((c) => c.status === s).length})`,
+          })),
+          { value: "ALL", label: `All (${containers.length})` },
+        ]}
+      />
 
       <Table
         columns={columns}
-        dataSource={shipments}
-        rowKey="key"
+        dataSource={filtered}
+        rowKey="id"
+        size="middle"
+        scroll={{ x: "max-content" }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
         expandable={{
-          rowExpandable: () => true,
-          expandedRowRender: (group) => {
-            const lineColumns = [
-              {
-                title: "SKU",
-                dataIndex: "sku",
-                render: (sku) => <Link to={`/products/${encodeURIComponent(sku)}`}>{sku}</Link>,
-              },
-              { title: "Product Name", dataIndex: "productName" },
-              { title: "Qty", dataIndex: "quantity" },
-              {
-                title: "Status",
-                key: "status",
-                render: (_, r) => (
-                  <Select
-                    size="small"
-                    value={r.status || "IN_PRODUCTION"}
-                    style={{ width: 140 }}
-                    options={STATUS_OPTIONS}
-                    onChange={(val) => handleStatusChange(r.id, val)}
-                  />
-                ),
-              },
-              {
-                title: "Linked Order",
-                key: "linkedOrder",
-                render: (_, r) => r.linkedOrderNumber
-                  ? <Link to={`/orders/${r.linkedOrderId}`}>{r.linkedOrderNumber}</Link>
-                  : "—",
-              },
-              {
-                title: "",
-                key: "actions",
-                render: (_, restock) => (
-                  <>
-                    <Button icon={<EditOutlined />} type="text" onClick={() => setEditingRestock(restock)} />
-                    <Popconfirm title="Delete this restock?" onConfirm={() => handleDelete(restock.id)}>
-                      <Button icon={<DeleteOutlined />} danger type="text" />
-                    </Popconfirm>
-                  </>
-                ),
-              },
-            ];
-            return (
-              <>
-                <Table columns={lineColumns} dataSource={group.lines} rowKey="id" pagination={false} size="small" />
-                <Button
-                  icon={<PlusOutlined />}
-                  size="small"
-                  style={{ marginTop: 8 }}
-                  onClick={() => setAddingSkuToGroup(group)}
-                >
-                  Add SKU
-                </Button>
-              </>
-            );
-          },
+          expandedRowRender: (c) => (
+            <Table
+              size="small"
+              rowKey="id"
+              pagination={false}
+              dataSource={c.lines}
+              columns={[
+                { title: "SKU", dataIndex: "sku", render: (sku) => <Link to={`/products/${encodeURIComponent(sku)}`}>{sku}</Link> },
+                { title: "Product", dataIndex: "productName" },
+                { title: "Ordered", dataIndex: "orderedQuantity", align: "right" },
+                { title: "Received", dataIndex: "receivedQuantity", align: "right", render: (v) => (v == null ? "—" : v) },
+                { title: "Difference", dataIndex: "difference", align: "right", render: (v) => <DifferenceTag value={v} /> },
+                {
+                  title: "Linked Order",
+                  dataIndex: "linkedOrderNumber",
+                  render: (n, l) => (n ? <Link to={`/orders/${l.linkedOrderId}`}>{n}</Link> : "—"),
+                },
+              ]}
+            />
+          ),
         }}
       />
 
-      <NewRestockModal
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
-        onCreated={loadRestocks}
-        products={products}
-        warehouses={warehouses}
-        orders={orders}
-      />
-
-      <EditRestockModal
-        open={!!editingRestock}
-        onClose={() => setEditingRestock(null)}
-        onUpdated={loadRestocks}
-        restock={editingRestock}
-        warehouses={warehouses}
-        orders={orders}
-        products={products}
-      />
-
-      <AddRestockSkuModal
-        open={!!addingSkuToGroup}
-        onClose={() => setAddingSkuToGroup(null)}
-        onCreated={loadRestocks}
-        group={addingSkuToGroup}
-        products={products}
-        orders={orders}
-      />
-
+      {creating && (
+        <ContainerFormModal
+          warehouses={warehouses}
+          products={products}
+          orders={orders}
+          onClose={() => setCreating(false)}
+          onSaved={load}
+        />
+      )}
+      {receiving && <ReceiveContainerModal container={receiving} onClose={() => setReceiving(null)} onReceived={load} />}
+      {splitting && <SplitContainerModal container={splitting} onClose={() => setSplitting(null)} onSplit={load} />}
       <BulkImportRestocksModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onImported={loadRestocks}
+        onImported={load}
         products={products}
         warehouses={warehouses}
         orders={orders}

@@ -157,3 +157,17 @@ export const productFieldsApi = {
   list: () => apiClient.get("/product-fields"),
   addOption: (key, value) => apiClient.post(`/product-fields/${encodeURIComponent(key)}/options`, { value }),
 };
+
+export const containersApi = {
+  list: () => apiClient.get("/containers"),
+  get: (id) => apiClient.get(`/containers/${id}`),
+  create: (data) => apiClient.post("/containers", data),
+  update: (id, data) => apiClient.put(`/containers/${id}`, data),
+  delete: (id) => apiClient.delete(`/containers/${id}`),
+  addLine: (id, data) => apiClient.post(`/containers/${id}/lines`, data),
+  updateLine: (id, lineId, data) => apiClient.put(`/containers/${id}/lines/${lineId}`, data),
+  deleteLine: (id, lineId) => apiClient.delete(`/containers/${id}/lines/${lineId}`),
+  receive: (id, lines) => apiClient.post(`/containers/${id}/receive`, { lines }),
+  unreceive: (id) => apiClient.post(`/containers/${id}/unreceive`, {}),
+  split: (id, data) => apiClient.post(`/containers/${id}/split`, data),
+};

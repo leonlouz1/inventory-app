@@ -14,6 +14,8 @@ function serialize(restock) {
     warehouseId: restock.warehouseId,
     warehouseName: restock.warehouse.name,
     quantity: restock.quantity,
+    receivedQuantity: restock.receivedQuantity ?? null,
+    containerId: restock.containerId ?? null,
     expectedDate: restock.expectedDate.toISOString().slice(0, 10),
     supplier: restock.supplier,
     notes: restock.notes,
@@ -51,19 +53,36 @@ router.post(
       return res.status(404).json({ message: `Unknown SKU: ${sku}` });
     }
 
-    const restock = await prisma.restock.create({
-      data: {
-        productId: product.id,
-        warehouseId,
-        quantity,
-        expectedDate: new Date(expectedDate),
-        supplier,
-        notes,
-        shipmentId,
-        status: status || "IN_PRODUCTION",
-        ...(linkedOrderId !== undefined && { linkedOrderId: linkedOrderId || null }),
-      },
-      include: { product: true, warehouse: true, linkedOrder: true },
+    // Every restock line belongs to a container: lines sharing a shipmentId
+    // share one, otherwise the line gets a container of its own
+    const restock = await prisma.$transaction(async (tx) => {
+      const sibling = shipmentId
+        ? await tx.restock.findFirst({ where: { shipmentId, containerId: { not: null } } })
+        : null;
+      const containerId = sibling?.containerId ?? (await tx.container.create({
+        data: {
+          warehouseId,
+          eta: new Date(expectedDate),
+          supplier: supplier || null,
+          status: status || "IN_PRODUCTION",
+          notes: notes || null,
+        },
+      })).id;
+      return tx.restock.create({
+        data: {
+          containerId,
+          productId: product.id,
+          warehouseId,
+          quantity,
+          expectedDate: new Date(expectedDate),
+          supplier,
+          notes,
+          shipmentId,
+          status: status || "IN_PRODUCTION",
+          ...(linkedOrderId !== undefined && { linkedOrderId: linkedOrderId || null }),
+        },
+        include: { product: true, warehouse: true, linkedOrder: true },
+      });
     });
 
     res.status(201).json(serialize(restock));
@@ -95,11 +114,12 @@ router.patch(
           create: { productId: existing.productId, warehouseId: existing.warehouseId, onHand: existing.quantity },
         });
       }
+      const receivedQty = existing.receivedQuantity ?? existing.quantity;
       // Moving FROM received — reverse the stock
       if (wasReceived && !nowReceived) {
         await tx.warehouseStock.update({
           where: { productId_warehouseId: { productId: existing.productId, warehouseId: existing.warehouseId } },
-          data: { onHand: { decrement: existing.quantity } },
+          data: { onHand: { decrement: receivedQty } },
         });
       }
 
@@ -108,6 +128,8 @@ router.patch(
         data: {
           status,
           receivedAt: nowReceived && !wasReceived ? new Date() : wasReceived && !nowReceived ? null : undefined,
+          // Received in full through this route; cleared when moved back off Received
+          receivedQuantity: nowReceived && !wasReceived ? existing.quantity : wasReceived && !nowReceived ? null : undefined,
         },
         include: { product: true, warehouse: true, linkedOrder: true },
       });
@@ -170,7 +192,7 @@ router.delete(
         if (restock.status === "RECEIVED") {
           await tx.warehouseStock.update({
             where: { productId_warehouseId: { productId: restock.productId, warehouseId: restock.warehouseId } },
-            data: { onHand: { decrement: restock.quantity } },
+            data: { onHand: { decrement: restock.receivedQuantity ?? restock.quantity } },
           });
         }
         await tx.restock.delete({ where: { id } });

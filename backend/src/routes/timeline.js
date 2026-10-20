@@ -80,7 +80,7 @@ router.get(
         id: `r-${r.id}`,
         date: r.expectedDate.toISOString().slice(0, 10),
         type: "IN",
-        qty: r.quantity,
+        qty: r.receivedQuantity ?? r.quantity, // what actually arrived
         warehouse: r.warehouse.name,
         source: "Restock",
         detail: r.supplier || null,

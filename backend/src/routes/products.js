@@ -211,7 +211,7 @@ router.get(
       }),
       prisma.restock.findMany({
         where: { productId: product.id, status: { not: "RECEIVED" } },
-        include: { warehouse: true },
+        include: { warehouse: true, container: { select: { containerNumber: true } } },
         orderBy: { expectedDate: "asc" },
       }),
     ]);
@@ -222,6 +222,8 @@ router.get(
       shippedLines: shippedLines.map(lineView),
       restocks: restocks.map((r) => ({
         id: r.id,
+        containerId: r.containerId,
+        containerNumber: r.container?.containerNumber ?? null,
         quantity: r.quantity,
         expectedDate: r.expectedDate.toISOString().slice(0, 10),
         status: r.status,

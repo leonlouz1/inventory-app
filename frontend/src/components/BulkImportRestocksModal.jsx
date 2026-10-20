@@ -3,7 +3,7 @@ import { Modal, Button, Table, Tag, Upload, message, Typography } from "antd";
 import { UploadOutlined, DownloadOutlined } from "@ant-design/icons";
 import Papa from "papaparse";
 import dayjs from "dayjs";
-import { restocksApi } from "../api/inventory";
+import { containersApi } from "../api/inventory";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function isValidDate(v) {
@@ -11,11 +11,11 @@ function isValidDate(v) {
 }
 
 function buildTemplateCsv() {
-  const headers = ["sku", "warehouse", "quantity", "expected_date", "supplier", "linked_order"];
+  const headers = ["container_number", "po_number", "sku", "warehouse", "quantity", "expected_date", "supplier", "linked_order"];
   const rows = [
-    ["WDG-101", "East", "500", "2026-08-01", "Acme Manufacturing", "SO-1001"],
-    ["WDG-102", "East", "200", "2026-08-01", "Acme Manufacturing", ""],
-    ["WDG-103", "West", "300", "2026-08-15", "", ""],
+    ["MSCU1234567", "PO-1001", "WDG-101", "East", "500", "2026-08-01", "Acme Manufacturing", "SO-1001"],
+    ["MSCU1234567", "PO-1001", "WDG-102", "East", "200", "2026-08-01", "Acme Manufacturing", ""],
+    ["TGHU7654321", "PO-1002", "WDG-103", "West", "300", "2026-08-15", "", ""],
   ];
   return Papa.unparse([headers, ...rows]);
 }
@@ -66,6 +66,8 @@ function validateRow(row, products, warehouses, orders) {
   }
 
   return {
+    containerNumber: (row.container_number || "").trim() || null,
+    poNumber: (row.po_number || "").trim() || null,
     sku,
     warehouseId,
     quantity,
@@ -113,43 +115,38 @@ export default function BulkImportRestocksModal({ open, onClose, onImported, pro
     let succeeded = 0;
     const failures = [];
 
-    // Group consecutive rows that share the same warehouse+date+supplier into
-    // one shipment so multi-SKU containers get a shared shipmentId.
+    // One container per container_number; rows without one are grouped by
+    // consecutive warehouse + date + supplier, as before.
     const batches = [];
     for (const r of valid) {
-      const batchKey = `${r.warehouseId}|${r.expectedDate}|${r.supplier || ""}`;
-      const last = batches[batches.length - 1];
-      if (last && last.batchKey === batchKey) {
-        last.rows.push(r);
-      } else {
-        batches.push({ batchKey, rows: [r] });
-      }
+      const batchKey = r.containerNumber
+        ? `c|${r.containerNumber}`
+        : `${r.warehouseId}|${r.expectedDate}|${r.supplier || ""}`;
+      const existing = r.containerNumber ? batches.find((b) => b.batchKey === batchKey) : batches[batches.length - 1];
+      if (existing && existing.batchKey === batchKey) existing.rows.push(r);
+      else batches.push({ batchKey, rows: [r] });
     }
 
     for (const batch of batches) {
-      const shipmentId = batch.rows.length > 1 ? crypto.randomUUID() : undefined;
-      for (const r of batch.rows) {
-        try {
-          // eslint-disable-next-line no-await-in-loop
-          await restocksApi.create({
-            sku: r.sku,
-            warehouseId: r.warehouseId,
-            quantity: r.quantity,
-            expectedDate: r.expectedDate,
-            supplier: r.supplier,
-            linkedOrderId: r.linkedOrderId,
-            shipmentId,
-          });
-          succeeded += 1;
-        } catch (err) {
-          failures.push(`${r.sku}: ${err.message}`);
-        }
+      const first = batch.rows[0];
+      try {
+        await containersApi.create({
+          containerNumber: first.containerNumber,
+          poNumber: first.poNumber,
+          supplier: first.supplier,
+          warehouseId: first.warehouseId,
+          eta: first.expectedDate,
+          lines: batch.rows.map((r) => ({ sku: r.sku, quantity: r.quantity, linkedOrderId: r.linkedOrderId })),
+        });
+        succeeded += batch.rows.length;
+      } catch (err) {
+        failures.push(`${first.containerNumber || first.sku}: ${err.message}`);
       }
     }
 
     setImporting(false);
     if (failures.length === 0) {
-      message.success(`Imported ${succeeded} restock line${succeeded === 1 ? "" : "s"}`);
+      message.success(`Imported ${succeeded} line${succeeded === 1 ? "" : "s"} into ${batches.length} container${batches.length === 1 ? "" : "s"}`);
       resetAndClose();
     } else {
       message.warning(`Imported ${succeeded}, ${failures.length} failed: ${failures.join("; ")}`);
@@ -161,6 +158,7 @@ export default function BulkImportRestocksModal({ open, onClose, onImported, pro
   const errorCount = rows.length - validCount;
 
   const columns = [
+    { title: "Container #", render: (_, r) => r.containerNumber || "—" },
     { title: "SKU", dataIndex: ["_display", "sku"], render: (v, r) => r._display?.sku || r.sku || "—" },
     { title: "Warehouse", render: (_, r) => r._display?.warehouse || "—" },
     { title: "Qty", render: (_, r) => r._display?.quantity ?? "—" },

@@ -5,6 +5,7 @@ const prisma = require("./prismaClient");
 const { authenticate } = require("./middleware/auth");
 const { seedStorageHangers, groupExistingUpcNumbers } = require("./services/upcSeed");
 const { seedProductFields } = require("./routes/productFields");
+const { moveRestocksIntoContainers } = require("./services/containers");
 
 const productsRouter = require("./routes/products");
 const ordersRouter = require("./routes/orders");
@@ -21,6 +22,7 @@ const skuGroupsRouter = require("./routes/skuGroups");
 const catalogRouter = require("./routes/catalog");
 const billingRouter = require("./routes/billing");
 const upcRouter = require("./routes/upc");
+const containersRouter = require("./routes/containers");
 const { router: productFieldsRouter } = require("./routes/productFields");
 
 const app = express();
@@ -52,6 +54,7 @@ app.use("/api/sku-groups", skuGroupsRouter);
 app.use("/api/catalog", catalogRouter);
 app.use("/api/billing", billingRouter);
 app.use("/api/upc", upcRouter);
+app.use("/api/containers", containersRouter);
 app.use("/api/product-fields", productFieldsRouter);
 
 // eslint-disable-next-line no-unused-vars
@@ -169,6 +172,42 @@ async function runStartupMigrations() {
     await prisma.$executeRaw`ALTER TABLE "products" ALTER COLUMN "case_pack" DROP DEFAULT`;
     await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "case_pack" INTEGER`;
     await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "shadow_parent_id" INTEGER`;
+    // Containers: first time the table appears, existing restocks are put into containers
+    const [{ exists: hadContainers }] = await prisma.$queryRaw`SELECT to_regclass('containers') IS NOT NULL AS exists`;
+    await prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "containers" (
+        "id" SERIAL NOT NULL,
+        "container_number" VARCHAR(50),
+        "po_number" VARCHAR(200),
+        "supplier" VARCHAR(200),
+        "warehouse_id" INTEGER NOT NULL,
+        "etd" DATE,
+        "eta" DATE NOT NULL,
+        "bl_number" VARCHAR(100),
+        "notes" TEXT,
+        "status" VARCHAR(20) NOT NULL DEFAULT 'IN_PRODUCTION',
+        "received_at" TIMESTAMPTZ,
+        "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "containers_pkey" PRIMARY KEY ("id")
+      )
+    `;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        ALTER TABLE "containers" ADD CONSTRAINT "containers_warehouse_id_fkey"
+          FOREIGN KEY ("warehouse_id") REFERENCES "warehouses"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$
+    `;
+    await prisma.$executeRaw`ALTER TABLE "restocks" ADD COLUMN IF NOT EXISTS "container_id" INTEGER`;
+    await prisma.$executeRaw`ALTER TABLE "restocks" ADD COLUMN IF NOT EXISTS "received_quantity" INTEGER`;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        ALTER TABLE "restocks" ADD CONSTRAINT "restocks_container_id_fkey"
+          FOREIGN KEY ("container_id") REFERENCES "containers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$
+    `;
+    if (!hadContainers) await moveRestocksIntoContainers(prisma);
     await prisma.$executeRaw`ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "address" VARCHAR(300)`;
     await prisma.$executeRaw`ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "city" VARCHAR(100)`;
     await prisma.$executeRaw`ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "state" VARCHAR(50)`;

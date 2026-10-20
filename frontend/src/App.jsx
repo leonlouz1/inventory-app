@@ -22,6 +22,7 @@ import Upc from "./pages/Upc";
 import OrderPage from "./pages/detail/OrderPage";
 import ProductPage from "./pages/detail/ProductPage";
 import ShipmentPage from "./pages/detail/ShipmentPage";
+import ContainerPage from "./pages/detail/ContainerPage";
 import { useRole, DESIGNER_PATHS } from "./hooks/useRole";
 
 function DesignerRoutes() {
@@ -65,6 +66,7 @@ function AppRoutes() {
         <Route path="/orders/:id" element={<OrderPage />} />
         <Route path="/products/:sku" element={<ProductPage />} />
         <Route path="/shipments/:id" element={<ShipmentPage />} />
+        <Route path="/restocks/:id" element={<ContainerPage />} />
       </Route>
     </Routes>
   );
