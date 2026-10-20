@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Typography, Table, Input, InputNumber, Select, Checkbox, Button, Segmented, Modal, Tabs, Space, Popconfirm, Tooltip,
   Form, AutoComplete, message,
@@ -44,6 +45,16 @@ function upcFor(sku) {
     else even += Number(first11[i]);
   }
   return first11 + ((10 - ((odd * 3 + even) % 10)) % 10);
+}
+
+// Once a number is a product, its SKU and UPC link to the product's page
+function ToProduct({ product, children }) {
+  if (!product) return children;
+  return (
+    <Link to={`/products/${encodeURIComponent(product.sku)}`} onClick={(e) => e.stopPropagation()} title="Open product page">
+      {children}
+    </Link>
+  );
 }
 
 function Thumb({ url }) {
@@ -253,7 +264,7 @@ function AllBrandsGrid({ codesVersion }) {
               onChange={(e) => handleToggle(r, b.code, e.target.checked)}
             />
             <div style={{ fontSize: 11, color: cell.inUse ? undefined : "#bbb", fontFamily: "monospace" }}>
-              {cell.sku}
+              <ToProduct product={cell.product}>{cell.sku}</ToProduct>
               <Button
                 type="text"
                 size="small"
@@ -883,7 +894,7 @@ function OtherRangeView({ ranges }) {
       render: (v, r) => {
         if (r.isAvailable) return null;
         if (r.isGroup) return <strong>{r.children[0].sku}–{r.children[r.children.length - 1].sku}</strong>;
-        return <strong>{v}</strong>;
+        return <ToProduct product={r.product}><strong>{v}</strong></ToProduct>;
       },
     },
     {
@@ -900,7 +911,7 @@ function OtherRangeView({ ranges }) {
           );
         }
         if (r.isGroup) return <span style={{ color: "#8c8c8c" }}>{r.children.length} numbers</span>;
-        return <span style={{ fontFamily: "monospace" }}>{formatUpc(v)}</span>;
+        return <ToProduct product={r.product}><span style={{ fontFamily: "monospace" }}>{formatUpc(v)}</span></ToProduct>;
       },
     },
     {
@@ -1221,7 +1232,7 @@ export default function Upc() {
       render: (v, r) => {
         if (r.isUnused) return null;
         if (r.isStyleGroup) return <strong>{r.children[0].sku}–{r.children[r.children.length - 1].sku}</strong>;
-        return <strong>{v}</strong>;
+        return <ToProduct product={r.product}><strong>{v}</strong></ToProduct>;
       },
     },
     {
@@ -1231,7 +1242,7 @@ export default function Upc() {
       render: (v, r) => {
         if (r.isUnused) return grey(`${r.count} unused style${r.count === 1 ? "" : "s"}`);
         if (r.isStyleGroup) return grey(`${r.children.length} colors`);
-        return <span style={{ fontFamily: "monospace" }}>{formatUpc(v)}</span>;
+        return <ToProduct product={r.product}><span style={{ fontFamily: "monospace" }}>{formatUpc(v)}</span></ToProduct>;
       },
     },
     {
@@ -1266,7 +1277,7 @@ export default function Upc() {
       render: (_, r) => (r.isUnused ? null : r.isStyleGroup
         ? grey(`${r.children.filter((c) => c.product).length} product${r.children.filter((c) => c.product).length === 1 ? "" : "s"}`)
         : r.product
-        ? <Button type="link" style={{ padding: 0 }} onClick={() => setOpenProduct(r.product)}><Thumb url={r.product.imageUrl} />{r.product.name}</Button>
+        ? <ToProduct product={r.product}><Thumb url={r.product.imageUrl} />{r.product.name}</ToProduct>
         : <span style={{ color: "#bbb" }}>—</span>),
     },
     {
