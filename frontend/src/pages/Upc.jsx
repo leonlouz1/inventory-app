@@ -157,6 +157,7 @@ function AllBrandsGrid({ codesVersion }) {
   const [search, setSearch] = useState("");
   const [usedOnly, setUsedOnly] = useState(false);
   const [savingSku, setSavingSku] = useState(null);
+  const [expanded, setExpanded] = useState([]);
 
   useEffect(() => {
     setLoading(true);
@@ -197,17 +198,41 @@ function AllBrandsGrid({ codesVersion }) {
     });
   }, [data.rows, search, usedOnly]);
 
+  // One row per style, opening to its colors
+  const styleRows = useMemo(() => {
+    const byStyle = new Map();
+    for (const r of filteredRows) {
+      if (!byStyle.has(r.styleCode)) {
+        byStyle.set(r.styleCode, { key: `st:${r.styleCode}`, isStyleGroup: true, styleCode: r.styleCode, styleName: r.styleName, children: [] });
+      }
+      byStyle.get(r.styleCode).children.push(r);
+    }
+    return [...byStyle.values()];
+  }, [filteredRows]);
+  const expandedKeys = search.trim() ? styleRows.map((r) => r.key) : expanded;
+
   const columns = [
-    { title: "Number", dataIndex: "key", width: 90, render: (v) => <strong style={{ fontFamily: "monospace" }}>{v}</strong> },
+    {
+      title: "Number",
+      dataIndex: "key",
+      width: 90,
+      render: (v, r) => <strong style={{ fontFamily: "monospace" }}>{r.isStyleGroup ? `${r.styleCode}x` : v}</strong>,
+    },
     {
       title: "Style",
       key: "style",
-      render: (_, r) => <span><span style={{ color: "#8c8c8c" }}>{r.styleCode}</span> {r.styleName}</span>,
+      render: (_, r) => (
+        <span>
+          <span style={{ color: "#8c8c8c" }}>{r.styleCode}</span> {r.isStyleGroup ? <strong>{r.styleName}</strong> : r.styleName}
+        </span>
+      ),
     },
     {
       title: "Color",
       key: "color",
-      render: (_, r) => <span><span style={{ color: "#8c8c8c" }}>{r.colorCode}</span> {r.colorName}</span>,
+      render: (_, r) => (r.isStyleGroup
+        ? <span style={{ color: "#8c8c8c" }}>{r.children.length} colors</span>
+        : <span><span style={{ color: "#8c8c8c" }}>{r.colorCode}</span> {r.colorName}</span>),
     },
     ...data.brands.map((b) => ({
       title: <div style={{ textAlign: "center" }}>{b.name}<div style={{ color: "#8c8c8c", fontWeight: 400 }}>{b.code}</div></div>,
@@ -215,6 +240,10 @@ function AllBrandsGrid({ codesVersion }) {
       align: "center",
       width: 130,
       render: (_, r) => {
+        if (r.isStyleGroup) {
+          const used = r.children.filter((c) => c.brands[b.code]?.inUse).length;
+          return <span style={{ color: used ? undefined : "#bbb" }}>{used}/{r.children.length}</span>;
+        }
         const cell = r.brands[b.code];
         return (
           <Tooltip title={cell.product?.name}>
@@ -261,7 +290,13 @@ function AllBrandsGrid({ codesVersion }) {
         size="small"
         loading={loading}
         columns={columns}
-        dataSource={filteredRows}
+        dataSource={styleRows}
+        expandable={{
+          expandedRowKeys: expandedKeys,
+          onExpandedRowsChange: (keys) => setExpanded(keys),
+          expandRowByClick: true,
+        }}
+        onRow={(r) => (r.isStyleGroup ? { style: { cursor: "pointer", background: "#fafafa" } } : {})}
         scroll={{ x: "max-content" }}
         locale={{ emptyText: "Add style and color codes under Manage Codes to see combinations here" }}
         pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50", "100", "200"] }}
@@ -1073,6 +1108,34 @@ function OtherRangeView({ ranges }) {
   );
 }
 
+// Travel numbers are brand + style + color, so each run of ten (e.g.
+// 24010-24019) is one style in every color. One row per style; styles with no
+// code set up and nothing in use fold into a single "unused styles" row.
+function groupTravelRows(rows) {
+  const styles = new Map();
+  for (const r of rows) {
+    const key = r.sku.slice(0, 4);
+    if (!styles.has(key)) styles.set(key, []);
+    styles.get(key).push(r);
+  }
+  const used = [];
+  const unused = [];
+  for (const [key, children] of styles) {
+    const group = {
+      key: `s:${key}`,
+      isStyleGroup: true,
+      styleCode: children[0].styleCode,
+      styleName: children[0].styleName,
+      children,
+    };
+    (group.styleName || children.some((c) => c.inUse) ? used : unused).push(group);
+  }
+  if (unused.length) {
+    used.push({ key: "unused-styles", isUnused: true, count: unused.length, children: unused });
+  }
+  return used;
+}
+
 export default function Upc() {
   const [section, setSection] = useState("travel");
   const [barcode, setBarcode] = useState(null);
@@ -1085,6 +1148,7 @@ export default function Upc() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [definedOnly, setDefinedOnly] = useState(false);
+  const [travelExpanded, setTravelExpanded] = useState([]);
   const [codesOpen, setCodesOpen] = useState(false);
   const [savingSku, setSavingSku] = useState(null);
 
@@ -1142,32 +1206,66 @@ export default function Upc() {
   }, [rows, search, status, definedOnly]);
 
   const inUseCount = rows.filter((r) => r.inUse).length;
+  const travelRows = useMemo(() => groupTravelRows(filteredRows), [filteredRows]);
+  // While searching, open the matching styles
+  const travelExpandedKeys = search.trim()
+    ? travelRows.filter((r) => r.isStyleGroup).map((r) => r.key)
+    : travelExpanded;
+  const grey = (t) => <span style={{ color: "#8c8c8c" }}>{t}</span>;
 
   const columns = [
-    { title: "SKU", dataIndex: "sku", width: 90, render: (v) => <strong>{v}</strong> },
-    { title: "UPC", dataIndex: "upc", width: 170, render: (v) => <span style={{ fontFamily: "monospace" }}>{formatUpc(v)}</span> },
+    {
+      title: "SKU",
+      dataIndex: "sku",
+      width: 130,
+      render: (v, r) => {
+        if (r.isUnused) return null;
+        if (r.isStyleGroup) return <strong>{r.children[0].sku}–{r.children[r.children.length - 1].sku}</strong>;
+        return <strong>{v}</strong>;
+      },
+    },
+    {
+      title: "UPC",
+      dataIndex: "upc",
+      width: 170,
+      render: (v, r) => {
+        if (r.isUnused) return grey(`${r.count} unused style${r.count === 1 ? "" : "s"}`);
+        if (r.isStyleGroup) return grey(`${r.children.length} colors`);
+        return <span style={{ fontFamily: "monospace" }}>{formatUpc(v)}</span>;
+      },
+    },
     {
       title: "Style",
       key: "style",
-      render: (_, r) => (
+      render: (_, r) => (r.isUnused ? null : (
         <span>
-          <span style={{ color: "#8c8c8c" }}>{r.styleCode}</span> {r.styleName || <span style={{ color: "#bbb" }}>—</span>}
+          <span style={{ color: "#8c8c8c" }}>{r.styleCode}</span>{" "}
+          {r.styleName ? (r.isStyleGroup ? <strong>{r.styleName}</strong> : r.styleName) : <span style={{ color: "#bbb" }}>—</span>}
         </span>
-      ),
+      )),
     },
     {
       title: "Color",
       key: "color",
-      render: (_, r) => (
-        <span>
-          <span style={{ color: "#8c8c8c" }}>{r.colorCode}</span> {r.colorName || <span style={{ color: "#bbb" }}>—</span>}
-        </span>
-      ),
+      render: (_, r) => {
+        if (r.isUnused) return null;
+        if (r.isStyleGroup) {
+          const inUse = r.children.filter((c) => c.inUse).map((c) => c.colorName || c.colorCode);
+          return inUse.length ? <span style={{ color: "#595959" }}>{inUse.join(", ")}</span> : grey("—");
+        }
+        return (
+          <span>
+            <span style={{ color: "#8c8c8c" }}>{r.colorCode}</span> {r.colorName || <span style={{ color: "#bbb" }}>—</span>}
+          </span>
+        );
+      },
     },
     {
       title: "Product",
       key: "product",
-      render: (_, r) => (r.product
+      render: (_, r) => (r.isUnused ? null : r.isStyleGroup
+        ? grey(`${r.children.filter((c) => c.product).length} product${r.children.filter((c) => c.product).length === 1 ? "" : "s"}`)
+        : r.product
         ? <Button type="link" style={{ padding: 0 }} onClick={() => setOpenProduct(r.product)}><Thumb url={r.product.imageUrl} />{r.product.name}</Button>
         : <span style={{ color: "#bbb" }}>—</span>),
     },
@@ -1177,6 +1275,8 @@ export default function Upc() {
       width: 80,
       align: "center",
       render: (inUse, r) => {
+        if (r.isUnused) return null;
+        if (r.isStyleGroup) return grey(`${r.children.filter((c) => c.inUse).length}/${r.children.length}`);
         const ready = r.brandName && r.styleName && r.colorName;
         const box = (
           <Checkbox
@@ -1193,7 +1293,7 @@ export default function Upc() {
       title: "",
       key: "barcode",
       width: 48,
-      render: (_, r) => (
+      render: (_, r) => (r.isStyleGroup || r.isUnused ? null : (
         <Tooltip title="Barcode artwork">
           <Button
             type="text"
@@ -1204,7 +1304,7 @@ export default function Upc() {
             })}
           />
         </Tooltip>
-      ),
+      )),
     },
   ];
 
@@ -1265,11 +1365,18 @@ export default function Upc() {
       </div>
 
       <Table
-        rowKey="sku"
+        rowKey={(r) => r.key ?? r.sku}
         size="small"
         loading={loading}
         columns={columns}
-        dataSource={filteredRows}
+        dataSource={travelRows}
+        expandable={{
+          expandedRowKeys: travelExpandedKeys,
+          onExpandedRowsChange: (keys) => setTravelExpanded(keys),
+          expandRowByClick: true,
+        }}
+        onRow={(r) => (r.isStyleGroup || r.isUnused ? { style: { cursor: "pointer", background: "#fafafa" } } : {})}
+        scroll={{ x: "max-content" }}
         pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["50", "100", "200"] }}
       />
       </>}
