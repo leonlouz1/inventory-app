@@ -221,7 +221,7 @@ export default function Orders() {
 
   const categoryOptions = useMemo(() => {
     const cats = new Set();
-    for (const o of orders) for (const l of o.lines) if (l.groupName) cats.add(l.groupName);
+    for (const o of orders) for (const l of o.lines) if (l.category) cats.add(l.category);
     return [...cats].sort().map((c) => ({ value: c, label: c }));
   }, [orders]);
 
@@ -230,7 +230,8 @@ export default function Orders() {
     return orders.filter((o) => {
       if (statusFilter.length > 0 && !statusFilter.includes(o.status)) return false;
       if (customerFilter && o.customer !== customerFilter) return false;
-      if (categoryFilter && !o.lines.some((l) => l.groupName === categoryFilter)) return false;
+      // Product category (Neck Pillows, Towels, ...) of any line on the order
+      if (categoryFilter && !o.lines.some((l) => l.category === categoryFilter)) return false;
       if (!term) return true;
       return (
         o.orderNumber.toLowerCase().includes(term) ||

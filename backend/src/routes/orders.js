@@ -135,6 +135,7 @@ router.get(
           shadowOf: line.product.shadowParent?.sku ?? null,
           groupId: line.product.groupId ?? null,
           groupName: line.product.group?.name ?? null,
+          category: line.product.category ?? null,
           warehouseId: line.warehouseId,
           warehouseName: line.warehouse ? line.warehouse.name : null,
           quantity: line.quantity,
