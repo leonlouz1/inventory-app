@@ -7,6 +7,7 @@ import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS } from "../../constants/orderS
 import { useRole } from "../../hooks/useRole";
 import ProductWindow from "../../components/ProductWindow";
 import BarcodeModal from "../../components/BarcodeModal";
+import ShadowSkusCard from "../../components/ShadowSkusCard";
 
 const orderLink = (n, row) => <Link to={`/orders/${row.orderId}`}>{n}</Link>;
 
@@ -136,6 +137,8 @@ export default function ProductPage() {
           </Col>
         )}
       </Row>
+
+      <ShadowSkusCard product={product} canEdit={!isDesigner} onChanged={load} />
 
       {!isDesigner && (
         <>
