@@ -177,6 +177,80 @@ router.post(
   })
 );
 
+// GET /api/products/details — every product's editable details, for the
+// bulk-edit spreadsheet
+router.get(
+  "/details",
+  asyncHandler(async (req, res) => {
+    const products = await prisma.product.findMany({ orderBy: { sku: "asc" } });
+    res.json(products.map((p) => ({
+      id: p.id,
+      sku: p.sku,
+      name: p.name,
+      brand: p.brand,
+      category: p.category,
+      casePack: p.casePack,
+      leadTimeDays: p.leadTimeDays,
+      wholesalePrice: p.wholesalePrice != null ? Number(p.wholesalePrice) : null,
+      retailPrice: p.retailPrice != null ? Number(p.retailPrice) : null,
+      description: p.description,
+      imageUrl: p.imageUrl,
+      color: p.color,
+      attributes: p.attributes ?? {},
+    })));
+  })
+);
+
+// POST /api/products/bulk-update — { updates: [{ sku, name?, brand?, category?,
+// casePack?, leadTimeDays?, wholesalePrice?, retailPrice?, description?,
+// imageUrl?, attributes? }] }: applies only the fields given, all or nothing.
+// Attributes are merged; Color also updates the color column. UPCs aren't touched.
+router.post(
+  "/bulk-update",
+  asyncHandler(async (req, res) => {
+    const updates = Array.isArray(req.body.updates) ? req.body.updates : [];
+    if (updates.length === 0) return res.status(400).json({ message: "Nothing to update" });
+    const skus = updates.map((u) => String(u.sku));
+    const products = await prisma.product.findMany({ where: { sku: { in: skus } } });
+    const bySku = new Map(products.map((p) => [p.sku, p]));
+    const unknown = skus.filter((s) => !bySku.has(s));
+    if (unknown.length) return res.status(400).json({ message: `Unknown SKUs: ${unknown.slice(0, 10).join(", ")}` });
+
+    const num = (v, int) => {
+      if (v === undefined) return undefined;
+      if (v === null || v === "") return null;
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0 || (int && !Number.isInteger(n))) throw Object.assign(new Error(`Invalid number "${v}"`), { status: 400 });
+      return n;
+    };
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        for (const u of updates) {
+          const current = bySku.get(String(u.sku));
+          const data = {};
+          for (const key of ["name", "brand", "category", "description", "imageUrl"]) {
+            if (u[key] !== undefined) data[key] = u[key] === "" ? null : u[key];
+          }
+          if (data.name === null) delete data.name; // a product always keeps a name
+          if (u.casePack !== undefined) data.casePack = num(u.casePack, true) || null;
+          if (u.leadTimeDays !== undefined) data.leadTimeDays = num(u.leadTimeDays, true) ?? current.leadTimeDays;
+          if (u.wholesalePrice !== undefined) data.wholesalePrice = num(u.wholesalePrice);
+          if (u.retailPrice !== undefined) data.retailPrice = num(u.retailPrice);
+          if (u.attributes && typeof u.attributes === "object") {
+            Object.assign(data, attributeData({ ...(current.attributes ?? {}), ...u.attributes }));
+          }
+          if (Object.keys(data).length) await tx.product.update({ where: { id: current.id }, data });
+        }
+      }, { timeout: 60000 });
+    } catch (err) {
+      if (err.status) return res.status(err.status).json({ message: err.message });
+      throw err;
+    }
+    res.json({ updated: updates.length });
+  })
+);
+
 // GET /api/products/by-sku/:sku — a product's page: its id plus open orders,
 // recent shipments and restocks for that SKU (designers just get the id)
 router.get(

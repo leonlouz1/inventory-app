@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Tooltip, Input, Modal, Radio, Select, Tag } from "antd";
-import { PlusOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined, SwapOutlined } from "@ant-design/icons";
+import { PlusOutlined, EditOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined, SwapOutlined } from "@ant-design/icons";
 import Papa from "papaparse";
 import { productsApi, warehousesApi } from "../api/inventory";
 import { authHeaders } from "../api/client";
@@ -10,6 +10,7 @@ import { downloadInventoryReport } from "../utils/inventoryReport";
 import { NewProductModal } from "../components/ProductModals";
 import ProductWindow from "../components/ProductWindow";
 import BulkImportProductsModal from "../components/BulkImportProductsModal";
+import BulkEditProductsModal from "../components/BulkEditProductsModal";
 import WarehouseTransferModal from "../components/WarehouseTransferModal";
 import { PRODUCT_CATEGORIES } from "../constants/categories";
 import { PRODUCT_BRANDS } from "../constants/brands";
@@ -34,6 +35,7 @@ export default function Products() {
   const [error, setError] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [search, setSearch] = useState("");
@@ -344,6 +346,9 @@ export default function Products() {
             Import CSV
           </Button>
           </>}
+          <Button icon={<EditOutlined />} onClick={() => setBulkEditOpen(true)}>
+            Bulk edit
+          </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
             Add Product
           </Button>
@@ -417,6 +422,8 @@ export default function Products() {
           onSaved={loadProducts}
         />
       )}
+
+      <BulkEditProductsModal open={bulkEditOpen} onClose={() => setBulkEditOpen(false)} onUpdated={loadProducts} />
 
       <BulkImportProductsModal
         open={importOpen}
