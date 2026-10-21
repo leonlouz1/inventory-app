@@ -8,6 +8,7 @@ import { useRole } from "../../hooks/useRole";
 import ProductWindow from "../../components/ProductWindow";
 import BarcodeModal from "../../components/BarcodeModal";
 import ShadowSkusCard from "../../components/ShadowSkusCard";
+import ProductCostCard from "../../components/ProductCostCard";
 
 const orderLink = (n, row) => <Link to={`/orders/${row.orderId}`}>{n}</Link>;
 
@@ -139,6 +140,8 @@ export default function ProductPage() {
       </Row>
 
       <ShadowSkusCard product={product} canEdit={!isDesigner} onChanged={load} />
+
+      {!isDesigner && <ProductCostCard product={product} />}
 
       {!isDesigner && (
         <>

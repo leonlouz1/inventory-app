@@ -174,3 +174,19 @@ export const containersApi = {
   unreceive: (id) => apiClient.post(`/containers/${id}/unreceive`, {}),
   split: (id, data) => apiClient.post(`/containers/${id}/split`, data),
 };
+
+export const costsApi = {
+  rates: () => apiClient.get("/costs/rates"),
+  addOrigin: (name) => apiClient.post("/costs/origins", { name }),
+  renameOrigin: (id, name) => apiClient.put(`/costs/origins/${id}`, { name }),
+  deleteOrigin: (id) => apiClient.delete(`/costs/origins/${id}`),
+  addDestination: (data) => apiClient.post("/costs/destinations", data),
+  updateDestination: (id, data) => apiClient.put(`/costs/destinations/${id}`, data),
+  deleteDestination: (id) => apiClient.delete(`/costs/destinations/${id}`),
+  setRoute: (originId, destinationId, containerPrice) => apiClient.put("/costs/routes", { originId, destinationId, containerPrice }),
+  products: () => apiClient.get("/costs/products"),
+  productCosts: (productId) => apiClient.get(`/costs/products/${productId}`),
+  setSourcing: (productId, originId, data) => apiClient.put(`/costs/products/${productId}/sourcing/${originId}`, data),
+  deleteSourcing: (productId, originId) => apiClient.delete(`/costs/products/${productId}/sourcing/${originId}`),
+  import: (rows) => apiClient.post("/costs/import", { rows }),
+};

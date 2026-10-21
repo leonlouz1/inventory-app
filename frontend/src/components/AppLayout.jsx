@@ -19,6 +19,7 @@ import {
   DollarOutlined,
   BarcodeOutlined,
   ScheduleOutlined,
+  CalculatorOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useRole, DESIGNER_PATHS } from "../hooks/useRole";
@@ -48,6 +49,7 @@ const NAV_ITEMS = [
   { key: "/sku-groups", label: "SKU Groups", icon: <LinkOutlined /> },
   { key: "/catalog", label: "Catalog", icon: <BookOutlined /> },
   { key: "/upc", label: "UPC Codes", icon: <BarcodeOutlined /> },
+  { key: "/costs", label: "Costs", icon: <CalculatorOutlined /> },
   { key: "/warehouses", label: "Warehouses", icon: <BankOutlined /> },
 ];
 

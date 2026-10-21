@@ -63,6 +63,7 @@ model Product {
 
   group      ProductGroup?    @relation(fields: [groupId], references: [id])
   shadowParent Product?       @relation("ShadowSku", fields: [shadowParentId], references: [id], onDelete: SetNull)
+  sourcing     ProductSourcing[]
   shadows      Product[]      @relation("ShadowSku")
   stock      WarehouseStock[]
   orderLines OrderLine[]
@@ -379,4 +380,63 @@ model Container {
   lines     Restock[]
 
   @@map("containers")
+}
+
+// ---- Landed cost ----
+// Where goods are made (China, Thailand, ...)
+model CostOrigin {
+  id       Int    @id @default(autoincrement())
+  name     String @unique @db.VarChar(100)
+
+  routes   FreightRoute[]
+  sourcing ProductSourcing[]
+
+  @@map("cost_origins")
+}
+
+// US arrival port (New York, Los Angeles). warehouseFee is the flat rate per
+// container to bring it from the port into the warehouse.
+model CostDestination {
+  id           Int     @id @default(autoincrement())
+  name         String  @unique @db.VarChar(100)
+  warehouseFee Decimal @default(0) @map("warehouse_fee") @db.Decimal(10, 2)
+
+  routes FreightRoute[]
+
+  @@map("cost_destinations")
+}
+
+// Container price for one origin -> destination route; updated as freight moves
+model FreightRoute {
+  id             Int      @id @default(autoincrement())
+  originId       Int      @map("origin_id")
+  destinationId  Int      @map("destination_id")
+  containerPrice Decimal  @default(0) @map("container_price") @db.Decimal(10, 2)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  origin      CostOrigin      @relation(fields: [originId], references: [id], onDelete: Cascade)
+  destination CostDestination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@unique([originId, destinationId])
+  @@map("freight_routes")
+}
+
+// A product's cost when made in one origin: factory price (USD), duty layers
+// (% of factory price) and how many units fit in a container.
+model ProductSourcing {
+  id                Int      @id @default(autoincrement())
+  productId         Int      @map("product_id")
+  originId          Int      @map("origin_id")
+  factoryPrice      Decimal  @map("factory_price") @db.Decimal(10, 4)
+  htsCode           String?  @map("hts_code") @db.VarChar(20)
+  dutyRate          Decimal  @default(0) @map("duty_rate") @db.Decimal(6, 3)
+  extraDutyRate     Decimal  @default(0) @map("extra_duty_rate") @db.Decimal(6, 3)
+  unitsPerContainer Int      @map("units_per_container")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  product Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  origin  CostOrigin @relation(fields: [originId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, originId])
+  @@map("product_sourcing")
 }
