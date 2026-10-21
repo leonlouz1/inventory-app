@@ -294,23 +294,44 @@ function CostSpreadsheet({ products, rates, onImported }) {
 }
 
 // What-if calculator: start from a product (optional) and change anything; nothing is saved
+// Middle value of a list (ignores blanks); null when there's nothing to go on
+function median(values) {
+  const nums = values.filter((x) => x != null && Number.isFinite(Number(x))).map(Number).sort((a, b) => a - b);
+  if (!nums.length) return null;
+  const mid = Math.floor(nums.length / 2);
+  return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+}
+
 function CalculatorTab({ rates, products, destinationId, includeWarehouse }) {
-  const [productId, setProductId] = useState(null);
+  const [category, setCategory] = useState(null);
+  const [subCategory, setSubCategory] = useState(null);
+  const [packSize, setPackSize] = useState(null);
   const [originId, setOriginId] = useState(rates.origins[0]?.id ?? null);
   const [typed, setTyped] = useState({}); // values typed over the defaults
   const [targetMargin, setTargetMargin] = useState(TARGET_MARGIN);
-  const product = products.find((p) => p.id === productId);
   const destination = rates.destinations.find((d) => d.id === destinationId);
-  const saved = product?.sourcing.find((x) => x.originId === originId);
+  const reset = () => setTyped({});
 
-  // Defaults come from the product's saved cost for the origin, its wholesale
-  // price, the route's container price and the port's warehouse fee
+  const categories = [...new Set(products.map((p) => p.category).filter(Boolean))].sort();
+  const inCategory = products.filter((p) => p.category === category);
+  const subCategories = [...new Set(inCategory.map((p) => p.subCategory).filter(Boolean))].sort();
+  const inSub = subCategory ? inCategory.filter((p) => p.subCategory === subCategory) : inCategory;
+  const packSizes = [...new Set(inSub.map((p) => p.packSize).filter(Boolean))].sort((a, b) => Number(a) - Number(b));
+  const matching = packSize ? inSub.filter((p) => String(p.packSize) === String(packSize)) : inSub;
+  // The usual duty, second layer and units per container among matching
+  // products that have costs for this origin
+  const costed = category
+    ? matching.map((p) => p.sourcing.find((x) => x.originId === originId)).filter(Boolean)
+    : [];
+
+  // Defaults: the typical values from the selection, the route's container
+  // price and the port's warehouse fee
   const defaults = {
-    factoryPrice: saved?.factoryPrice ?? null,
-    dutyRate: saved?.dutyRate ?? 0,
-    extraDutyRate: saved?.extraDutyRate ?? 0,
-    unitsPerContainer: saved?.unitsPerContainer ?? null,
-    price: product?.wholesalePrice ?? null,
+    factoryPrice: null,
+    dutyRate: median(costed.map((c) => c.dutyRate)) ?? 0,
+    extraDutyRate: median(costed.map((c) => c.extraDutyRate)) ?? 0,
+    unitsPerContainer: median(costed.map((c) => c.unitsPerContainer)),
+    price: category ? median(matching.map((p) => p.wholesalePrice)) : null,
     containerPrice: routePrice(rates, originId, destinationId),
     warehouseFee: destination?.warehouseFee ?? 0,
   };
@@ -331,23 +352,50 @@ function CalculatorTab({ rates, products, destinationId, includeWarehouse }) {
       <Col xs={24} lg={12}>
         <Form layout="vertical">
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
-            <Form.Item label="Start from a product (optional)" style={{ marginBottom: 12 }}>
+            <Form.Item label="Category" style={{ marginBottom: 12 }}>
               <Select
                 allowClear
                 showSearch
-                placeholder="Or type your own numbers below"
-                value={productId}
-                onChange={(id) => { setProductId(id); setTyped({}); }}
-                options={products.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` }))}
-                filterOption={(input, opt) => opt.label.toLowerCase().includes(input.toLowerCase())}
+                placeholder="Optional: fills the usual duty and units"
+                value={category}
+                onChange={(c) => { setCategory(c ?? null); setSubCategory(null); setPackSize(null); reset(); }}
+                options={categories.map((c) => ({ value: c, label: c }))}
               />
             </Form.Item>
             <Form.Item label="Made in" style={{ marginBottom: 12 }}>
-              <Select value={originId} onChange={(id) => { setOriginId(id); setTyped({}); }} options={rates.origins.map((o) => ({ value: o.id, label: o.name }))} />
+              <Select value={originId} onChange={(id) => { setOriginId(id); reset(); }} options={rates.origins.map((o) => ({ value: o.id, label: o.name }))} />
+            </Form.Item>
+            <Form.Item label="Sub category" style={{ marginBottom: 12 }}>
+              <Select
+                allowClear
+                showSearch
+                disabled={!category || !subCategories.length}
+                placeholder={category ? (subCategories.length ? "Any" : "None in this category") : "Pick a category first"}
+                value={subCategory}
+                onChange={(v) => { setSubCategory(v ?? null); setPackSize(null); reset(); }}
+                options={subCategories.map((x) => ({ value: x, label: x }))}
+              />
+            </Form.Item>
+            <Form.Item label="Pack size" style={{ marginBottom: 12 }}>
+              <Select
+                allowClear
+                disabled={!category || !packSizes.length}
+                placeholder={packSizes.length ? "Any" : "—"}
+                value={packSize}
+                onChange={(v) => { setPackSize(v ?? null); reset(); }}
+                options={packSizes.map((x) => ({ value: x, label: `${x} pack` }))}
+              />
             </Form.Item>
           </div>
-          {product && !product.sourcing.some((s) => s.originId === originId) && (
-            <Alert type="info" showIcon style={{ marginBottom: 12 }} message={`${product.sku} has no saved ${rates.origins.find((o) => o.id === originId)?.name} cost. Type it in below.`} />
+          {category && (
+            <Alert
+              type={costed.length ? "success" : "info"}
+              showIcon
+              style={{ marginBottom: 12 }}
+              message={costed.length
+                ? `Duty, second layer and units per container are the usual values from ${costed.length} product${costed.length === 1 ? "" : "s"} with ${rates.origins.find((o) => o.id === originId)?.name} costs. Type over anything.`
+                : `No ${[category, subCategory, packSize && `${packSize} pack`].filter(Boolean).join(" · ")} products have ${rates.origins.find((o) => o.id === originId)?.name} costs yet. Type the numbers in below.`}
+            />
           )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             {num("factoryPrice", "Factory price", { prefix: "$", step: 0.01 })}

@@ -131,14 +131,20 @@ router.get(
       orderBy: { sku: "asc" },
       select: {
         id: true, sku: true, name: true, brand: true, category: true, imageUrl: true,
-        wholesalePrice: true, retailPrice: true, casePack: true, attributes: true, upc: true, color: true,
+        wholesalePrice: true, retailPrice: true, casePack: true, attributes: true, upc: true, color: true, productType: true,
         sourcing: { include: { origin: true } },
       },
     });
     // UPC group each product's number belongs to (linesheet blocks start from these)
-    const assignments = await prisma.upcAssignment.findMany({ where: { groupId: { not: null } }, select: { sku: true, groupId: true } });
+    const assignments = await prisma.upcAssignment.findMany({
+      where: { OR: [{ groupId: { not: null } }, { name: { not: null } }] },
+      select: { sku: true, groupId: true, name: true },
+    });
     const groups = new Map((await prisma.upcGroup.findMany()).map((g) => [g.id, g.name]));
-    const groupBySku = new Map(assignments.map((a) => [a.sku, { id: a.groupId, name: groups.get(a.groupId) }]));
+    const groupBySku = new Map(assignments.filter((a) => a.groupId).map((a) => [a.sku, { id: a.groupId, name: groups.get(a.groupId) }]));
+    // Sub category: the product type (Travel style, e.g. High Neck Pillow) or the
+    // base name typed on the UPC page (e.g. Velvet Hanger)
+    const baseNameBySku = new Map(assignments.filter((a) => a.name).map((a) => [a.sku, a.name]));
     res.json(products.map((p) => ({
       id: p.id,
       sku: p.sku,
@@ -151,6 +157,7 @@ router.get(
       upc: p.upc,
       color: p.color || p.attributes?.color || null,
       upcGroup: groupBySku.get(p.sku) ?? null,
+      subCategory: p.productType || baseNameBySku.get(p.sku) || null,
       wholesalePrice: money(p.wholesalePrice),
       retailPrice: money(p.retailPrice),
       sourcing: p.sourcing.map(sourcingView),
