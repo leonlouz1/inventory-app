@@ -177,6 +177,43 @@ router.post(
   })
 );
 
+// GET /api/products/recent-activity?days=180 — ids of products with any
+// activity: on an order or restock/container in the last `days` days (ordered,
+// shipping, expected or received; cancelled orders don't count), or anything
+// upcoming (an open order, or a restock/container not yet received)
+router.get(
+  "/recent-activity",
+  asyncHandler(async (req, res) => {
+    const days = Math.min(Math.max(Number(req.query.days) || 180, 1), 3650);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const [lines, restocks] = await Promise.all([
+      prisma.orderLine.findMany({
+        where: {
+          OR: [
+            { order: { status: { not: "CANCELLED" } }, shipDate: { gte: since } },
+            { order: { status: { not: "CANCELLED" }, orderDate: { gte: since } } },
+            { order: { status: { notIn: ["SHIPPED", "CANCELLED"] } } }, // open: still to ship
+          ],
+        },
+        select: { productId: true },
+        distinct: ["productId"],
+      }),
+      prisma.restock.findMany({
+        where: {
+          OR: [
+            { expectedDate: { gte: since } },
+            { receivedAt: { gte: since } },
+            { status: { notIn: ["RECEIVED", "DRAFT"] } }, // incoming
+          ],
+        },
+        select: { productId: true },
+        distinct: ["productId"],
+      }),
+    ]);
+    res.json({ days, productIds: [...new Set([...lines, ...restocks].map((r) => r.productId))] });
+  })
+);
+
 // GET /api/products/details — every product's editable details, for the
 // bulk-edit spreadsheet
 router.get(

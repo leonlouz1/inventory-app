@@ -10,6 +10,7 @@ export const productsApi = {
   projection: (id) => apiClient.get(`/products/${id}/projection`),
   full: (id) => apiClient.get(`/products/${id}/full`),
   details: () => apiClient.get("/products/details"),
+  recentActivity: (days) => apiClient.get(`/products/recent-activity?days=${days}`),
   bulkUpdate: (updates) => apiClient.post("/products/bulk-update", { updates }),
   bySku: (sku) => apiClient.get(`/products/by-sku/${encodeURIComponent(sku)}`),
   setShadowParent: (id, parentId) => apiClient.put(`/products/${id}/shadow-parent`, { parentId }),

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Tooltip, Input, Modal, Radio, Select, Tag } from "antd";
+import { Table, Button, Spin, Alert, Typography, Space, Popconfirm, message, Tooltip, Input, Modal, Radio, Select, Tag, Checkbox } from "antd";
 import { PlusOutlined, EditOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined, SwapOutlined } from "@ant-design/icons";
 import Papa from "papaparse";
 import { productsApi, warehousesApi } from "../api/inventory";
@@ -51,6 +51,7 @@ export default function Products() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [inventoryReportOpen, setInventoryReportOpen] = useState(false);
   const [inventoryReportCategories, setInventoryReportCategories] = useState([]);
+  const [inventoryReportActiveOnly, setInventoryReportActiveOnly] = useState(false);
 
   const filteredProducts = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -445,10 +446,23 @@ export default function Products() {
         open={inventoryReportOpen}
         onCancel={() => setInventoryReportOpen(false)}
         okText="Download"
-        onOk={() => {
-          const filtered = inventoryReportCategories.length === 0
+        onOk={async () => {
+          let filtered = inventoryReportCategories.length === 0
             ? products
             : products.filter((p) => inventoryReportCategories.includes(p.category));
+          if (inventoryReportActiveOnly) {
+            try {
+              const { productIds } = await productsApi.recentActivity(180);
+              const active = new Set(productIds);
+              const before = filtered.length;
+              // Keep anything with recent or upcoming activity, or stock on hand
+              filtered = filtered.filter((p) => active.has(p.id) || (p.totalOnHand ?? 0) > 0);
+              message.info(`Left out ${before - filtered.length} inactive SKU${before - filtered.length === 1 ? "" : "s"}`);
+            } catch (err) {
+              message.error(`Couldn't check recent activity: ${err.message}`);
+              return;
+            }
+          }
           downloadInventoryReport(filtered);
           setInventoryReportOpen(false);
         }}
@@ -471,6 +485,17 @@ export default function Products() {
           onChange={setInventoryReportCategories}
           maxTagCount="responsive"
         />
+        <Checkbox
+          style={{ marginTop: 16 }}
+          checked={inventoryReportActiveOnly}
+          onChange={(e) => setInventoryReportActiveOnly(e.target.checked)}
+        >
+          Leave out inactive SKUs
+        </Checkbox>
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: "4px 0 0 24px" }}>
+          A SKU is left out only if it had no orders, restocks or containers in the last 180 days, has nothing
+          upcoming (no open orders or incoming containers), and has no stock on hand.
+        </Typography.Paragraph>
       </Modal>
 
       <Modal
