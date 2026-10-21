@@ -13,6 +13,7 @@ import { downloadPackingList } from "../../utils/packingList";
 import { showShadowMessages } from "../../utils/shadowMessages";
 import ProjectionTag from "../../components/ProjectionTag";
 import CancelDateTag from "../../components/CancelDateTag";
+import OrderHistory from "../../components/OrderHistory";
 import EmailOrderModal from "../../components/EmailOrderModal";
 import EditOrderLineModal from "../../components/EditOrderLineModal";
 import AddOrderLineModal from "../../components/AddOrderLineModal";
@@ -23,6 +24,7 @@ export default function OrderPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [order, setOrder] = useState(null);
+  const [history, setHistory] = useState([]);
   const [error, setError] = useState(null);
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -33,7 +35,9 @@ export default function OrderPage() {
   const [shipDate, setShipDate] = useState(null); // set = "mark shipped" dialog open
 
   const load = useCallback(
-    () => ordersApi.get(id).then(setOrder).catch((err) => setError(err.message)),
+    () => Promise.all([ordersApi.get(id), ordersApi.history(id)])
+      .then(([o, h]) => { setOrder(o); setHistory(h); })
+      .catch((err) => setError(err.message)),
     [id]
   );
 
@@ -74,7 +78,7 @@ export default function OrderPage() {
       showShadowMessages(messages);
       const fresh = changes.length ? await ordersApi.get(order.id) : order;
       await downloadPackingList(fresh);
-      if (changes.length) setOrder(fresh);
+      if (changes.length) load();
     } catch (err) {
       message.error(`Couldn't make packing list: ${err.message}`);
     }
@@ -238,6 +242,8 @@ export default function OrderPage() {
         {open && <Button icon={<PlusOutlined />} onClick={() => setAddingLine(true)}>Add line</Button>}
       </div>
       <Table rowKey="id" size="small" columns={columns} dataSource={order.lines} pagination={false} scroll={{ x: "max-content" }} />
+
+      <OrderHistory changes={history} />
 
       <EditOrderLineModal
         open={!!editingLine}

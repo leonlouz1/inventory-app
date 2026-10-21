@@ -19,6 +19,7 @@ export const productsApi = {
 export const ordersApi = {
   list: () => apiClient.get("/orders"),
   get: (id) => apiClient.get(`/orders/${id}`),
+  history: (id) => apiClient.get(`/orders/${id}/history`),
   create: (data) => apiClient.post("/orders", data),
   delete: (id) => apiClient.delete(`/orders/${id}`),
   addLine: (orderId, data) => apiClient.post(`/orders/${orderId}/lines`, data),

@@ -5,6 +5,7 @@ const { checkShortfallBatch, projectInventoryBatch } = require("../services/proj
 const { ORDER_STATUSES } = require("../constants/orderStatuses");
 const { adjustStockForShippedTransition, hasUnassignedLine } = require("../services/shippedStock");
 const { assignShadowLines, describeShadowChanges } = require("../services/shadowSkus");
+const { logOrderChanges } = require("../services/orderHistory");
 
 const router = express.Router();
 
@@ -258,6 +259,11 @@ router.post(
       throw lastError || new Error("Failed to generate a unique order number");
     }
 
+    await logOrderChanges(prisma, req, {
+      orderId: order.id,
+      field: "Order created",
+      note: `${lines.length} line${lines.length === 1 ? "" : "s"}, ${lines.reduce((s, l) => s + Number(l.quantity), 0)} units`,
+    });
     res.status(201).json({ order: { ...order, orderDate: isoDate(order.orderDate) }, lines: lineProjections });
   })
 );
@@ -324,7 +330,7 @@ router.post(
   "/assign-shadows",
   asyncHandler(async (req, res) => {
     const orderIds = (req.body.orderIds || []).map(Number).filter(Boolean);
-    const changes = await prisma.$transaction((tx) => assignShadowLines(tx, orderIds));
+    const changes = await prisma.$transaction((tx) => assignShadowLines(tx, orderIds, req));
     res.json({ changes, messages: describeShadowChanges(changes) });
   })
 );
@@ -337,7 +343,7 @@ router.post(
   "/:id/split",
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    const order = await prisma.order.findUnique({ where: { id }, include: { lines: true } });
+    const order = await prisma.order.findUnique({ where: { id }, include: { lines: { include: { product: true } } } });
     if (!order) return res.status(404).json({ message: "Order not found" });
     if (["SHIPPED", "CANCELLED"].includes(order.status)) {
       return res.status(400).json({ message: `A ${order.status.toLowerCase()} order can't be split` });
@@ -404,6 +410,22 @@ router.post(
           });
         }
       }
+      await logOrderChanges(tx, req, [
+        ...moves.map(({ line, quantity }) => ({
+          orderId: order.id,
+          lineId: line.id,
+          sku: line.product.sku,
+          field: "Quantity",
+          before: line.quantity,
+          after: line.quantity - quantity,
+          note: `Split: ${quantity} moved to ${orderNumber}`,
+        })),
+        {
+          orderId: newOrder.id,
+          field: "Order created",
+          note: `Split from ${order.orderNumber}: ${moves.map((m) => `${m.line.product.sku} x${m.quantity}`).join(", ")}`,
+        },
+      ]);
       return newOrder;
     });
 
@@ -434,7 +456,7 @@ router.put(
     // Shipping: shadow-SKU lines go on whichever SKU's boxes actually ship
     let shadowMessages = [];
     if (order.status !== "SHIPPED" && status === "SHIPPED") {
-      const changes = await prisma.$transaction((tx) => assignShadowLines(tx, [id]));
+      const changes = await prisma.$transaction((tx) => assignShadowLines(tx, [id], req));
       shadowMessages = describeShadowChanges(changes);
       if (changes.length) order = await prisma.order.findUnique({ where: { id }, include: { lines: true } });
     }
@@ -455,6 +477,7 @@ router.put(
       const statusData = { status };
       if (!wasShipped && willBeShipped) statusData.shippedAt = new Date();
       if (wasShipped && !willBeShipped) statusData.shippedAt = null;
+      await logOrderChanges(tx, req, { orderId: id, field: "Status", before: order.status, after: status });
       return tx.order.update({ where: { id }, data: statusData });
     });
 
@@ -525,6 +548,13 @@ router.post(
       },
       include: { product: true, warehouse: true },
     });
+    await logOrderChanges(prisma, req, {
+      orderId,
+      lineId: line.id,
+      sku: line.product.sku,
+      field: "Line added",
+      after: `${line.quantity} units`,
+    });
 
     res.status(201).json({
       id: line.id,
@@ -549,7 +579,7 @@ router.put(
 
     const existing = await prisma.orderLine.findUnique({
       where: { id: lineId },
-      include: { product: true, order: true },
+      include: { product: true, order: true, warehouse: true },
     });
     if (!existing || existing.orderId !== orderId) {
       return res.status(404).json({ message: "Order line not found" });
@@ -580,6 +610,14 @@ router.put(
       include: { product: true, warehouse: true },
     });
 
+    const base = { orderId, lineId, sku: updated.product.sku };
+    await logOrderChanges(prisma, req, [
+      { ...base, sku: existing.product.sku, field: "SKU", before: existing.product.sku, after: updated.product.sku },
+      { ...base, field: "Quantity", before: existing.quantity, after: updated.quantity },
+      { ...base, field: "Warehouse", before: existing.warehouse?.name ?? "Unassigned", after: updated.warehouse?.name ?? "Unassigned" },
+      { ...base, field: "Ship date", before: isoDate(existing.shipDate), after: isoDate(updated.shipDate) },
+    ]);
+
     const [projection] = await checkShortfallBatch([
       { sku: updated.product.sku, warehouseId: updated.warehouseId, shipDate: updated.shipDate },
     ]);
@@ -603,10 +641,14 @@ router.patch(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const { warehouseId } = req.body;
+    const before = await prisma.orderLine.findMany({ where: { orderId: id }, include: { warehouse: true } });
     await prisma.orderLine.updateMany({
       where: { orderId: id },
       data: { warehouseId: warehouseId ? Number(warehouseId) : null },
     });
+    const wh = warehouseId ? await prisma.warehouse.findUnique({ where: { id: Number(warehouseId) } }) : null;
+    const beforeNames = [...new Set(before.map((l) => l.warehouse?.name ?? "Unassigned"))].join(", ");
+    await logOrderChanges(prisma, req, { orderId: id, field: "Warehouse (all lines)", before: beforeNames, after: wh?.name ?? "Unassigned" });
     res.json({ ok: true });
   })
 );
@@ -617,10 +659,12 @@ router.patch(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const { shippedAt } = req.body;
+    const prev = await prisma.order.findUnique({ where: { id } });
     const order = await prisma.order.update({
       where: { id },
       data: { shippedAt: shippedAt ? new Date(shippedAt) : null },
     });
+    await logOrderChanges(prisma, req, { orderId: id, field: "Shipped date", before: isoDate(prev?.shippedAt), after: isoDate(order.shippedAt) });
     res.json({ shippedAt: order.shippedAt ? order.shippedAt.toISOString().slice(0, 10) : null });
   })
 );
@@ -632,10 +676,12 @@ router.patch(
     const id = Number(req.params.id);
     const { customer } = req.body;
     if (!customer || !customer.trim()) return res.status(400).json({ message: "customer is required" });
+    const prev = await prisma.order.findUnique({ where: { id } });
     const order = await prisma.order.update({
       where: { id },
       data: { customer: customer.trim() },
     });
+    await logOrderChanges(prisma, req, { orderId: id, field: "Customer", before: prev?.customer, after: order.customer });
     res.json({ customer: order.customer });
   })
 );
@@ -646,10 +692,12 @@ router.patch(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const { cancelDate } = req.body;
+    const prev = await prisma.order.findUnique({ where: { id } });
     const order = await prisma.order.update({
       where: { id },
       data: { cancelDate: cancelDate ? new Date(cancelDate) : null },
     });
+    await logOrderChanges(prisma, req, { orderId: id, field: "Cancel date", before: isoDate(prev?.cancelDate), after: isoDate(order.cancelDate) });
     res.json({ cancelDate: isoDate(order.cancelDate) });
   })
 );
@@ -660,10 +708,12 @@ router.patch(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const { customerPo } = req.body;
+    const prev = await prisma.order.findUnique({ where: { id } });
     const order = await prisma.order.update({
       where: { id },
       data: { customerPo: customerPo || null },
     });
+    await logOrderChanges(prisma, req, { orderId: id, field: "Customer PO #", before: prev?.customerPo, after: order.customerPo });
     res.json({ customerPo: order.customerPo });
   })
 );
@@ -674,10 +724,16 @@ router.patch(
   asyncHandler(async (req, res) => {
     const lineId = Number(req.params.lineId);
     const { cartonMarking } = req.body;
+    const prev = await prisma.orderLine.findUnique({ where: { id: lineId }, include: { product: true } });
     const line = await prisma.orderLine.update({
       where: { id: lineId },
       data: { cartonMarking: cartonMarking || null },
     });
+    if (prev) {
+      await logOrderChanges(prisma, req, {
+        orderId: prev.orderId, lineId, sku: prev.product.sku, field: "Carton marking", before: prev.cartonMarking, after: line.cartonMarking,
+      });
+    }
     res.json({ cartonMarking: line.cartonMarking });
   })
 );
@@ -688,10 +744,16 @@ router.patch(
   asyncHandler(async (req, res) => {
     const lineId = Number(req.params.lineId);
     const { containerNumber } = req.body;
+    const prev = await prisma.orderLine.findUnique({ where: { id: lineId }, include: { product: true } });
     const line = await prisma.orderLine.update({
       where: { id: lineId },
       data: { containerNumber: containerNumber || null },
     });
+    if (prev) {
+      await logOrderChanges(prisma, req, {
+        orderId: prev.orderId, lineId, sku: prev.product.sku, field: "Container #", before: prev.containerNumber, after: line.containerNumber,
+      });
+    }
     res.json({ containerNumber: line.containerNumber });
   })
 );
@@ -733,13 +795,26 @@ router.delete(
     const orderId = Number(req.params.id);
     const lineId = Number(req.params.lineId);
 
-    const line = await prisma.orderLine.findUnique({ where: { id: lineId } });
+    const line = await prisma.orderLine.findUnique({ where: { id: lineId }, include: { product: true } });
     if (!line || line.orderId !== orderId) {
       return res.status(404).json({ message: "Line not found" });
     }
 
     await prisma.orderLine.delete({ where: { id: lineId } });
+    await logOrderChanges(prisma, req, { orderId, lineId, sku: line.product.sku, field: "Line removed", before: `${line.quantity} units` });
     res.json({ success: true });
+  })
+);
+
+// GET /api/orders/:id/history — the order's change history, newest first
+router.get(
+  "/:id/history",
+  asyncHandler(async (req, res) => {
+    const changes = await prisma.orderChange.findMany({
+      where: { orderId: Number(req.params.id) },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    res.json(changes.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() })));
   })
 );
 
@@ -768,6 +843,15 @@ router.patch(
       where: { id: lineId },
       data: { productId: Number(productId) },
       include: { product: true, warehouse: true },
+    });
+    await logOrderChanges(prisma, req, {
+      orderId: line.orderId,
+      lineId,
+      sku: line.product.sku,
+      field: "SKU",
+      before: line.product.sku,
+      after: updated.product.sku,
+      note: shadowPair ? "Switched between old and new SKU" : "Swapped within SKU group",
     });
 
     res.json({

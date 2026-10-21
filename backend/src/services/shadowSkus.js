@@ -1,4 +1,5 @@
 const { PENDING_STATUSES } = require("../constants/orderStatuses");
+const { logOrderChanges } = require("./orderHistory");
 
 // Shadow SKUs: an old SKU (the shadow) that moved to a new SKU (its parent).
 // Customers may keep ordering the old SKU. Before a packing slip is made, and
@@ -9,7 +10,7 @@ const { PENDING_STATUSES } = require("../constants/orderStatuses");
 // Old stock is used first, in ship-date order across every unshipped order, so
 // two orders never claim the same boxes. Lines ordered on the parent (new) SKU
 // are never moved. Returns a list of the changes made.
-async function assignShadowLines(tx, orderIds) {
+async function assignShadowLines(tx, orderIds, req) {
   if (!orderIds.length) return [];
 
   const target = await tx.orderLine.findMany({
@@ -69,6 +70,10 @@ async function assignShadowLines(tx, orderIds) {
     const parent = shadow.shadowParent;
     if (keep === 0) {
       await tx.orderLine.update({ where: { id: line.id }, data: { productId: parent.id } });
+      await logOrderChanges(tx, req, {
+        orderId: line.orderId, lineId: line.id, sku: shadow.sku, field: "SKU", before: shadow.sku, after: parent.sku,
+        note: `Automatic: no old ${shadow.sku} stock left`,
+      });
     } else {
       await tx.orderLine.update({ where: { id: line.id }, data: { quantity: keep } });
       await tx.orderLine.create({
@@ -81,6 +86,10 @@ async function assignShadowLines(tx, orderIds) {
           containerNumber: line.containerNumber,
           cartonMarking: line.cartonMarking,
         },
+      });
+      await logOrderChanges(tx, req, {
+        orderId: line.orderId, lineId: line.id, sku: shadow.sku, field: "Quantity", before: line.quantity, after: keep,
+        note: `Automatic: only ${keep} old ${shadow.sku} in stock, ${move} moved to ${parent.sku}`,
       });
     }
     changes.push({

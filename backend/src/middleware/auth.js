@@ -34,13 +34,19 @@ function matches(routes, req) {
 const ROLE_TTL_MS = 60 * 1000;
 const roleCache = new Map();
 
-async function getRole(userId) {
+// Also returns the person's name (for change history)
+async function getUserInfo(userId) {
   const cached = roleCache.get(userId);
-  if (cached && cached.expires > Date.now()) return cached.role;
+  if (cached && cached.expires > Date.now()) return cached;
   const user = await clerkClient.users.getUser(userId);
   const role = String(user.publicMetadata?.role || "admin").trim().toLowerCase();
-  roleCache.set(userId, { role, expires: Date.now() + ROLE_TTL_MS });
-  return role;
+  const name = [user.firstName, user.lastName].filter(Boolean).join(" ")
+    || user.emailAddresses?.find((e) => e.id === user.primaryEmailAddressId)?.emailAddress
+    || user.username
+    || "Unknown";
+  const info = { role, name, expires: Date.now() + ROLE_TTL_MS };
+  roleCache.set(userId, info);
+  return info;
 }
 
 // Mounted at /api: every request needs a valid Clerk session token, except the
@@ -62,7 +68,9 @@ async function authenticate(req, res, next) {
 
   try {
     req.userId = userId;
-    req.role = await getRole(userId);
+    const info = await getUserInfo(userId);
+    req.role = info.role;
+    req.userName = info.name;
   } catch (err) {
     return next(err);
   }

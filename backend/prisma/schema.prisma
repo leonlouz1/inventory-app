@@ -130,6 +130,7 @@ model Order {
 
   lines           OrderLine[]
   linkedRestocks  Restock[]
+  changes         OrderChange[]
   shipment        Shipment?   @relation(fields: [shipmentId], references: [id])
 
   @@map("orders")
@@ -483,4 +484,25 @@ model LinesheetItem {
   product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("linesheet_items")
+}
+
+// Change history for an order: what changed on it or its lines, before and
+// after, who did it and when
+model OrderChange {
+  id        Int      @id @default(autoincrement())
+  orderId   Int      @map("order_id")
+  lineId    Int?     @map("line_id")
+  sku       String?  @db.VarChar(50)
+  field     String   @db.VarChar(50)
+  before    String?
+  after     String?
+  note      String?
+  userId    String?  @map("user_id") @db.VarChar(100)
+  userName  String?  @map("user_name") @db.VarChar(200)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("order_changes")
 }

@@ -4,6 +4,7 @@ const { PrismaClient } = require("@prisma/client");
 const { adjustStockForShippedTransition, hasUnassignedLine } = require("../services/shippedStock");
 const { assignShadowLines, describeShadowChanges } = require("../services/shadowSkus");
 const { loadBolData, renderBolPdf } = require("../services/bol");
+const { logOrderChanges } = require("../services/orderHistory");
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -52,13 +53,18 @@ async function autoAssignWarehouse(tx, orderId, warehouseId) {
 // order on it to Routed. Later statuses (Allocated, Shipped) are left alone.
 const ROUTABLE_STATUSES = ["DRAFT", "CONFIRMED"];
 
-async function routeScheduledOrders(tx, shipmentId) {
+async function routeScheduledOrders(tx, shipmentId, req) {
   const shipment = await tx.shipment.findUnique({ where: { id: shipmentId } });
   if (shipment?.status !== "SCHEDULED") return;
+  const routing = await tx.order.findMany({ where: { shipmentId, status: { in: ROUTABLE_STATUSES } } });
+  if (!routing.length) return;
   await tx.order.updateMany({
-    where: { shipmentId, status: { in: ROUTABLE_STATUSES } },
+    where: { id: { in: routing.map((o) => o.id) } },
     data: { status: "ROUTED" },
   });
+  await logOrderChanges(tx, req, routing.map((o) => ({
+    orderId: o.id, field: "Status", before: o.status, after: "ROUTED", note: `On scheduled shipment ${shipment.shipmentNumber}`,
+  })));
 }
 
 function loadShipment(tx, id) {
@@ -104,7 +110,7 @@ router.post("/", async (req, res) => {
         }
       }
 
-      await routeScheduledOrders(tx, created.id);
+      await routeScheduledOrders(tx, created.id, req);
       return loadShipment(tx, created.id);
     });
 
@@ -169,7 +175,7 @@ router.put("/:id", async (req, res) => {
           for (const o of pending) await autoAssignWarehouse(tx, o.id, effectiveWarehouseId);
         }
         // Shadow-SKU lines go on whichever SKU's boxes actually ship
-        shadowMessages = describeShadowChanges(await assignShadowLines(tx, pending.map((o) => o.id)));
+        shadowMessages = describeShadowChanges(await assignShadowLines(tx, pending.map((o) => o.id), req));
         const toShip = await tx.order.findMany({ where, include: { lines: true } });
         const unassigned = toShip.filter((o) => hasUnassignedLine(o.lines));
         if (unassigned.length > 0) {
@@ -184,10 +190,13 @@ router.put("/:id", async (req, res) => {
         for (const o of toShip) {
           await adjustStockForShippedTransition(tx, o.lines, -1);
           await tx.order.update({ where: { id: o.id }, data: { status: "SHIPPED", shippedAt } });
+          await logOrderChanges(tx, req, {
+            orderId: o.id, field: "Status", before: o.status, after: "SHIPPED", note: `Shipment ${existing.shipmentNumber} picked up`,
+          });
         }
       }
 
-      await routeScheduledOrders(tx, id);
+      await routeScheduledOrders(tx, id, req);
       return loadShipment(tx, id);
     }, { timeout: 30000 });
 
@@ -289,7 +298,7 @@ router.post("/combine", async (req, res) => {
       await tx.order.updateMany({ where: { shipmentId: { in: otherIds } }, data: { shipmentId: keepId } });
       for (const o of moving) await autoAssignWarehouse(tx, o.id, keep.warehouseId);
       await tx.shipment.deleteMany({ where: { id: { in: otherIds } } });
-      await routeScheduledOrders(tx, keepId);
+      await routeScheduledOrders(tx, keepId, req);
       return loadShipment(tx, keepId);
     });
 
@@ -363,7 +372,7 @@ router.post("/:id/orders/:orderId", async (req, res) => {
       if (s.warehouseId) {
         await autoAssignWarehouse(tx, orderId, s.warehouseId);
       }
-      await routeScheduledOrders(tx, id);
+      await routeScheduledOrders(tx, id, req);
       return loadShipment(tx, id);
     });
 
