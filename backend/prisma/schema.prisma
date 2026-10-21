@@ -117,6 +117,8 @@ model Order {
   customer     String      @db.VarChar(200)
   customerPo   String?     @map("customer_po") @db.VarChar(50)
   orderDate    DateTime    @map("order_date") @db.Date
+  // Customer's "do not ship after" date from the PO
+  cancelDate   DateTime?   @map("cancel_date") @db.Date
   status       OrderStatus @default(CONFIRMED)
   notes        String?
   shipmentId   Int?        @map("shipment_id")

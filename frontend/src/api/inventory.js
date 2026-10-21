@@ -27,6 +27,7 @@ export const ordersApi = {
   updateStatus: (id, status) => apiClient.put(`/orders/${id}/status`, { status }),
   updateNotes: (id, notes) => apiClient.patch(`/orders/${id}/notes`, { notes }),
   updateCustomerPo: (id, customerPo) => apiClient.patch(`/orders/${id}/customer-po`, { customerPo }),
+  updateCancelDate: (id, cancelDate) => apiClient.patch(`/orders/${id}/cancel-date`, { cancelDate }),
   updateCustomer: (id, customer) => apiClient.patch(`/orders/${id}/customer`, { customer }),
   renameCustomer: (oldName, newName) => apiClient.patch(`/orders/rename-customer`, { oldName, newName }),
   updateLineContainer: (orderId, lineId, containerNumber) => apiClient.patch(`/orders/${orderId}/lines/${lineId}/container`, { containerNumber }),

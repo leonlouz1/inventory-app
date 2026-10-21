@@ -116,6 +116,7 @@ router.get(
         orderNumber: order.orderNumber,
         customer: order.customer,
         customerPo: order.customerPo,
+        cancelDate: isoDate(order.cancelDate),
         orderDate: isoDate(order.orderDate),
         status: order.status,
         notes: order.notes,
@@ -218,6 +219,7 @@ router.post(
               customer,
               customerPo: customer_po,
               orderDate: new Date(order_date),
+              cancelDate: req.body.cancel_date ? new Date(req.body.cancel_date) : null,
               status,
               notes,
             },
@@ -285,6 +287,7 @@ router.get(
       orderNumber: order.orderNumber,
       customer: order.customer,
       customerPo: order.customerPo,
+      cancelDate: isoDate(order.cancelDate),
       orderDate: isoDate(order.orderDate),
       status: order.status,
       notes: order.notes,
@@ -373,6 +376,7 @@ router.post(
           orderNumber,
           customer: order.customer,
           customerPo: order.customerPo,
+          cancelDate: order.cancelDate,
           orderDate: order.orderDate,
           notes: order.notes,
           // Not on a shipment, so not routed (yet)
@@ -633,6 +637,20 @@ router.patch(
       data: { customer: customer.trim() },
     });
     res.json({ customer: order.customer });
+  })
+);
+
+// PATCH /api/orders/:id/cancel-date — { cancelDate | null }
+router.patch(
+  "/:id/cancel-date",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { cancelDate } = req.body;
+    const order = await prisma.order.update({
+      where: { id },
+      data: { cancelDate: cancelDate ? new Date(cancelDate) : null },
+    });
+    res.json({ cancelDate: isoDate(order.cancelDate) });
   })
 );
 

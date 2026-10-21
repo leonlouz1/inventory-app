@@ -17,6 +17,7 @@ function buildTemplateCsv() {
     "customer",
     "customer_po",
     "order_date",
+    "cancel_date",
     "status",
     "notes",
     "sku",
@@ -25,9 +26,9 @@ function buildTemplateCsv() {
     "ship_date",
   ];
   const rows = [
-    ["SO-2001", "Acme Corp", "PO-1234", "2026-07-01", "CONFIRMED", "", "WDG-101", "East", "50", "2026-08-15"],
-    ["SO-2001", "Acme Corp", "PO-1234", "2026-07-01", "CONFIRMED", "", "WDG-102", "East", "25", "2026-08-15"],
-    ["", "Initech", "", "2026-07-02", "", "", "WDG-103", "West", "10", "2026-08-20"],
+    ["SO-2001", "Acme Corp", "PO-1234", "2026-07-01", "2026-08-22", "CONFIRMED", "", "WDG-101", "East", "50", "2026-08-15"],
+    ["SO-2001", "Acme Corp", "PO-1234", "2026-07-01", "2026-08-22", "CONFIRMED", "", "WDG-102", "East", "25", "2026-08-15"],
+    ["", "Initech", "", "2026-07-02", "", "", "", "WDG-103", "West", "10", "2026-08-20"],
   ];
   return Papa.unparse([headers, ...rows]);
 }
@@ -75,10 +76,12 @@ function validateGroup(group, products, warehouses) {
   const customer = (first.customer || "").trim();
   const customerPo = (first.customer_po || "").trim();
   const orderDate = (first.order_date || "").trim();
+  const cancelDate = (first.cancel_date || "").trim();
   const status = (first.status || "").trim().toUpperCase();
   const notes = (first.notes || "").trim();
 
   if (!customer) return { ...group, error: "Missing customer" };
+  if (cancelDate && !isValidDate(cancelDate)) return { ...group, error: `Invalid cancel_date "${cancelDate}" (use YYYY-MM-DD)` };
   if (!isValidDate(orderDate)) {
     return { ...group, error: `Invalid order_date "${orderDate}" (expected YYYY-MM-DD)` };
   }
@@ -115,6 +118,7 @@ function validateGroup(group, products, warehouses) {
     customer,
     customerPo: customerPo || undefined,
     orderDate,
+    cancelDate: cancelDate || undefined,
     status: status || undefined,
     notes: notes || undefined,
     lines,
@@ -163,6 +167,7 @@ export default function BulkImportOrdersModal({ open, onClose, onImported, produ
           customer: group.customer,
           customer_po: group.customerPo,
           order_date: group.orderDate,
+          cancel_date: group.cancelDate,
           status: group.status,
           notes: group.notes,
           lines: group.lines,

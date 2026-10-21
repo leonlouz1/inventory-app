@@ -8,6 +8,7 @@ import NewOrderModal from "../components/NewOrderModal";
 import EmailOrderModal from "../components/EmailOrderModal";
 import SplitOrderModal from "../components/SplitOrderModal";
 import ProjectionTag from "../components/ProjectionTag";
+import CancelDateTag from "../components/CancelDateTag";
 import EditOrderLineModal from "../components/EditOrderLineModal";
 import AddOrderLineModal from "../components/AddOrderLineModal";
 import BulkImportOrdersModal from "../components/BulkImportOrdersModal";
@@ -248,6 +249,7 @@ export default function Orders() {
         rows.push({
           "Order #": order.orderNumber,
           "Customer PO #": order.customerPo || "",
+          "Cancel Date": order.cancelDate || "",
           Customer: order.customer,
           Status: order.status,
           SKU: "",
@@ -261,6 +263,7 @@ export default function Orders() {
           rows.push({
             "Order #": order.orderNumber,
             "Customer PO #": order.customerPo || "",
+            "Cancel Date": order.cancelDate || "",
             Customer: order.customer,
             Status: order.status,
             SKU: line.sku,
@@ -412,6 +415,12 @@ export default function Orders() {
       dataIndex: "customerPo",
       render: (v) => v || "—",
       sorter: sortString("customerPo"),
+    },
+    {
+      title: "Cancel Date",
+      dataIndex: "cancelDate",
+      sorter: (a, b) => (a.cancelDate || "9999").localeCompare(b.cancelDate || "9999"),
+      render: (_, order) => <CancelDateTag order={order} />,
     },
     { title: "Order Date", dataIndex: "orderDate", sorter: sortString("orderDate") },
     { title: "# Lines", dataIndex: "lineCount", sorter: sortNumber("lineCount") },

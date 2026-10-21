@@ -172,6 +172,7 @@ async function runStartupMigrations() {
     await prisma.$executeRaw`ALTER TABLE "products" ALTER COLUMN "case_pack" DROP DEFAULT`;
     await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "case_pack" INTEGER`;
     await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "shadow_parent_id" INTEGER`;
+    await prisma.$executeRaw`ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "cancel_date" DATE`;
     // Containers: first time the table appears, existing restocks are put into containers
     const [{ exists: hadContainers }] = await prisma.$queryRaw`SELECT to_regclass('containers') IS NOT NULL AS exists`;
     await prisma.$executeRaw`

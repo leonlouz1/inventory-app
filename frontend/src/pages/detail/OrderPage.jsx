@@ -12,6 +12,7 @@ import { ORDER_STATUSES, ORDER_STATUS_COLORS, ORDER_STATUS_LABELS } from "../../
 import { downloadPackingList } from "../../utils/packingList";
 import { showShadowMessages } from "../../utils/shadowMessages";
 import ProjectionTag from "../../components/ProjectionTag";
+import CancelDateTag from "../../components/CancelDateTag";
 import EmailOrderModal from "../../components/EmailOrderModal";
 import EditOrderLineModal from "../../components/EditOrderLineModal";
 import AddOrderLineModal from "../../components/AddOrderLineModal";
@@ -201,6 +202,25 @@ export default function OrderPage() {
           </Descriptions.Item>
           <Descriptions.Item label="Customer PO #">{order.customerPo || "—"}</Descriptions.Item>
           <Descriptions.Item label="Order Date">{order.orderDate}</Descriptions.Item>
+          <Descriptions.Item label="Cancel Date">
+            <Space size={8} wrap>
+              <CancelDateTag order={order} />
+              <DatePicker
+                size="small"
+                allowClear
+                placeholder="Set cancel date"
+                value={order.cancelDate ? dayjs(order.cancelDate) : null}
+                onChange={async (d) => {
+                  try {
+                    await ordersApi.updateCancelDate(order.id, d ? d.format("YYYY-MM-DD") : null);
+                    load();
+                  } catch (err) {
+                    message.error(err.message);
+                  }
+                }}
+              />
+            </Space>
+          </Descriptions.Item>
           <Descriptions.Item label="Shipment">
             {order.shipment
               ? <Link to={`/shipments/${order.shipment.id}`}>{order.shipment.shipmentNumber} · {dayjs(order.shipment.pickupDate).format("MMM D")}</Link>

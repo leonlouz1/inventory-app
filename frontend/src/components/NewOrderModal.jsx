@@ -155,6 +155,7 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
         customer: headerValues.customer,
         customer_po: headerValues.customer_po || undefined,
         order_date: headerValues.order_date.format("YYYY-MM-DD"),
+        cancel_date: headerValues.cancel_date ? headerValues.cancel_date.format("YYYY-MM-DD") : undefined,
         status: headerValues.status,
         notes: headerValues.notes || undefined,
         lines: lines
@@ -302,6 +303,19 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
           </Form.Item>
           <Form.Item name="ship_date" label="Ship Date" rules={[{ required: true, message: "Required" }]}>
             <DatePicker onChange={(value) => setShipDate(value)} />
+          </Form.Item>
+          <Form.Item
+            name="cancel_date"
+            label="Cancel Date"
+            tooltip="The customer's do-not-ship-after date from the PO"
+            dependencies={["ship_date"]}
+            rules={[({ getFieldValue }) => ({
+              validator: (_, v) => (v && getFieldValue("ship_date") && v.isBefore(getFieldValue("ship_date"), "day")
+                ? Promise.reject(new Error("Before the ship date")) : Promise.resolve()),
+              warningOnly: true,
+            })]}
+          >
+            <DatePicker />
           </Form.Item>
           <Form.Item name="status" label="Status">
             <Select options={STATUS_OPTIONS} style={{ width: 130 }} />

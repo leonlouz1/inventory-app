@@ -6,6 +6,7 @@ import { InboxOutlined, ShoppingCartOutlined, TruckOutlined, WarningOutlined } f
 import { containersApi, ordersApi, shipmentsApi } from "../api/inventory";
 import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS } from "../constants/orderStatuses";
 import { CONTAINER_STATUS_COLORS, CONTAINER_STATUS_LABELS } from "../constants/containers";
+import CancelDateTag from "../components/CancelDateTag";
 
 const RANGES = [
   { value: "today", label: "Today" },
@@ -184,6 +185,7 @@ function EventRow({ event, showDate }) {
         <Link to={`/customers?name=${encodeURIComponent(item.customer)}`}>{item.customer}</Link>
         {item.customerPo && <span style={{ color: "#8c8c8c" }}>PO {item.customerPo}</span>}
         <span style={{ color: "#8c8c8c" }}>· {event.lines.length} line{event.lines.length === 1 ? "" : "s"} · {units} units</span>
+        {item.cancelDate && <span style={{ color: "#8c8c8c" }}>· cancel <CancelDateTag order={item} /></span>}
         <Tag color={ORDER_STATUS_COLORS[item.status]} style={{ marginLeft: "auto" }}>{ORDER_STATUS_LABELS[item.status]}</Tag>
       </div>
     );
