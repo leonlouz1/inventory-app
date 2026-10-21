@@ -4,6 +4,8 @@ const { verifyToken, clerkClient } = require("@clerk/express");
 const PUBLIC_ROUTES = [
   { method: "GET", path: /^\/catalog\/?$/ },
   { method: "GET", path: /^\/catalog\/[^/]+\/?$/ },
+  // Product images: <img> tags can't send a sign-in token, and the catalog site shows them
+  { method: "GET", path: /^\/images\/\d+\/?$/ },
 ];
 
 // What a "designer" may do: view and edit product details, and use the UPC
@@ -16,6 +18,7 @@ const DESIGNER_ROUTES = [
   { method: "GET", path: /^\/products\/\d+\/full\/?$/ },
   { method: "GET", path: /^\/products\/by-sku\/[^/]+\/?$/ },
   { method: "GET", path: /^\/products\/details\/?$/ },
+  { method: "POST", path: /^\/images\/?$/ },
   { method: "POST", path: /^\/products\/bulk-update\/?$/ },
   { method: "POST", path: /^\/products\/?$/ },
   { method: "PUT", path: /^\/products\/\d+\/?$/ },

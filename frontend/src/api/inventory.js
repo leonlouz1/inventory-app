@@ -190,3 +190,16 @@ export const costsApi = {
   deleteSourcing: (productId, originId) => apiClient.delete(`/costs/products/${productId}/sourcing/${originId}`),
   import: (rows) => apiClient.post("/costs/import", { rows }),
 };
+
+export const linesheetsApi = {
+  list: () => apiClient.get("/linesheets"),
+  get: (id) => apiClient.get(`/linesheets/${id}`),
+  create: (data) => apiClient.post("/linesheets", data),
+  save: (id, data) => apiClient.put(`/linesheets/${id}`, data),
+  duplicate: (id) => apiClient.post(`/linesheets/${id}/duplicate`, {}),
+  delete: (id) => apiClient.delete(`/linesheets/${id}`),
+};
+
+export const imagesApi = {
+  upload: (data) => apiClient.post("/images", data),
+};

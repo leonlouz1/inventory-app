@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Modal, Tabs, Form, Input, InputNumber, Select, Row, Col, Typography, Image, Button, Tag, Spin, Alert, message,
+  Modal, Tabs, Form, Input, InputNumber, Select, Row, Col, Typography, Image, Button, Tag, Spin, Alert, Upload, message,
 } from "antd";
 import { BarcodeOutlined } from "@ant-design/icons";
 import { productsApi, warehousesApi } from "../api/inventory";
@@ -9,6 +9,7 @@ import { PRODUCT_BRANDS } from "../constants/brands";
 import { useRole } from "../hooks/useRole";
 import CategoryFields from "./CategoryFields";
 import BarcodeModal from "./BarcodeModal";
+import { uploadProductImage } from "../utils/imageUpload";
 
 const CATEGORY_OPTIONS = PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c }));
 const BRAND_OPTIONS = PRODUCT_BRANDS.map((b) => ({ value: b, label: b }));
@@ -195,8 +196,28 @@ export default function ProductWindow({ productId, initialTab = "details", onClo
       forceRender: true,
       children: (
         <>
-          <Form.Item name="imageUrl" label="Image URL">
-            <Input placeholder="https://..." />
+          <Form.Item label="Image" style={{ marginBottom: 8 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Form.Item name="imageUrl" noStyle>
+                <Input placeholder="Paste an image link, or upload" />
+              </Form.Item>
+              <Upload
+                accept="image/*"
+                showUploadList={false}
+                beforeUpload={async (file) => {
+                  try {
+                    const { url } = await uploadProductImage(file, product.id);
+                    form.setFieldsValue({ imageUrl: url });
+                    message.success("Image uploaded");
+                  } catch (err) {
+                    message.error(`Couldn't upload: ${err.message}`);
+                  }
+                  return false;
+                }}
+              >
+                <Button>Upload</Button>
+              </Upload>
+            </div>
           </Form.Item>
           {imageUrl && (
             <div style={{ marginBottom: 12 }}>

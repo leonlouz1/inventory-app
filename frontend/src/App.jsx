@@ -21,6 +21,8 @@ import Billing from "./pages/Billing";
 import Upc from "./pages/Upc";
 import Upcoming from "./pages/Upcoming";
 import Costs from "./pages/Costs";
+import Linesheets from "./pages/Linesheets";
+import LinesheetPage from "./pages/detail/LinesheetPage";
 import OrderPage from "./pages/detail/OrderPage";
 import ProductPage from "./pages/detail/ProductPage";
 import ShipmentPage from "./pages/detail/ShipmentPage";
@@ -50,6 +52,8 @@ function AppRoutes() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/upcoming" element={<Upcoming />} />
         <Route path="/costs" element={<Costs />} />
+        <Route path="/linesheets" element={<Linesheets />} />
+        <Route path="/linesheets/:id" element={<LinesheetPage />} />
         <Route path="/orders" element={<Orders />} />
         <Route path="/shipments" element={<Shipments />} />
         <Route path="/crm" element={<CrmDashboard />} />

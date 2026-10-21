@@ -131,10 +131,14 @@ router.get(
       orderBy: { sku: "asc" },
       select: {
         id: true, sku: true, name: true, brand: true, category: true, imageUrl: true,
-        wholesalePrice: true, retailPrice: true, casePack: true, attributes: true,
+        wholesalePrice: true, retailPrice: true, casePack: true, attributes: true, upc: true, color: true,
         sourcing: { include: { origin: true } },
       },
     });
+    // UPC group each product's number belongs to (linesheet blocks start from these)
+    const assignments = await prisma.upcAssignment.findMany({ where: { groupId: { not: null } }, select: { sku: true, groupId: true } });
+    const groups = new Map((await prisma.upcGroup.findMany()).map((g) => [g.id, g.name]));
+    const groupBySku = new Map(assignments.map((a) => [a.sku, { id: a.groupId, name: groups.get(a.groupId) }]));
     res.json(products.map((p) => ({
       id: p.id,
       sku: p.sku,
@@ -144,6 +148,9 @@ router.get(
       imageUrl: p.imageUrl,
       casePack: p.casePack,
       packSize: p.attributes?.packSize ?? null,
+      upc: p.upc,
+      color: p.color || p.attributes?.color || null,
+      upcGroup: groupBySku.get(p.sku) ?? null,
       wholesalePrice: money(p.wholesalePrice),
       retailPrice: money(p.retailPrice),
       sourcing: p.sourcing.map(sourcingView),

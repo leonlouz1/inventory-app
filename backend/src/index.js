@@ -24,6 +24,8 @@ const billingRouter = require("./routes/billing");
 const upcRouter = require("./routes/upc");
 const containersRouter = require("./routes/containers");
 const costsRouter = require("./routes/costs");
+const imagesRouter = require("./routes/images");
+const linesheetsRouter = require("./routes/linesheets");
 const { router: productFieldsRouter } = require("./routes/productFields");
 
 const app = express();
@@ -33,7 +35,8 @@ app.use(cors({
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
-app.use(express.json());
+app.set("trust proxy", true); // behind Render's proxy: req.protocol is https
+app.use(express.json({ limit: "8mb" })); // image uploads arrive as base64
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
@@ -57,6 +60,8 @@ app.use("/api/billing", billingRouter);
 app.use("/api/upc", upcRouter);
 app.use("/api/containers", containersRouter);
 app.use("/api/costs", costsRouter);
+app.use("/api/images", imagesRouter);
+app.use("/api/linesheets", linesheetsRouter);
 app.use("/api/product-fields", productFieldsRouter);
 
 // eslint-disable-next-line no-unused-vars
@@ -175,6 +180,36 @@ async function runStartupMigrations() {
     await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "case_pack" INTEGER`;
     await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "shadow_parent_id" INTEGER`;
     await prisma.$executeRaw`ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "cancel_date" DATE`;
+    // Uploaded images and linesheets
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "stored_images" (
+    "id" SERIAL NOT NULL,
+    "content_type" VARCHAR(50) NOT NULL,
+    "data" BYTEA NOT NULL,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "stored_images_pkey" PRIMARY KEY ("id")
+)`);
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "linesheets" (
+    "id" SERIAL NOT NULL,
+    "name" VARCHAR(200) NOT NULL,
+    "customer" VARCHAR(200),
+    "notes" TEXT,
+    "destination_id" INTEGER,
+    "include_warehouse" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "linesheets_pkey" PRIMARY KEY ("id")
+)`);
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "linesheet_items" (
+    "id" SERIAL NOT NULL,
+    "linesheet_id" INTEGER NOT NULL REFERENCES "linesheets"("id") ON DELETE CASCADE,
+    "product_id" INTEGER NOT NULL REFERENCES "products"("id") ON DELETE CASCADE,
+    "block" INTEGER NOT NULL DEFAULT 0,
+    "sort_order" INTEGER NOT NULL DEFAULT 0,
+    "price" DECIMAL(10,2),
+    "qty" INTEGER,
+    "origin_id" INTEGER,
+    CONSTRAINT "linesheet_items_pkey" PRIMARY KEY ("id")
+)`);
     // Landed cost tables (seeded with China/Thailand and New York/Los Angeles)
     await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "cost_origins" (
     "id" SERIAL NOT NULL,

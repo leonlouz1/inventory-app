@@ -64,6 +64,7 @@ model Product {
   group      ProductGroup?    @relation(fields: [groupId], references: [id])
   shadowParent Product?       @relation("ShadowSku", fields: [shadowParentId], references: [id], onDelete: SetNull)
   sourcing     ProductSourcing[]
+  linesheetItems LinesheetItem[]
   shadows      Product[]      @relation("ShadowSku")
   stock      WarehouseStock[]
   orderLines OrderLine[]
@@ -439,4 +440,47 @@ model ProductSourcing {
 
   @@unique([productId, originId])
   @@map("product_sourcing")
+}
+
+// Uploaded images (e.g. product photos), served at /api/images/:id
+model StoredImage {
+  id          Int      @id @default(autoincrement())
+  contentType String   @map("content_type") @db.VarChar(50)
+  data        Bytes
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("stored_images")
+}
+
+// A saved linesheet for a buyer. Items are grouped into blocks (one image and
+// one QTY per block, e.g. one product in several colors).
+model Linesheet {
+  id               Int      @id @default(autoincrement())
+  name             String   @db.VarChar(200)
+  customer         String?  @db.VarChar(200)
+  notes            String?
+  destinationId    Int?     @map("destination_id")
+  includeWarehouse Boolean  @default(true) @map("include_warehouse")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  items LinesheetItem[]
+
+  @@map("linesheets")
+}
+
+model LinesheetItem {
+  id          Int      @id @default(autoincrement())
+  linesheetId Int      @map("linesheet_id")
+  productId   Int      @map("product_id")
+  block       Int      @default(0)
+  sortOrder   Int      @default(0) @map("sort_order")
+  price       Decimal? @db.Decimal(10, 2)
+  qty         Int?
+  originId    Int?     @map("origin_id")
+
+  linesheet Linesheet @relation(fields: [linesheetId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("linesheet_items")
 }
