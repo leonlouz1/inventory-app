@@ -1233,7 +1233,7 @@ function TravelNumberModal({ row, onClose, onSaved }) {
               <Input allowClear placeholder={row.codeStyleName || "No style code set up"} />
             </Form.Item>
             <Form.Item name="color" label="Color" style={{ flex: 1, marginLeft: 12 }}>
-              <Input allowClear placeholder={row.codeColorName || "No color code set up"} />
+              <Input allowClear placeholder={row.codeColorName || "None (optional)"} />
             </Form.Item>
           </Space.Compact>
           <Form.Item name="name" label="Product name" extra="Used when the product is created. Empty = brand + style + color.">
@@ -1438,7 +1438,7 @@ export default function Upc() {
       render: (inUse, r) => {
         if (r.isUnused) return null;
         if (r.isStyleGroup) return grey(`${r.children.filter((c) => c.inUse).length}/${r.children.length}`);
-        const ready = r.brandName && r.styleName && r.colorName;
+        const ready = r.brandName && (r.styleName || r.customName);
         const box = (
           <Checkbox
             checked={inUse}
@@ -1447,7 +1447,7 @@ export default function Upc() {
           />
         );
         if (inUse || ready) return box;
-        return <Tooltip title="Set up this number's brand, style and color under Manage Codes (or as an exception) first">{box}</Tooltip>;
+        return <Tooltip title="Set up this number's brand and style under Manage Codes (or give it a style with the pencil) first">{box}</Tooltip>;
       },
     },
     {

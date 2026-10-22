@@ -345,10 +345,11 @@ router.patch(
     const info = describe(sku, names, { ...current, ...exception });
 
     if (inUse) {
+      // Color is optional (e.g. a multi-color luggage set); style can be
+      // skipped when the number has its own product name
       const missing = [
         !info.brandName && `brand ${info.brandCode}`,
-        !info.styleName && `style ${info.styleCode}`,
-        !info.colorName && `color ${info.colorCode}`,
+        !info.styleName && !info.customName && `style ${info.styleCode}`,
       ].filter(Boolean);
       if (missing.length > 0) {
         return res.status(400).json({ message: `Set up ${missing.join(", ")} under Manage Codes (or as an exception) first` });
