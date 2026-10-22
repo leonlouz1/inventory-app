@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Typography, Table, Input, InputNumber, Select, Checkbox, Button, Segmented, Modal, Tabs, Space, Popconfirm, Tooltip,
-  Form, AutoComplete, message,
+  Form, AutoComplete, Tag, message,
 } from "antd";
 import {
   SettingOutlined, DeleteOutlined, PlusOutlined, EditOutlined, DisconnectOutlined, GroupOutlined, BarcodeOutlined,
@@ -205,7 +205,7 @@ function AllBrandsGrid({ codesVersion }) {
         ...prev,
         rows: prev.rows.map((r) => r.key !== row.key ? r : {
           ...r,
-          brands: { ...r.brands, [brandCode]: { sku: cell.sku, inUse: updated.inUse, product: updated.product } },
+          brands: { ...r.brands, [brandCode]: { ...cell, inUse: updated.inUse, product: updated.product } },
         }),
       }));
       if (inUse && !cell.product && updated.product) {
@@ -274,8 +274,11 @@ function AllBrandsGrid({ codesVersion }) {
           return <span style={{ color: used ? undefined : "#bbb" }}>{used}/{r.children.length}</span>;
         }
         const cell = r.brands[b.code];
+        const ex = cell.exception;
+        const exText = ex && [ex.styleName && `style: ${ex.styleName}`, ex.colorName && `color: ${ex.colorName}`, ex.name && `name: ${ex.name}`]
+          .filter(Boolean).join(", ");
         return (
-          <Tooltip title={cell.product?.name}>
+          <Tooltip title={[cell.product?.name, exText && `Exception: ${exText}`].filter(Boolean).join(" · ") || undefined}>
             <Checkbox
               checked={cell.inUse}
               disabled={savingSku === cell.sku}
@@ -283,6 +286,7 @@ function AllBrandsGrid({ codesVersion }) {
             />
             <div style={{ fontSize: 11, color: cell.inUse ? undefined : "#bbb", fontFamily: "monospace" }}>
               <ToProduct product={cell.product}>{cell.sku}</ToProduct>
+              {ex && <span style={{ color: "#fa8c16" }} title="Has an exception"> *</span>}
               {cell.product?.oldSkus?.length > 0 && (
                 <div style={{ fontFamily: "inherit" }}>was <OldSkus skus={cell.product.oldSkus} /></div>
               )}
@@ -293,7 +297,7 @@ function AllBrandsGrid({ codesVersion }) {
                 title="Barcode artwork"
                 onClick={() => setBarcode({
                   upc: upcFor(cell.sku), sku: cell.sku,
-                  label: cell.product?.name || `${b.name} ${r.styleName} ${r.colorName}`,
+                  label: cell.product?.name || ex?.name || `${b.name} ${ex?.styleName || r.styleName} ${ex?.colorName || r.colorName}`,
                 })}
               />
             </div>
@@ -1152,6 +1156,98 @@ function OtherRangeView({ ranges }) {
   );
 }
 
+// A small mark on Travel numbers whose style, color or name differs from
+// their codes (an exception for that one number)
+function ExceptionMark({ title }) {
+  return (
+    <Tooltip title={title}>
+      <Tag color="orange" style={{ marginLeft: 6, marginInlineEnd: 0, fontSize: 11, lineHeight: "16px", padding: "0 4px" }}>exception</Tag>
+    </Tooltip>
+  );
+}
+
+// Edit one Travel number: its own style name, color or product name when it
+// shouldn't follow the codes (e.g. color 1 is Black, but 24111 is Black/Gold).
+// Empty fields follow the codes.
+function TravelNumberModal({ row, onClose, onSaved }) {
+  const [form] = Form.useForm();
+  const [saving, setSaving] = useState(false);
+  const productType = Form.useWatch("productType", form);
+  const color = Form.useWatch("color", form);
+  const autoName = [row?.brandName, productType?.trim() || row?.codeStyleName, color?.trim() || row?.codeColorName]
+    .filter(Boolean).join(" ");
+
+  async function handleOk() {
+    const values = await form.validateFields();
+    setSaving(true);
+    try {
+      const updated = await upcApi.saveNumber(row.sku, { ...values, inUse: Boolean(values.inUse) });
+      if (values.inUse && !row.product && updated.product) {
+        message.success(`Added "${updated.product.name}" to Products`);
+      } else {
+        message.success(`${row.sku} saved`);
+      }
+      onSaved(updated);
+      onClose();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={row ? `${row.sku} · ${formatUpc(row.upc)}` : ""}
+      open={!!row}
+      onCancel={onClose}
+      onOk={handleOk}
+      okText="Save"
+      confirmLoading={saving}
+      destroyOnHidden
+    >
+      <Typography.Paragraph type="secondary">
+        Make an exception for this one number. Leave a field empty to use the code
+        (style {row?.styleCode}{row?.codeStyleName ? ` = ${row.codeStyleName}` : ""},
+        color {row?.colorCode}{row?.codeColorName ? ` = ${row.codeColorName}` : ""}).
+      </Typography.Paragraph>
+      {row?.product && (
+        <Typography.Paragraph type="warning">
+          {row.sku} is already a product (&quot;{row.product.name}&quot;). This changes the UPC page only. To change the
+          product itself, edit it on its product page.
+        </Typography.Paragraph>
+      )}
+      {row && (
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{
+            productType: row.styleName !== row.codeStyleName ? row.styleName : null,
+            color: row.colorName !== row.codeColorName ? row.colorName : null,
+            name: row.customName,
+            inUse: row.inUse,
+          }}
+        >
+          <Space.Compact style={{ width: "100%" }}>
+            <Form.Item name="productType" label="Style" style={{ flex: 1 }}>
+              <Input allowClear placeholder={row.codeStyleName || "No style code set up"} />
+            </Form.Item>
+            <Form.Item name="color" label="Color" style={{ flex: 1, marginLeft: 12 }}>
+              <Input allowClear placeholder={row.codeColorName || "No color code set up"} />
+            </Form.Item>
+          </Space.Compact>
+          <Form.Item name="name" label="Product name" extra="Used when the product is created. Empty = brand + style + color.">
+            <Input allowClear placeholder={autoName || "e.g. Brand Style Color"} />
+          </Form.Item>
+          <Form.Item name="inUse" valuePropName="checked" style={{ marginBottom: 0 }}>
+            <Checkbox>In use {row.product ? "" : "(adds it to Products)"}</Checkbox>
+          </Form.Item>
+        </Form>
+      )}
+    </Modal>
+  );
+}
+
 // Travel numbers are brand + style + color, so each run of ten (e.g.
 // 24010-24019) is one style in every color. One row per style; styles with no
 // code set up and nothing in use fold into a single "unused styles" row.
@@ -1195,6 +1291,7 @@ export default function Upc() {
   const [travelExpanded, setTravelExpanded] = useState([]);
   const [codesOpen, setCodesOpen] = useState(false);
   const [savingSku, setSavingSku] = useState(null);
+  const [editing, setEditing] = useState(null);
 
   const loadCodes = useCallback(() => upcApi.codes().then(setCodes), []);
 
@@ -1297,6 +1394,9 @@ export default function Upc() {
         <span>
           <span style={{ color: "#8c8c8c" }}>{r.styleCode}</span>{" "}
           {r.styleName ? (r.isStyleGroup ? <strong>{r.styleName}</strong> : r.styleName) : <span style={{ color: "#bbb" }}>—</span>}
+          {!r.isStyleGroup && r.styleName !== r.codeStyleName && (
+            <ExceptionMark title={`Exception: style ${r.styleCode} is ${r.codeStyleName || "not set up"}`} />
+          )}
         </span>
       )),
     },
@@ -1312,6 +1412,9 @@ export default function Upc() {
         return (
           <span>
             <span style={{ color: "#8c8c8c" }}>{r.colorCode}</span> {r.colorName || <span style={{ color: "#bbb" }}>—</span>}
+            {r.colorName !== r.codeColorName && (
+              <ExceptionMark title={`Exception: color ${r.colorCode} is ${r.codeColorName || "not set up"}`} />
+            )}
           </span>
         );
       },
@@ -1323,6 +1426,8 @@ export default function Upc() {
         ? grey(`${r.children.filter((c) => c.product).length} product${r.children.filter((c) => c.product).length === 1 ? "" : "s"}`)
         : r.product
         ? <ToProduct product={r.product}><Thumb url={r.product.imageUrl} />{r.product.name}</ToProduct>
+        : r.customName
+        ? <span style={{ color: "#8c8c8c" }}>{r.customName} <ExceptionMark title="Custom name, used when the product is created" /></span>
         : <span style={{ color: "#bbb" }}>—</span>),
     },
     {
@@ -1342,7 +1447,7 @@ export default function Upc() {
           />
         );
         if (inUse || ready) return box;
-        return <Tooltip title="Set up this number's brand, style and color under Manage Codes first">{box}</Tooltip>;
+        return <Tooltip title="Set up this number's brand, style and color under Manage Codes (or as an exception) first">{box}</Tooltip>;
       },
     },
     {
@@ -1356,9 +1461,19 @@ export default function Upc() {
             icon={<BarcodeOutlined />}
             onClick={() => setBarcode({
               upc: r.upc, sku: r.sku,
-              label: r.product?.name || [r.brandName, r.styleName, r.colorName].filter(Boolean).join(" "),
+              label: r.product?.name || r.customName || r.defaultName,
             })}
           />
+        </Tooltip>
+      )),
+    },
+    {
+      title: "",
+      key: "edit",
+      width: 48,
+      render: (_, r) => (r.isStyleGroup || r.isUnused ? null : (
+        <Tooltip title="Exception: this number's own style, color or name">
+          <Button type="text" icon={<EditOutlined />} onClick={(e) => { e.stopPropagation(); setEditing(r); }} />
         </Tooltip>
       )),
     },
@@ -1439,6 +1554,14 @@ export default function Upc() {
       </>}
 
       {barcode && <BarcodeModal {...barcode} onClose={() => setBarcode(null)} />}
+      <TravelNumberModal
+        key={editing?.sku}
+        row={editing}
+        onClose={() => setEditing(null)}
+        onSaved={(updated) => setRows((prev) => prev.map((r) => (r.sku !== updated.sku ? r : {
+          ...r, ...updated, product: r.product || updated.product,
+        })))}
+      />
       {openProduct && (
         <ProductWindow key={openProduct.id} productId={openProduct.id} onClose={() => setOpenProduct(null)} onSaved={loadRows} />
       )}

@@ -178,6 +178,8 @@ async function runStartupMigrations() {
     await prisma.$executeRaw`ALTER TABLE "products" ALTER COLUMN "case_pack" DROP NOT NULL`;
     await prisma.$executeRaw`ALTER TABLE "products" ALTER COLUMN "case_pack" DROP DEFAULT`;
     await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "case_pack" INTEGER`;
+    // Travel exceptions: a style name that differs from the style code's
+    await prisma.$executeRaw`ALTER TABLE "upc_assignments" ADD COLUMN IF NOT EXISTS "product_type" VARCHAR(100)`;
     await prisma.$executeRaw`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "shadow_parent_id" INTEGER`;
     await prisma.$executeRaw`ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "cancel_date" DATE`;
     // Order change history

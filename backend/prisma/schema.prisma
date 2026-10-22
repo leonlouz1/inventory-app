@@ -314,6 +314,8 @@ model UpcAssignment {
   name      String?  @db.VarChar(200)
   brand     String?  @db.VarChar(100)
   color     String?  @db.VarChar(100)
+  // Travel exception: style name for this one number (color/name above too)
+  productType String? @map("product_type") @db.VarChar(100)
   category  String?  @db.VarChar(50)
   packSize  Int?     @map("pack_size")
   casePack  Int?     @map("case_pack")

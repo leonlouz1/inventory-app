@@ -15,15 +15,27 @@ async function loadCodeNames() {
   return names;
 }
 
-function describe(sku, names) {
+// A Travel number's brand/style/color come from its codes, unless that one
+// number has an exception (its own style name, color or product name).
+function describe(sku, names, assignment) {
   const parts = splitSku(sku);
+  const codeStyle = names.style[parts.style] ?? null;
+  const codeColor = names.color[parts.color] ?? null;
+  const brandName = names.brand[parts.brand] ?? null;
+  const styleName = assignment?.productType || codeStyle;
+  const colorName = assignment?.color || codeColor;
   return {
     brandCode: parts.brand,
     styleCode: parts.style,
     colorCode: parts.color,
-    brandName: names.brand[parts.brand] ?? null,
-    styleName: names.style[parts.style] ?? null,
-    colorName: names.color[parts.color] ?? null,
+    brandName,
+    styleName,
+    colorName,
+    codeStyleName: codeStyle,
+    codeColorName: codeColor,
+    customName: assignment?.name || null,
+    hasException: Boolean(assignment?.productType || assignment?.color || assignment?.name),
+    defaultName: [brandName, styleName, colorName].filter(Boolean).join(" "),
   };
 }
 
@@ -125,8 +137,12 @@ router.get(
       prisma.upcAssignment.findMany({ where: { sku: { in: skus } } }),
       prisma.product.findMany({ where: { sku: { in: skus } }, select: PRODUCT_LIVE }),
     ]);
-    const inUseBySku = new Map(assignments.map((a) => [a.sku, a.inUse]));
+    const assignmentBySku = new Map(assignments.map((a) => [a.sku, a]));
     const productBySku = new Map(products.map((p) => [p.sku, p]));
+    // Only numbers with an exception differ from their row's style + color
+    const exception = (a) => (a && (a.productType || a.color || a.name)
+      ? { styleName: a.productType || null, colorName: a.color || null, name: a.name || null }
+      : null);
 
     res.json({
       brands: brands.map((b) => ({ code: b.code, name: b.name })),
@@ -139,7 +155,10 @@ router.get(
         brands: Object.fromEntries(
           brands.map((b) => {
             const sku = b.code + style.code + color.code;
-            return [b.code, { sku, inUse: inUseBySku.get(sku) ?? false, product: productSummary(productBySku.get(sku)) }];
+            const a = assignmentBySku.get(sku);
+            return [b.code, {
+              sku, inUse: a?.inUse ?? false, product: productSummary(productBySku.get(sku)), exception: exception(a),
+            }];
           })
         ),
       })),
@@ -286,24 +305,28 @@ router.get(
       prisma.upcAssignment.findMany({ where: { sku: { in: skus } } }),
       prisma.product.findMany({ where: { sku: { in: skus } }, select: PRODUCT_LIVE }),
     ]);
-    const inUseBySku = new Map(assignments.map((a) => [a.sku, a.inUse]));
+    const assignmentBySku = new Map(assignments.map((a) => [a.sku, a]));
     const productBySku = new Map(products.map((p) => [p.sku, p]));
 
-    res.json(
-      skus.map((sku) => ({
-        sku,
-        upc: fullUpc(sku),
-        ...describe(sku, names),
-        inUse: inUseBySku.get(sku) ?? false,
-        product: productSummary(productBySku.get(sku)),
-      }))
-    );
+    res.json(skus.map((sku) => travelRow(sku, names, assignmentBySku.get(sku), productBySku.get(sku))));
   })
 );
 
-// PATCH /api/upc/:sku — { inUse }. Marking in use creates the product (once),
-// with brand, style and color filled in from the codes. Unmarking leaves the
-// product alone; products are only removed from the Products page.
+function travelRow(sku, names, assignment, product) {
+  return {
+    sku,
+    upc: fullUpc(sku),
+    ...describe(sku, names, assignment),
+    inUse: assignment?.inUse ?? false,
+    product: productSummary(product),
+  };
+}
+
+// PATCH /api/upc/:sku — { inUse?, productType?, color?, name? }. Marking in use
+// creates the product (once), with brand, style and color filled in from the
+// codes. productType/color/name are a Travel exception for this one number
+// (empty clears it, back to the code's). Unmarking leaves the product alone;
+// products are only removed from the Products page.
 router.patch(
   "/:sku",
   asyncHandler(async (req, res) => {
@@ -311,9 +334,15 @@ router.patch(
     if (!/^\d{5}$/.test(sku)) return res.status(400).json({ message: `${sku} is not a valid item number` });
     // Any non-Travel number can be filled in, even outside a named range
     if (!isTravelRange(sku.slice(0, 2))) return updateOtherNumber(sku, req, res);
-    const inUse = Boolean(req.body.inUse);
-    const names = await loadCodeNames();
-    const info = describe(sku, names);
+
+    const text = (v) => (v == null || String(v).trim() === "" ? null : String(v).trim());
+    const exception = {};
+    for (const key of ["productType", "color", "name"]) {
+      if (req.body[key] !== undefined) exception[key] = text(req.body[key]);
+    }
+    const [names, current] = await Promise.all([loadCodeNames(), prisma.upcAssignment.findUnique({ where: { sku } })]);
+    const inUse = req.body.inUse !== undefined ? Boolean(req.body.inUse) : current?.inUse ?? false;
+    const info = describe(sku, names, { ...current, ...exception });
 
     if (inUse) {
       const missing = [
@@ -322,15 +351,15 @@ router.patch(
         !info.colorName && `color ${info.colorCode}`,
       ].filter(Boolean);
       if (missing.length > 0) {
-        return res.status(400).json({ message: `Set up ${missing.join(", ")} under Manage Codes first` });
+        return res.status(400).json({ message: `Set up ${missing.join(", ")} under Manage Codes (or as an exception) first` });
       }
     }
 
     const product = await prisma.$transaction(async (tx) => {
       await tx.upcAssignment.upsert({
         where: { sku },
-        update: { inUse },
-        create: { sku, inUse },
+        update: { inUse, ...exception },
+        create: { sku, inUse, ...exception },
       });
 
       const existing = await tx.product.findUnique({ where: { sku }, select: { id: true, sku: true, name: true } });
@@ -338,7 +367,7 @@ router.patch(
 
       return createUpcProduct(tx, {
         sku,
-        name: `${info.brandName} ${info.styleName} ${info.colorName}`,
+        name: info.customName || info.defaultName,
         brand: info.brandName,
         productType: info.styleName,
         color: info.colorName,
