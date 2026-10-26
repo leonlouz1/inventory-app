@@ -1,0 +1,23 @@
+# Daily "orders needing attention" email. Calls the backend, which decides
+# what to send (weekdays only, once a day, skipped when nothing is due).
+# Runs at 12:00 UTC = 8 AM New York in summer, 7 AM in winter.
+name: Order reminders
+
+on:
+  schedule:
+    - cron: "0 12 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send today's reminder email
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          # The free Render server may be asleep; retries give it time to wake up
+          curl --fail-with-body --silent --show-error --max-time 90 \
+            --retry 4 --retry-delay 30 --retry-all-errors \
+            -X POST -H "x-cron-secret: $CRON_SECRET" \
+            https://inventory-app-backend-fh6y.onrender.com/api/reminders/run
