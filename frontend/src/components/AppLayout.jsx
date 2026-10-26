@@ -21,6 +21,7 @@ import {
   ScheduleOutlined,
   CalculatorOutlined,
   FileTextOutlined,
+  BellOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useRole, DESIGNER_PATHS } from "../hooks/useRole";
@@ -53,6 +54,7 @@ const NAV_ITEMS = [
   { key: "/costs", label: "Costs", icon: <CalculatorOutlined /> },
   { key: "/linesheets", label: "Linesheets", icon: <FileTextOutlined /> },
   { key: "/warehouses", label: "Warehouses", icon: <BankOutlined /> },
+  { key: "/reminders", label: "Reminders", icon: <BellOutlined /> },
 ];
 
 // Highlight the menu item a page belongs to, e.g. /orders/42 -> Orders

@@ -20,6 +20,7 @@ import Catalog from "./pages/Catalog";
 import Billing from "./pages/Billing";
 import Upc from "./pages/Upc";
 import Upcoming from "./pages/Upcoming";
+import Reminders from "./pages/Reminders";
 import Costs from "./pages/Costs";
 import Linesheets from "./pages/Linesheets";
 import LinesheetPage from "./pages/detail/LinesheetPage";
@@ -51,6 +52,7 @@ function AppRoutes() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/upcoming" element={<Upcoming />} />
+        <Route path="/reminders" element={<Reminders />} />
         <Route path="/costs" element={<Costs />} />
         <Route path="/linesheets" element={<Linesheets />} />
         <Route path="/linesheets/:id" element={<LinesheetPage />} />

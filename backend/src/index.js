@@ -26,6 +26,7 @@ const containersRouter = require("./routes/containers");
 const costsRouter = require("./routes/costs");
 const imagesRouter = require("./routes/images");
 const linesheetsRouter = require("./routes/linesheets");
+const remindersRouter = require("./routes/reminders");
 const { router: productFieldsRouter } = require("./routes/productFields");
 
 const app = express();
@@ -61,6 +62,7 @@ app.use("/api/upc", upcRouter);
 app.use("/api/containers", containersRouter);
 app.use("/api/costs", costsRouter);
 app.use("/api/images", imagesRouter);
+app.use("/api/reminders", remindersRouter);
 app.use("/api/linesheets", linesheetsRouter);
 app.use("/api/product-fields", productFieldsRouter);
 
@@ -227,6 +229,16 @@ async function runStartupMigrations() {
     "qty" INTEGER,
     "origin_id" INTEGER,
     CONSTRAINT "linesheet_items_pkey" PRIMARY KEY ("id")
+)`);
+    // Daily order reminder email (one settings row)
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "reminder_settings" (
+    "id" INTEGER NOT NULL DEFAULT 1,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "recipients" TEXT[] NOT NULL DEFAULT '{}',
+    "upcoming_days" INTEGER NOT NULL DEFAULT 7,
+    "cancel_days" INTEGER NOT NULL DEFAULT 7,
+    "last_sent_on" DATE,
+    CONSTRAINT "reminder_settings_pkey" PRIMARY KEY ("id")
 )`);
     // Landed cost tables (seeded with China/Thailand and New York/Los Angeles)
     await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "cost_origins" (

@@ -205,3 +205,10 @@ export const linesheetsApi = {
 export const imagesApi = {
   upload: (data) => apiClient.post("/images", data),
 };
+
+export const remindersApi = {
+  settings: () => apiClient.get("/reminders/settings"),
+  saveSettings: (data) => apiClient.put("/reminders/settings", data),
+  preview: () => apiClient.get("/reminders/preview"),
+  sendNow: () => apiClient.post("/reminders/send-now", {}),
+};

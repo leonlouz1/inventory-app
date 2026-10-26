@@ -6,6 +6,8 @@ const PUBLIC_ROUTES = [
   { method: "GET", path: /^\/catalog\/[^/]+\/?$/ },
   // Product images: <img> tags can't send a sign-in token, and the catalog site shows them
   { method: "GET", path: /^\/images\/\d+\/?$/ },
+  // Daily reminder email, called by the schedule; checks its own secret
+  { method: "POST", path: /^\/reminders\/run\/?$/ },
 ];
 
 // What a "designer" may do: view and edit product details, and use the UPC

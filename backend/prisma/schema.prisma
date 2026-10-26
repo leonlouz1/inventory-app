@@ -508,3 +508,15 @@ model OrderChange {
   @@index([orderId, createdAt])
   @@map("order_changes")
 }
+
+// Daily reminder email for orders that need attention (one row, id 1)
+model ReminderSettings {
+  id           Int       @id @default(1)
+  enabled      Boolean   @default(true)
+  recipients   String[]  @default([])
+  upcomingDays Int       @default(7) @map("upcoming_days")
+  cancelDays   Int       @default(7) @map("cancel_days")
+  lastSentOn   DateTime? @map("last_sent_on") @db.Date
+
+  @@map("reminder_settings")
+}
