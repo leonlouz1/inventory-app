@@ -182,7 +182,7 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
       });
       if (poFile) {
         try {
-          await uploadOrderDocument(result.order.id, poFile);
+          await uploadOrderDocument(result.order.id, poFile, "PO");
         } catch (err) {
           message.warning(`Order created, but the PO file wasn't saved: ${err.message}. Add it from the order page.`);
         }

@@ -97,6 +97,7 @@ router.get(
         lines: {
           include: { product: { include: { group: true, shadowParent: { select: { sku: true } } } }, warehouse: true },
         },
+        documents: { select: { kind: true } },
       },
     });
 
@@ -127,6 +128,8 @@ router.get(
         latestShipDate,
         shippedAt: order.shippedAt ? isoDate(order.shippedAt) : null,
         alertStatus: hasAlerts ? "Has alerts" : "OK",
+        // Types of files kept on the order, e.g. ["PO", "SIGNED_BOL"]
+        documentKinds: [...new Set(order.documents.map((d) => d.kind))],
         lines: order.lines.map((line) => ({
           id: line.id,
           productId: line.productId,

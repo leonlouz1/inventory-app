@@ -238,7 +238,7 @@ export default function OrderPage() {
         </Descriptions>
       </Card>
 
-      <OrderDocuments orderId={order.id} onChanged={load} />
+      <OrderDocuments orderId={order.id} orderStatus={order.status} onChanged={load} />
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <Typography.Title level={5} style={{ margin: 0 }}>Lines</Typography.Title>

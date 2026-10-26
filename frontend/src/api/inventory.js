@@ -216,5 +216,6 @@ export const remindersApi = {
 export const orderDocumentsApi = {
   list: (orderId) => apiClient.get(`/order-documents?orderId=${orderId}`),
   upload: (data) => apiClient.post("/order-documents", data),
+  update: (id, data) => apiClient.patch(`/order-documents/${id}`, data),
   delete: (id) => apiClient.delete(`/order-documents/${id}`),
 };

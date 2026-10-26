@@ -527,6 +527,8 @@ model OrderDocument {
   id          Int      @id @default(autoincrement())
   orderId     Int      @map("order_id")
   filename    String   @db.VarChar(255)
+  // PO, REVISED_PO, SIGNED_BOL, ROUTING, PACKING_LIST, INVOICE, OTHER
+  kind        String   @default("OTHER") @db.VarChar(30)
   contentType String   @map("content_type") @db.VarChar(150)
   size        Int
   data        Bytes

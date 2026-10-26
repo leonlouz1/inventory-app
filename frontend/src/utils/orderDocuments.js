@@ -12,12 +12,13 @@ function toBase64(file) {
   });
 }
 
-// Keeps a file (e.g. the customer's PO) on an order
-export async function uploadOrderDocument(orderId, file) {
+// Keeps a file on an order. kind: PO, SIGNED_BOL, ... (constants/documentKinds)
+export async function uploadOrderDocument(orderId, file, kind = "OTHER") {
   if (file.size > 15 * 1024 * 1024) throw new Error("File is too large (15 MB max)");
   return orderDocumentsApi.upload({
     orderId,
     filename: file.name,
+    kind,
     contentType: file.type || "application/octet-stream",
     data: await toBase64(file),
   });

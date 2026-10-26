@@ -245,6 +245,9 @@ async function runStartupMigrations() {
     CONSTRAINT "order_documents_pkey" PRIMARY KEY ("id")
 )`);
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "order_documents_order_id_idx" ON "order_documents"("order_id")`);
+    // File type; files added before types existed were POs
+    await prisma.$executeRawUnsafe(`ALTER TABLE "order_documents" ADD COLUMN IF NOT EXISTS "kind" VARCHAR(30) NOT NULL DEFAULT 'PO'`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "order_documents" ALTER COLUMN "kind" SET DEFAULT 'OTHER'`);
     // Daily order reminder email (one settings row)
     await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "reminder_settings" (
     "id" INTEGER NOT NULL DEFAULT 1,

@@ -2,13 +2,14 @@ const express = require("express");
 const prisma = require("../prismaClient");
 const asyncHandler = require("../middleware/asyncHandler");
 const { logOrderChanges } = require("../services/orderHistory");
+const { DOCUMENT_KINDS, DOCUMENT_KIND_LABELS: KIND_LABELS } = require("../constants/documentKinds");
 
 // Files kept on an order (the customer's PO, revisions, etc.), stored in the
 // database so they can be viewed or downloaded later.
 const router = express.Router();
 
 const MAX_BYTES = 15 * 1024 * 1024;
-const LIST_FIELDS = { id: true, orderId: true, filename: true, contentType: true, size: true, uploadedBy: true, createdAt: true };
+const LIST_FIELDS = { id: true, orderId: true, filename: true, kind: true, contentType: true, size: true, uploadedBy: true, createdAt: true };
 
 // GET /api/order-documents?orderId=12
 router.get(
@@ -20,7 +21,9 @@ router.get(
   })
 );
 
-// POST /api/order-documents — { orderId, filename, contentType, data: base64 }
+const describeDoc = (kind, filename) => `${KIND_LABELS[kind] || kind}: ${filename}`;
+
+// POST /api/order-documents — { orderId, filename, kind?, contentType, data: base64 }
 router.post(
   "/",
   asyncHandler(async (req, res) => {
@@ -28,6 +31,8 @@ router.post(
     const filename = String(req.body.filename || "").trim().slice(0, 255);
     const contentType = String(req.body.contentType || "application/octet-stream").slice(0, 150);
     if (!orderId || !filename) return res.status(400).json({ message: "orderId and filename are required" });
+    const kind = req.body.kind || "OTHER";
+    if (!DOCUMENT_KINDS.includes(kind)) return res.status(400).json({ message: "Unknown file type" });
     const buffer = Buffer.from(String(req.body.data || ""), "base64");
     if (!buffer.length) return res.status(400).json({ message: "The file is empty" });
     if (buffer.length > MAX_BYTES) return res.status(400).json({ message: "File is too large (15 MB max)" });
@@ -36,10 +41,10 @@ router.post(
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     const doc = await prisma.orderDocument.create({
-      data: { orderId, filename, contentType, size: buffer.length, data: buffer, uploadedBy: req.userName || null },
+      data: { orderId, filename, kind, contentType, size: buffer.length, data: buffer, uploadedBy: req.userName || null },
       select: LIST_FIELDS,
     });
-    await logOrderChanges(prisma, req, { orderId, field: "Document", before: null, after: filename, note: "File added" });
+    await logOrderChanges(prisma, req, { orderId, field: "Document", before: null, after: describeDoc(kind, filename), note: "File added" });
     res.status(201).json(doc);
   })
 );
@@ -56,6 +61,22 @@ router.get(
   })
 );
 
+// PATCH /api/order-documents/:id — { kind }: change what the file is
+router.patch(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const kind = req.body.kind;
+    if (!DOCUMENT_KINDS.includes(kind)) return res.status(400).json({ message: "Unknown file type" });
+    const doc = await prisma.orderDocument.findUnique({ where: { id: Number(req.params.id) }, select: LIST_FIELDS });
+    if (!doc) return res.status(404).json({ message: "File not found" });
+    const updated = await prisma.orderDocument.update({ where: { id: doc.id }, data: { kind }, select: LIST_FIELDS });
+    await logOrderChanges(prisma, req, {
+      orderId: doc.orderId, field: `Document type (${doc.filename})`, before: KIND_LABELS[doc.kind], after: KIND_LABELS[kind],
+    });
+    res.json(updated);
+  })
+);
+
 // DELETE /api/order-documents/:id
 router.delete(
   "/:id",
@@ -63,7 +84,7 @@ router.delete(
     const doc = await prisma.orderDocument.findUnique({ where: { id: Number(req.params.id) }, select: LIST_FIELDS });
     if (!doc) return res.status(404).json({ message: "File not found" });
     await prisma.orderDocument.delete({ where: { id: doc.id } });
-    await logOrderChanges(prisma, req, { orderId: doc.orderId, field: "Document", before: doc.filename, after: null, note: "File removed" });
+    await logOrderChanges(prisma, req, { orderId: doc.orderId, field: "Document", before: describeDoc(doc.kind, doc.filename), after: null, note: "File removed" });
     res.status(204).end();
   })
 );

@@ -246,6 +246,12 @@ export default function Orders() {
   function exportOrdersCsv() {
     const rows = [];
     for (const order of filteredOrders) {
+      const kinds = new Set(order.documentKinds || []);
+      // Files on the order: the PO always; the signed BOL once it has shipped
+      const files = {
+        "PO Uploaded": kinds.has("PO") || kinds.has("REVISED_PO") ? "Yes" : "No",
+        "Signed BOL Uploaded": order.status === "SHIPPED" ? (kinds.has("SIGNED_BOL") ? "Yes" : "No") : "",
+      };
       if (!order.lines || order.lines.length === 0) {
         rows.push({
           "Order #": order.orderNumber,
@@ -255,9 +261,11 @@ export default function Orders() {
           Status: order.status,
           SKU: "",
           "Product Name": "",
+          Brand: "",
           Qty: "",
           "Ship Date": "",
           Warehouse: "",
+          ...files,
         });
       } else {
         for (const line of order.lines) {
@@ -269,9 +277,11 @@ export default function Orders() {
             Status: order.status,
             SKU: line.sku,
             "Product Name": line.productName,
+            Brand: line.brand || "",
             Qty: line.quantity,
             "Ship Date": line.shipDate,
             Warehouse: line.warehouseName || "Unassigned",
+            ...files,
           });
         }
       }
