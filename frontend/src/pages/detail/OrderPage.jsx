@@ -14,6 +14,7 @@ import { showShadowMessages } from "../../utils/shadowMessages";
 import ProjectionTag from "../../components/ProjectionTag";
 import CancelDateTag from "../../components/CancelDateTag";
 import OrderHistory from "../../components/OrderHistory";
+import OrderDocuments from "../../components/OrderDocuments";
 import EmailOrderModal from "../../components/EmailOrderModal";
 import EditOrderLineModal from "../../components/EditOrderLineModal";
 import AddOrderLineModal from "../../components/AddOrderLineModal";
@@ -236,6 +237,8 @@ export default function OrderPage() {
           <Descriptions.Item label="Notes" span={2}>{order.notes || "—"}</Descriptions.Item>
         </Descriptions>
       </Card>
+
+      <OrderDocuments orderId={order.id} onChanged={load} />
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <Typography.Title level={5} style={{ margin: 0 }}>Lines</Typography.Title>

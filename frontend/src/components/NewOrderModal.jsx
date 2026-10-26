@@ -11,11 +11,17 @@ import {
   Tag,
   message,
   Space,
+  Upload,
+  Typography,
 } from "antd";
-import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, FileSearchOutlined, CloseOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { ordersApi, crmApi } from "../api/inventory";
 import { ORDER_STATUSES, ORDER_STATUS_LABELS } from "../constants/orderStatuses";
+import { uploadOrderDocument } from "../utils/orderDocuments";
+import PoViewer from "./PoViewer";
+
+const PO_ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.xlsm,.csv,.doc,.docx";
 
 const STATUS_OPTIONS = ORDER_STATUSES.map((s) => ({ value: s, label: ORDER_STATUS_LABELS[s] }));
 
@@ -54,8 +60,13 @@ function ProjectionTags({ projection }) {
   return <>{tags}</>;
 }
 
-export default function NewOrderModal({ open, onClose, onCreated, products, warehouses }) {
+// With a PO file (poFile, or picked with "Upload PO"), the PO shows on the left
+// so lines can be typed in while reading it; the file is kept on the order.
+export default function NewOrderModal({ open, onClose, onCreated, products, warehouses, poFile: initialPoFile = null }) {
   const [form] = Form.useForm();
+  const [pickedPo, setPickedPo] = useState(null);
+  const [poRemoved, setPoRemoved] = useState(false);
+  const poFile = poRemoved ? null : pickedPo || initialPoFile;
   const [lines, setLines] = useState([emptyLine()]);
   const [projectionsByKey, setProjectionsByKey] = useState({});
   const [checking, setChecking] = useState(false);
@@ -144,6 +155,8 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
     setLines([emptyLine()]);
     setProjectionsByKey({});
     setShipDate(null);
+    setPickedPo(null);
+    setPoRemoved(false);
     onClose();
   }
 
@@ -167,7 +180,14 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
             ship_date: headerValues.ship_date.format("YYYY-MM-DD"),
           })),
       });
-      message.success(`Order ${result.order.orderNumber} created`);
+      if (poFile) {
+        try {
+          await uploadOrderDocument(result.order.id, poFile);
+        } catch (err) {
+          message.warning(`Order created, but the PO file wasn't saved: ${err.message}. Add it from the order page.`);
+        }
+      }
+      message.success(`Order ${result.order.orderNumber} created${poFile ? " with its PO on file" : ""}`);
       resetAndClose();
       onCreated();
     } catch (err) {
@@ -268,10 +288,29 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
 
   return (
     <Modal
-      title="New Order"
+      title={
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", paddingRight: 32 }}>
+          <span>New Order</span>
+          {poFile ? (
+            <span style={{ fontWeight: 400, fontSize: 13 }}>
+              <Typography.Text type="secondary">PO: </Typography.Text>{poFile.name}
+              <Button size="small" type="text" icon={<CloseOutlined />} title="Remove PO" onClick={() => setPoRemoved(true)} />
+            </span>
+          ) : (
+            <Upload
+              accept={PO_ACCEPT}
+              showUploadList={false}
+              beforeUpload={(file) => { setPickedPo(file); setPoRemoved(false); return false; }}
+            >
+              <Button size="small" icon={<FileSearchOutlined />}>Upload PO</Button>
+            </Upload>
+          )}
+        </div>
+      }
       open={open}
       onCancel={resetAndClose}
-      width={920}
+      width={poFile ? "96vw" : 920}
+      style={poFile ? { top: 16, maxWidth: 1800 } : undefined}
       footer={[
         <Button key="cancel" onClick={resetAndClose}>
           Cancel
@@ -281,8 +320,15 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
         </Button>,
       ]}
     >
+      <div style={poFile ? { display: "flex", gap: 16, alignItems: "stretch" } : undefined}>
+      {poFile && (
+        <div style={{ flex: "1 1 50%", minWidth: 0, height: "calc(100vh - 170px)" }}>
+          <PoViewer file={poFile} />
+        </div>
+      )}
+      <div style={poFile ? { flex: "1 1 50%", minWidth: 0, height: "calc(100vh - 170px)", overflowY: "auto", paddingRight: 4 } : undefined}>
       <Form form={form} layout="vertical" initialValues={{ order_date: dayjs(), status: "CONFIRMED" }}>
-        <Space size="large" style={{ display: "flex" }}>
+        <Space size="large" style={{ display: "flex" }} wrap={!!poFile}>
           <Form.Item name="order_number" label="Order #" extra="Auto-generated; clear to regenerate">
             <Input placeholder="SO-1001" style={{ width: 160 }} />
           </Form.Item>
@@ -337,6 +383,8 @@ export default function NewOrderModal({ open, onClose, onCreated, products, ware
       <Button icon={<PlusOutlined />} onClick={addLine} style={{ marginTop: 12 }}>
         Add line
       </Button>
+      </div>
+      </div>
     </Modal>
   );
 }

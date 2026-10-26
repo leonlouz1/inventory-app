@@ -27,6 +27,7 @@ const costsRouter = require("./routes/costs");
 const imagesRouter = require("./routes/images");
 const linesheetsRouter = require("./routes/linesheets");
 const remindersRouter = require("./routes/reminders");
+const orderDocumentsRouter = require("./routes/orderDocuments");
 const { router: productFieldsRouter } = require("./routes/productFields");
 
 const app = express();
@@ -37,7 +38,7 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 app.set("trust proxy", true); // behind Render's proxy: req.protocol is https
-app.use(express.json({ limit: "8mb" })); // image uploads arrive as base64
+app.use(express.json({ limit: "25mb" })); // image and PO uploads arrive as base64
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
@@ -63,6 +64,7 @@ app.use("/api/containers", containersRouter);
 app.use("/api/costs", costsRouter);
 app.use("/api/images", imagesRouter);
 app.use("/api/reminders", remindersRouter);
+app.use("/api/order-documents", orderDocumentsRouter);
 app.use("/api/linesheets", linesheetsRouter);
 app.use("/api/product-fields", productFieldsRouter);
 
@@ -230,6 +232,19 @@ async function runStartupMigrations() {
     "origin_id" INTEGER,
     CONSTRAINT "linesheet_items_pkey" PRIMARY KEY ("id")
 )`);
+    // PO files and other documents kept on orders
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "order_documents" (
+    "id" SERIAL NOT NULL,
+    "order_id" INTEGER NOT NULL REFERENCES "orders"("id") ON DELETE CASCADE,
+    "filename" VARCHAR(255) NOT NULL,
+    "content_type" VARCHAR(150) NOT NULL,
+    "size" INTEGER NOT NULL,
+    "data" BYTEA NOT NULL,
+    "uploaded_by" VARCHAR(200),
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "order_documents_pkey" PRIMARY KEY ("id")
+)`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "order_documents_order_id_idx" ON "order_documents"("order_id")`);
     // Daily order reminder email (one settings row)
     await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "reminder_settings" (
     "id" INTEGER NOT NULL DEFAULT 1,

@@ -212,3 +212,9 @@ export const remindersApi = {
   preview: () => apiClient.get("/reminders/preview"),
   sendNow: () => apiClient.post("/reminders/send-now", {}),
 };
+
+export const orderDocumentsApi = {
+  list: (orderId) => apiClient.get(`/order-documents?orderId=${orderId}`),
+  upload: (data) => apiClient.post("/order-documents", data),
+  delete: (id) => apiClient.delete(`/order-documents/${id}`),
+};

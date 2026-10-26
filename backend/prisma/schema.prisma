@@ -131,6 +131,7 @@ model Order {
   lines           OrderLine[]
   linkedRestocks  Restock[]
   changes         OrderChange[]
+  documents       OrderDocument[]
   shipment        Shipment?   @relation(fields: [shipmentId], references: [id])
 
   @@map("orders")
@@ -519,4 +520,21 @@ model ReminderSettings {
   lastSentOn   DateTime? @map("last_sent_on") @db.Date
 
   @@map("reminder_settings")
+}
+
+// Files kept on an order, e.g. the customer's PO (PDF, Excel, scan)
+model OrderDocument {
+  id          Int      @id @default(autoincrement())
+  orderId     Int      @map("order_id")
+  filename    String   @db.VarChar(255)
+  contentType String   @map("content_type") @db.VarChar(150)
+  size        Int
+  data        Bytes
+  uploadedBy  String?  @map("uploaded_by") @db.VarChar(200)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_documents")
 }

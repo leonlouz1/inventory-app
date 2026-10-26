@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input, DatePicker } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined, TruckOutlined, MailOutlined, DownloadOutlined, ScissorOutlined } from "@ant-design/icons";
+import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input, DatePicker, Upload } from "antd";
+import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined, TruckOutlined, MailOutlined, DownloadOutlined, ScissorOutlined, FileSearchOutlined } from "@ant-design/icons";
 import { ordersApi, productsApi, warehousesApi, restocksApi, shipmentsApi, skuGroupsApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
 import EmailOrderModal from "../components/EmailOrderModal";
@@ -186,6 +186,7 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [poFile, setPoFile] = useState(null); // New Order from PO
   const [importOpen, setImportOpen] = useState(false);
   const [editingLine, setEditingLine] = useState(null); // { orderId, line }
   const [addingLineToOrder, setAddingLineToOrder] = useState(null); // order
@@ -544,7 +545,14 @@ export default function Orders() {
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
             Import CSV
           </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+          <Upload
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.xlsm,.csv,.doc,.docx"
+            showUploadList={false}
+            beforeUpload={(file) => { setPoFile(file); setModalOpen(true); return false; }}
+          >
+            <Button icon={<FileSearchOutlined />}>New Order from PO</Button>
+          </Upload>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setPoFile(null); setModalOpen(true); }}>
             New Order
           </Button>
         </Space>
@@ -879,8 +887,10 @@ export default function Orders() {
       />
 
       <NewOrderModal
+        key={poFile ? `po-${poFile.name}-${poFile.lastModified}` : "new"}
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        poFile={poFile}
+        onClose={() => { setModalOpen(false); setPoFile(null); }}
         onCreated={loadOrders}
         products={products}
         warehouses={warehouses}
