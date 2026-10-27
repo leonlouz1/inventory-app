@@ -18,7 +18,7 @@ function dateStr(d) {
   return d instanceof Date ? d.toISOString().split("T")[0] : String(d).split("T")[0];
 }
 
-// GET /api/reports/rolling-totals?warehouseId=X&sku=X
+// GET /api/reports/rolling-totals?warehouseId=X&skus=A,B&categories=X,Y
 router.get("/rolling-totals", async (req, res) => {
   try {
     const { warehouseId, skus, sku } = req.query;
@@ -26,21 +26,26 @@ router.get("/rolling-totals", async (req, res) => {
     // support ?skus=SKU1,SKU2 (multi) or legacy ?sku=X (single)
     const skuList = skus ? skus.split(",").map((s) => s.trim()).filter(Boolean)
       : sku ? [sku] : [];
-    const skuWhere = skuList.length > 0 ? { product: { sku: { in: skuList } } } : {};
+    // ?categories=Luggage,__none__ — "__none__" means products with no category
+    const catList = req.query.categories ? req.query.categories.split(",").map((c) => c.trim()).filter(Boolean) : [];
+    const named = catList.filter((c) => c !== "__none__");
+    const categoryWhere = catList.length === 0 ? {}
+      : { OR: [...(named.length ? [{ category: { in: named } }] : []), ...(catList.includes("__none__") ? [{ category: null }] : [])] };
+    const productWhere = { ...(skuList.length > 0 && { sku: { in: skuList } }), ...categoryWhere };
+    const skuWhere = Object.keys(productWhere).length > 0 ? { product: productWhere } : {};
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     // Current on-hand stock per SKU
     const stockRows = await prisma.warehouseStock.findMany({
-      where: { ...whFilter },
+      where: { ...whFilter, ...skuWhere },
       include: { product: true },
     });
     const currentStock = {};
     const skuNames = {};
     const skuBrands = {};
     for (const row of stockRows) {
-      if (skuList.length > 0 && !skuList.includes(row.product.sku)) continue;
       const s = row.product.sku;
       currentStock[s] = (currentStock[s] || 0) + row.onHand;
       skuNames[s] = row.product.name;

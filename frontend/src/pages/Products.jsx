@@ -44,6 +44,7 @@ export default function Products() {
   const [rollingTotalsOpen, setRollingTotalsOpen] = useState(false);
   const [rtProductMode, setRtProductMode] = useState("all");
   const [rtSelectedSkus, setRtSelectedSkus] = useState([]);
+  const [rtCategories, setRtCategories] = useState([]);
   const [rtWarehouseMode, setRtWarehouseMode] = useState("all");
   const [rtWarehouseId, setRtWarehouseId] = useState(null);
   const [rtDownloading, setRtDownloading] = useState(false);
@@ -163,6 +164,9 @@ export default function Products() {
       const params = new URLSearchParams();
       if (rtProductMode === "select" && rtSelectedSkus.length > 0) {
         params.set("skus", rtSelectedSkus.join(","));
+      }
+      if (rtCategories.length > 0) {
+        params.set("categories", rtCategories.map((c) => c ?? "__none__").join(","));
       }
       if (rtWarehouseMode === "specific" && rtWarehouseId) {
         params.set("warehouseId", rtWarehouseId);
@@ -566,12 +570,35 @@ export default function Products() {
                 style={{ width: "100%", marginTop: 10 }}
                 value={rtSelectedSkus}
                 onChange={setRtSelectedSkus}
-                options={products.map((p) => ({ value: p.sku, label: `${p.sku} — ${p.name}` }))}
+                options={products
+                  .filter((p) => !rtCategories.length || rtCategories.includes(p.category ?? null))
+                  .map((p) => ({ value: p.sku, label: `${p.sku} — ${p.name}` }))}
                 showSearch
                 filterOption={(input, opt) => opt.label.toLowerCase().includes(input.toLowerCase())}
                 allowClear
               />
             )}
+          </div>
+
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>Category</div>
+            <Select
+              mode="multiple"
+              placeholder="All categories"
+              allowClear
+              style={{ width: "100%" }}
+              options={[
+                ...PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c })),
+                { value: null, label: "(No category)" },
+              ]}
+              value={rtCategories}
+              onChange={(cats) => {
+                setRtCategories(cats);
+                // Drop picked SKUs that fall outside the chosen categories
+                if (cats.length) setRtSelectedSkus((skus) => skus.filter((sku) => cats.includes(products.find((p) => p.sku === sku)?.category ?? null)));
+              }}
+              maxTagCount="responsive"
+            />
           </div>
 
           <div>
