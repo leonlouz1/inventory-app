@@ -30,6 +30,7 @@ export const ordersApi = {
   updateNotes: (id, notes) => apiClient.patch(`/orders/${id}/notes`, { notes }),
   updateCustomerPo: (id, customerPo) => apiClient.patch(`/orders/${id}/customer-po`, { customerPo }),
   updateCancelDate: (id, cancelDate) => apiClient.patch(`/orders/${id}/cancel-date`, { cancelDate }),
+  updateShipDate: (id, shipDate) => apiClient.patch(`/orders/${id}/ship-date`, { shipDate }),
   updateCustomer: (id, customer) => apiClient.patch(`/orders/${id}/customer`, { customer }),
   renameCustomer: (oldName, newName) => apiClient.patch(`/orders/rename-customer`, { oldName, newName }),
   updateLineContainer: (orderId, lineId, containerNumber) => apiClient.patch(`/orders/${orderId}/lines/${lineId}/container`, { containerNumber }),

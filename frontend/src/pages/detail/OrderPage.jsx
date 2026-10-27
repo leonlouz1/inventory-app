@@ -99,6 +99,7 @@ export default function OrderPage() {
   if (!order) return <Spin />;
 
   const open = order.status !== "SHIPPED" && order.status !== "CANCELLED";
+  const lineShipDates = [...new Set(order.lines.map((l) => l.shipDate))].sort();
   const totalUnits = order.lines.reduce((s, l) => s + l.quantity, 0);
   const totalCases = order.lines.reduce((s, l) => s + (l.casePack ? l.quantity / l.casePack : 0), 0);
 
@@ -224,6 +225,31 @@ export default function OrderPage() {
                   }
                 }}
               />
+            </Space>
+          </Descriptions.Item>
+          <Descriptions.Item label="Ship Date">
+            <Space size={8} wrap>
+              <DatePicker
+                size="small"
+                allowClear={false}
+                disabled={!open || !order.lines.length}
+                placeholder="Set ship date"
+                value={lineShipDates.length ? dayjs(lineShipDates[0]) : null}
+                onChange={(d) => d && Modal.confirm({
+                  title: `Move all ${order.lines.length} lines to ${d.format("MMM D, YYYY")}?`,
+                  okText: "Change ship date",
+                  onOk: async () => {
+                    try {
+                      await ordersApi.updateShipDate(order.id, d.format("YYYY-MM-DD"));
+                      message.success("Ship date updated on all lines");
+                      load();
+                    } catch (err) {
+                      message.error(err.message);
+                    }
+                  },
+                })}
+              />
+              {lineShipDates.length > 1 && <Tag color="orange">Lines differ</Tag>}
             </Space>
           </Descriptions.Item>
           <Descriptions.Item label="Shipment">

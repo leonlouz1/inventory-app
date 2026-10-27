@@ -689,6 +689,27 @@ router.patch(
   })
 );
 
+// PATCH /api/orders/:id/ship-date — { shipDate } sets every line on the order to one ship date
+router.patch(
+  "/:id/ship-date",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { shipDate } = req.body;
+    if (!shipDate || Number.isNaN(new Date(shipDate).getTime())) {
+      return res.status(400).json({ message: "shipDate is required" });
+    }
+    const order = await prisma.order.findUnique({ where: { id }, include: { lines: true } });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+    if (order.status === "SHIPPED" || order.status === "CANCELLED") {
+      return res.status(409).json({ message: `Cannot change ship date on a ${order.status.toLowerCase()} order` });
+    }
+    const before = [...new Set(order.lines.map((l) => isoDate(l.shipDate)))].sort().join(", ");
+    await prisma.orderLine.updateMany({ where: { orderId: id }, data: { shipDate: new Date(shipDate) } });
+    await logOrderChanges(prisma, req, { orderId: id, field: "Ship date (all lines)", before, after: shipDate });
+    res.json({ shipDate });
+  })
+);
+
 // PATCH /api/orders/:id/cancel-date — { cancelDate | null }
 router.patch(
   "/:id/cancel-date",
