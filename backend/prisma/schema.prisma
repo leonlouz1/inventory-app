@@ -39,36 +39,36 @@ model ProductGroup {
 }
 
 model Product {
-  id            Int      @id @default(autoincrement())
-  sku           String   @unique @db.VarChar(50)
-  name          String   @db.VarChar(200)
-  brand         String?  @db.VarChar(100)
-  category      String?  @db.VarChar(50)
-  leadTimeDays  Int      @default(45) @map("lead_time_days")
-  groupId       Int?     @map("group_id")
-  description   String?  @db.Text
+  id             Int      @id @default(autoincrement())
+  sku            String   @unique @db.VarChar(50)
+  name           String   @db.VarChar(200)
+  brand          String?  @db.VarChar(100)
+  category       String?  @db.VarChar(50)
+  leadTimeDays   Int      @default(45) @map("lead_time_days")
+  groupId        Int?     @map("group_id")
+  description    String?  @db.Text
   wholesalePrice Decimal? @map("wholesale_price") @db.Decimal(10, 2)
-  retailPrice   Decimal? @map("retail_price") @db.Decimal(10, 2)
-  imageUrl      String?  @map("image_url") @db.VarChar(500)
-  casePack      Int?     @map("case_pack") // units per case; blank = unknown
+  retailPrice    Decimal? @map("retail_price") @db.Decimal(10, 2)
+  imageUrl       String?  @map("image_url") @db.VarChar(500)
+  casePack       Int?     @map("case_pack") // units per case; blank = unknown
   // Shadow SKU: an old SKU that moved to a new one (its "shadow parent").
   // It keeps its own stock; orders on it use that stock first, then the parent's.
-  shadowParentId Int?    @map("shadow_parent_id")
-  upc           String?  @db.VarChar(50)
-  color         String?  @db.VarChar(100)
-  productType   String?  @map("product_type") @db.VarChar(100)
-  embossment    String?  @db.VarChar(200)
-  attributes    Json     @default("{}")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  shadowParentId Int?     @map("shadow_parent_id")
+  upc            String?  @db.VarChar(50)
+  color          String?  @db.VarChar(100)
+  productType    String?  @map("product_type") @db.VarChar(100)
+  embossment     String?  @db.VarChar(200)
+  attributes     Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  group      ProductGroup?    @relation(fields: [groupId], references: [id])
-  shadowParent Product?       @relation("ShadowSku", fields: [shadowParentId], references: [id], onDelete: SetNull)
-  sourcing     ProductSourcing[]
+  group          ProductGroup?     @relation(fields: [groupId], references: [id])
+  shadowParent   Product?          @relation("ShadowSku", fields: [shadowParentId], references: [id], onDelete: SetNull)
+  sourcing       ProductSourcing[]
   linesheetItems LinesheetItem[]
-  shadows      Product[]      @relation("ShadowSku")
-  stock      WarehouseStock[]
-  orderLines OrderLine[]
-  restocks   Restock[]
+  shadows        Product[]         @relation("ShadowSku")
+  stock          WarehouseStock[]
+  orderLines     OrderLine[]
+  restocks       Restock[]
 
   @@map("products")
 }
@@ -97,15 +97,15 @@ enum OrderStatus {
 }
 
 model Shipment {
-  id             Int       @id @default(autoincrement())
-  shipmentNumber String    @unique @map("shipment_number") @db.VarChar(50)
-  pickupDate     DateTime  @map("pickup_date") @db.Timestamptz
-  carrier        String?   @db.VarChar(200)
-  csNumber       String?   @map("cs_number") @db.VarChar(100)
-  status         String    @default("SCHEDULED") @db.VarChar(20)
+  id             Int      @id @default(autoincrement())
+  shipmentNumber String   @unique @map("shipment_number") @db.VarChar(50)
+  pickupDate     DateTime @map("pickup_date") @db.Timestamptz
+  carrier        String?  @db.VarChar(200)
+  csNumber       String?  @map("cs_number") @db.VarChar(100)
+  status         String   @default("SCHEDULED") @db.VarChar(20)
   notes          String?
-  warehouseId    Int?      @map("warehouse_id")
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  warehouseId    Int?     @map("warehouse_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   orders    Order[]
   warehouse Warehouse? @relation(fields: [warehouseId], references: [id])
@@ -114,34 +114,34 @@ model Shipment {
 }
 
 model Order {
-  id           Int         @id @default(autoincrement())
-  orderNumber  String      @unique @map("order_number") @db.VarChar(50)
-  customer     String      @db.VarChar(200)
-  customerPo   String?     @map("customer_po") @db.VarChar(50)
-  orderDate    DateTime    @map("order_date") @db.Date
+  id          Int         @id @default(autoincrement())
+  orderNumber String      @unique @map("order_number") @db.VarChar(50)
+  customer    String      @db.VarChar(200)
+  customerPo  String?     @map("customer_po") @db.VarChar(50)
+  orderDate   DateTime    @map("order_date") @db.Date
   // Customer's "do not ship after" date from the PO
-  cancelDate   DateTime?   @map("cancel_date") @db.Date
-  status       OrderStatus @default(CONFIRMED)
-  notes        String?
-  shipmentId   Int?        @map("shipment_id")
-  invoicedAt   DateTime?   @map("invoiced_at") @db.Timestamptz
-  shippedAt    DateTime?   @map("shipped_at") @db.Date
-  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  cancelDate  DateTime?   @map("cancel_date") @db.Date
+  status      OrderStatus @default(CONFIRMED)
+  notes       String?
+  shipmentId  Int?        @map("shipment_id")
+  invoicedAt  DateTime?   @map("invoiced_at") @db.Timestamptz
+  shippedAt   DateTime?   @map("shipped_at") @db.Date
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
 
-  lines           OrderLine[]
-  linkedRestocks  Restock[]
-  changes         OrderChange[]
-  documents       OrderDocument[]
-  shipment        Shipment?   @relation(fields: [shipmentId], references: [id])
+  lines          OrderLine[]
+  linkedRestocks Restock[]
+  changes        OrderChange[]
+  documents      OrderDocument[]
+  shipment       Shipment?       @relation(fields: [shipmentId], references: [id])
 
   @@map("orders")
 }
 
 model OrderLine {
-  id          Int      @id @default(autoincrement())
-  orderId     Int      @map("order_id")
-  productId   Int      @map("product_id")
-  warehouseId Int?     @map("warehouse_id")
+  id              Int      @id @default(autoincrement())
+  orderId         Int      @map("order_id")
+  productId       Int      @map("product_id")
+  warehouseId     Int?     @map("warehouse_id")
   quantity        Int
   shipDate        DateTime @map("ship_date") @db.Date
   containerNumber String?  @map("container_number") @db.VarChar(100)
@@ -160,29 +160,29 @@ model OrderLine {
 }
 
 model Restock {
-  id           Int      @id @default(autoincrement())
-  productId    Int      @map("product_id")
-  warehouseId  Int      @map("warehouse_id")
-  quantity     Int
-  expectedDate DateTime @map("expected_date") @db.Date
-  supplier     String?  @db.VarChar(200)
-  notes        String?
+  id               Int       @id @default(autoincrement())
+  productId        Int       @map("product_id")
+  warehouseId      Int       @map("warehouse_id")
+  quantity         Int
+  expectedDate     DateTime  @map("expected_date") @db.Date
+  supplier         String?   @db.VarChar(200)
+  notes            String?
   // Shared tag for SKUs logged together in one multi-SKU shipment (e.g. one
   // container). Purely a display-grouping concern — null for legacy/standalone rows.
-  shipmentId     String?  @map("shipment_id") @db.VarChar(40)
-  linkedOrderId  Int?      @map("linked_order_id")
-  status         String   @default("IN_PRODUCTION") @map("status") @db.VarChar(20)
-  receivedAt     DateTime? @map("received_at") @db.Timestamptz
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  shipmentId       String?   @map("shipment_id") @db.VarChar(40)
+  linkedOrderId    Int?      @map("linked_order_id")
+  status           String    @default("IN_PRODUCTION") @map("status") @db.VarChar(20)
+  receivedAt       DateTime? @map("received_at") @db.Timestamptz
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
   // The container this line arrives on. `quantity` is what was ordered;
   // `receivedQuantity` is what actually arrived (set when received).
-  containerId      Int?    @map("container_id")
-  receivedQuantity Int?    @map("received_quantity")
+  containerId      Int?      @map("container_id")
+  receivedQuantity Int?      @map("received_quantity")
 
-  product      Product   @relation(fields: [productId], references: [id])
-  warehouse    Warehouse @relation(fields: [warehouseId], references: [id])
-  linkedOrder  Order?    @relation(fields: [linkedOrderId], references: [id])
-  container    Container? @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  product     Product    @relation(fields: [productId], references: [id])
+  warehouse   Warehouse  @relation(fields: [warehouseId], references: [id])
+  linkedOrder Order?     @relation(fields: [linkedOrderId], references: [id])
+  container   Container? @relation(fields: [containerId], references: [id], onDelete: Cascade)
 
   // Projection queries always filter productId+warehouseId then range on expectedDate.
   @@index([productId, warehouseId, expectedDate])
@@ -194,15 +194,15 @@ model Restock {
 // ─── CRM ───────────────────────────────────────────────────────────────────
 
 model Retailer {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique @db.VarChar(200)
-  type      String?  @db.VarChar(100)
-  priority  String   @default("1 - Low") @db.VarChar(20)
+  id             Int      @id @default(autoincrement())
+  name           String   @unique @db.VarChar(200)
+  type           String?  @db.VarChar(100)
+  priority       String   @default("1 - Low") @db.VarChar(20)
   notes          String?
-  billingAddress String? @map("billing_address") @db.VarChar(300)
-  billingCity    String? @map("billing_city") @db.VarChar(100)
-  billingState   String? @map("billing_state") @db.VarChar(100)
-  billingZip     String? @map("billing_zip") @db.VarChar(20)
+  billingAddress String?  @map("billing_address") @db.VarChar(300)
+  billingCity    String?  @map("billing_city") @db.VarChar(100)
+  billingState   String?  @map("billing_state") @db.VarChar(100)
+  billingZip     String?  @map("billing_zip") @db.VarChar(20)
   archived       Boolean  @default(false)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
@@ -215,9 +215,9 @@ model Retailer {
 }
 
 model RetailerCategory {
-  id         Int    @id @default(autoincrement())
-  retailerId Int    @map("retailer_id")
-  category   String @db.VarChar(50)
+  id         Int     @id @default(autoincrement())
+  retailerId Int     @map("retailer_id")
+  category   String  @db.VarChar(50)
   buyerName  String? @map("buyer_name") @db.VarChar(200)
   status     String  @default("Not Contacted") @db.VarChar(50)
 
@@ -228,55 +228,64 @@ model RetailerCategory {
 }
 
 model CrmContact {
-  id          Int      @id @default(autoincrement())
-  retailerId  Int      @map("retailer_id")
-  name        String   @db.VarChar(200)
-  title       String?  @db.VarChar(200)
-  email       String?  @db.VarChar(200)
-  directPhone String?  @map("direct_phone") @db.VarChar(50)
-  mobilePhone String?  @map("mobile_phone") @db.VarChar(50)
-  hqPhone     String?  @map("hq_phone") @db.VarChar(50)
-  category    String?  @db.VarChar(50)
-  notes       String?
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id           Int       @id @default(autoincrement())
+  retailerId   Int       @map("retailer_id")
+  name         String    @db.VarChar(200)
+  title        String?   @db.VarChar(200)
+  email        String?   @db.VarChar(200)
+  directPhone  String?   @map("direct_phone") @db.VarChar(50)
+  mobilePhone  String?   @map("mobile_phone") @db.VarChar(50)
+  hqPhone      String?   @map("hq_phone") @db.VarChar(50)
+  category     String?   @db.VarChar(50) // legacy single category; see categories
+  categories   String[]  @default([])
+  role         String    @default("Buyer") @db.VarChar(50)
+  status       String    @default("Not Contacted") @db.VarChar(50)
+  nextFollowUp DateTime? @map("next_follow_up") @db.Date
+  notes        String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  retailer   Retailer      @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  activities ActivityLog[]
 
   @@map("crm_contacts")
 }
 
 model ActivityLog {
-  id           Int      @id @default(autoincrement())
-  retailerId   Int      @map("retailer_id")
-  category     String?  @db.VarChar(50)
-  rep          String?  @db.VarChar(100)
-  date         DateTime @db.Date
-  actionTaken  String   @map("action_taken") @db.VarChar(100)
+  id           Int       @id @default(autoincrement())
+  retailerId   Int       @map("retailer_id")
+  contactId    Int?      @map("contact_id")
+  ccContactIds Int[]     @default([]) @map("cc_contact_ids")
+  category     String?   @db.VarChar(50)
+  rep          String?   @db.VarChar(100)
+  date         DateTime  @db.Date
+  actionTaken  String    @map("action_taken") @db.VarChar(100)
   notes        String?
-  nextStep     String?  @map("next_step") @db.VarChar(200)
+  nextStep     String?   @map("next_step") @db.VarChar(200)
   nextStepDate DateTime? @map("next_step_date") @db.Date
-  done         Boolean  @default(false)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  done         Boolean   @default(false)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  retailer Retailer    @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  contact  CrmContact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@index([retailerId, date])
+  @@index([contactId, date])
   @@index([nextStepDate, done])
   @@map("activity_logs")
 }
 
 model SentItem {
-  id               Int      @id @default(autoincrement())
-  retailerId       Int      @map("retailer_id")
-  category         String?  @db.VarChar(50)
-  buyerName        String?  @map("buyer_name") @db.VarChar(200)
-  dateSent         DateTime @map("date_sent") @db.Date
-  itemSent         String   @map("item_sent") @db.VarChar(100)
+  id               Int       @id @default(autoincrement())
+  retailerId       Int       @map("retailer_id")
+  category         String?   @db.VarChar(50)
+  buyerName        String?   @map("buyer_name") @db.VarChar(200)
+  dateSent         DateTime  @map("date_sent") @db.Date
+  itemSent         String    @map("item_sent") @db.VarChar(100)
   notes            String?
-  responseReceived String?  @map("response_received") @db.VarChar(50)
+  responseReceived String?   @map("response_received") @db.VarChar(50)
   followUpDate     DateTime? @map("follow_up_date") @db.Date
-  done             Boolean  @default(false)
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  done             Boolean   @default(false)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
 
@@ -310,19 +319,19 @@ model UpcCode {
 // The linked product is the one whose SKU equals the item number.
 // name/brand/color/category/packSize are typed in for other-category numbers.
 model UpcAssignment {
-  sku       String   @id @db.VarChar(5)
-  inUse     Boolean  @default(false) @map("in_use")
-  name      String?  @db.VarChar(200)
-  brand     String?  @db.VarChar(100)
-  color     String?  @db.VarChar(100)
+  sku         String   @id @db.VarChar(5)
+  inUse       Boolean  @default(false) @map("in_use")
+  name        String?  @db.VarChar(200)
+  brand       String?  @db.VarChar(100)
+  color       String?  @db.VarChar(100)
   // Travel exception: style name for this one number (color/name above too)
-  productType String? @map("product_type") @db.VarChar(100)
-  category  String?  @db.VarChar(50)
-  packSize  Int?     @map("pack_size")
-  casePack  Int?     @map("case_pack")
-  attributes Json    @default("{}")
-  groupId   Int?     @map("group_id")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  productType String?  @map("product_type") @db.VarChar(100)
+  category    String?  @db.VarChar(50)
+  packSize    Int?     @map("pack_size")
+  casePack    Int?     @map("case_pack")
+  attributes  Json     @default("{}")
+  groupId     Int?     @map("group_id")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("upc_assignments")
 }
@@ -390,8 +399,8 @@ model Container {
 // ---- Landed cost ----
 // Where goods are made (China, Thailand, ...)
 model CostOrigin {
-  id       Int    @id @default(autoincrement())
-  name     String @unique @db.VarChar(100)
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(100)
 
   routes   FreightRoute[]
   sourcing ProductSourcing[]

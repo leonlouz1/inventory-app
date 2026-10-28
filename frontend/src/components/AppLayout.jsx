@@ -12,8 +12,6 @@ import {
   TruckOutlined,
   ContactsOutlined,
   BarChartOutlined,
-  AuditOutlined,
-  SendOutlined,
   LinkOutlined,
   BookOutlined,
   DollarOutlined,
@@ -22,9 +20,11 @@ import {
   CalculatorOutlined,
   FileTextOutlined,
   BellOutlined,
+  TagOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useRole, DESIGNER_PATHS } from "../hooks/useRole";
+import { CRM_CATEGORIES } from "../constants/crm";
 
 const { Sider, Content, Header } = Layout;
 
@@ -40,7 +40,8 @@ const NAV_ITEMS = [
     icon: <ContactsOutlined />,
     children: [
       { key: "/crm", label: "Dashboard", icon: <BarChartOutlined /> },
-      { key: "/crm/accounts", label: "Accounts", icon: <TeamOutlined /> },
+      { key: "/crm/contacts", label: "Contacts", icon: <TeamOutlined /> },
+      ...CRM_CATEGORIES.map((c) => ({ key: `/crm/category/${c}`, label: c, icon: <TagOutlined /> })),
     ],
   },
   { key: "/customers", label: "Customers", icon: <TeamOutlined /> },

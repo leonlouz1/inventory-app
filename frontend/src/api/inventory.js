@@ -90,6 +90,10 @@ export const crmApi = {
   createContact: (data) => apiClient.post("/crm/contacts", data),
   updateContact: (id, data) => apiClient.put(`/crm/contacts/${id}`, data),
   deleteContact: (id) => apiClient.delete(`/crm/contacts/${id}`),
+  getContact: (id) => apiClient.get(`/crm/contacts/${id}`),
+  categoryList: (category) => apiClient.get(`/crm/category/${encodeURIComponent(category)}`),
+  log: (data) => apiClient.post("/crm/log", data),
+  importRows: (category, rows) => apiClient.post("/crm/import", { category, rows }),
   // activity
   listActivity: (params = {}) => apiClient.get(`/crm/activity?${new URLSearchParams(params)}`),
   createActivity: (data) => apiClient.post("/crm/activity", data),

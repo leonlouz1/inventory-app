@@ -258,6 +258,18 @@ async function runStartupMigrations() {
     "last_sent_on" DATE,
     CONSTRAINT "reminder_settings_pkey" PRIMARY KEY ("id")
 )`);
+    // CRM: per-contact role/categories/status and per-contact history
+    await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "role" VARCHAR(50) NOT NULL DEFAULT 'Buyer'`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "categories" TEXT[] NOT NULL DEFAULT '{}'`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "status" VARCHAR(50) NOT NULL DEFAULT 'Not Contacted'`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "next_follow_up" DATE`);
+    await prisma.$executeRawUnsafe(`UPDATE "crm_contacts" SET "categories" = ARRAY["category"] WHERE "category" IS NOT NULL AND "categories" = '{}'`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "activity_logs" ADD COLUMN IF NOT EXISTS "contact_id" INTEGER`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "activity_logs" ADD COLUMN IF NOT EXISTS "cc_contact_ids" INTEGER[] NOT NULL DEFAULT '{}'`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN
+      ALTER TABLE "activity_logs" ADD CONSTRAINT "activity_logs_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "crm_contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "activity_logs_contact_id_date_idx" ON "activity_logs"("contact_id", "date")`);
     // Landed cost tables (seeded with China/Thailand and New York/Los Angeles)
     await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "cost_origins" (
     "id" SERIAL NOT NULL,

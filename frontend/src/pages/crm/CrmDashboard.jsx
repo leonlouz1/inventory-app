@@ -1,192 +1,119 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Row, Col, Card, Statistic, Table, Tag, Spin, Alert, Typography, Badge } from "antd";
-import { crmApi } from "../../api/inventory";
+import { Alert, Button, Card, Col, Row, Space, Spin, Statistic, Table, Tag, Typography } from "antd";
+import { EditOutlined, TeamOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
+import { crmApi } from "../../api/inventory";
+import { ACTION_COLORS, ACTION_LABELS, STATUS_COLORS } from "../../constants/crm";
+import ContactDrawer from "../../components/crm/ContactDrawer";
+import BulkLogModal from "../../components/crm/BulkLogModal";
 
-const STATUS_COLORS = {
-  "Active": "green",
-  "Order Placed": "blue",
-  "Warm": "orange",
-  "Not Contacted": "default",
-  "No Response": "purple",
-  "Not Interested": "red",
-  "No Contact Found": "default",
+const STAT_ORDER = ["Active", "Order Placed", "Warm", "No Response", "Not Contacted", "Not Interested"];
+const STAT_COLORS = {
+  Active: "#52c41a", "Order Placed": "#1677ff", Warm: "#fa8c16", "No Response": "#722ed1", "Not Contacted": "#595959", "Not Interested": "#cf1322",
 };
 
-const STAT_STYLE = {
-  "Active": { color: "#52c41a" },
-  "Order Placed": { color: "#1677ff" },
-  "Warm": { color: "#fa8c16" },
-  "Not Contacted": { color: "#595959" },
-  "No Response": { color: "#722ed1" },
-  "Not Interested": { color: "#cf1322" },
-  "No Contact Found": { color: "#8c8c8c" },
-};
+function LastActivity({ a }) {
+  if (!a) return <Typography.Text type="secondary">Never</Typography.Text>;
+  return (
+    <Space size={4}>
+      <span>{dayjs(a.date).format("MMM D")}</span>
+      <Tag color={ACTION_COLORS[a.actionTaken]} style={{ margin: 0 }}>{ACTION_LABELS[a.actionTaken] || a.actionTaken}</Tag>
+    </Space>
+  );
+}
 
 export default function CrmDashboard() {
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [openId, setOpenId] = useState(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
-  useEffect(() => {
-    crmApi.dashboard()
-      .then(setData)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+  const load = useCallback(() => crmApi.dashboard()
+    .then((d) => { setData(d); setError(null); })
+    .catch((err) => setError(err.message)), []);
+
+  useEffect(() => { load(); }, [load]);
 
   if (error) return <Alert type="error" message={error} showIcon />;
+  if (!data) return <Spin />;
 
-  const statOrder = ["Active", "Order Placed", "Warm", "Not Contacted", "No Response", "Not Interested", "No Contact Found"];
+  const buyerCols = [
+    { title: "Company", dataIndex: "retailerName", render: (v, r) => <Link to={`/crm/accounts/${r.retailerId}`} onClick={(e) => e.stopPropagation()}>{v}</Link> },
+    { title: "Buyer", dataIndex: "name", render: (v) => <a>{v}</a> },
+    { title: "Categories", dataIndex: "categories", render: (c) => c.join(", ") },
+    { title: "Status", dataIndex: "status", render: (s) => <Tag color={STATUS_COLORS[s]}>{s}</Tag> },
+  ];
+  const rowClick = (r) => ({ onClick: () => setOpenId(r.id), style: { cursor: "pointer" } });
 
   return (
-    <Spin spinning={loading}>
-      <Typography.Title level={4} style={{ margin: "0 0 20px" }}>
-        Basic Trading Inc — Sales Dashboard
-      </Typography.Title>
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 8 }}>
+        <Typography.Title level={4} style={{ margin: 0 }}>Sales Dashboard</Typography.Title>
+        <Space>
+          <Link to="/crm/accounts"><Button icon={<TeamOutlined />}>All retailers</Button></Link>
+          <Button type="primary" icon={<EditOutlined />} onClick={() => setBulkOpen(true)}>Log</Button>
+        </Space>
+      </div>
 
-      {/* Status counts */}
-      <Row gutter={12} style={{ marginBottom: 24 }}>
-        {statOrder.map((status) => (
-          <Col key={status} flex="1">
-            <Card size="small">
-              <Statistic
-                title={status}
-                value={data?.statusCounts?.[status] ?? 0}
-                valueStyle={STAT_STYLE[status]}
-              />
-            </Card>
+      <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
+        {STAT_ORDER.map((s) => (
+          <Col key={s} xs={12} sm={8} lg={4}>
+            <Card size="small"><Statistic title={s} value={data.statusCounts[s] || 0} valueStyle={{ color: STAT_COLORS[s] }} /></Card>
           </Col>
         ))}
-        <Col flex="1">
-          <Card size="small">
-            <Statistic title="Total Accounts" value={data?.totalAccounts ?? 0} valueStyle={{ fontWeight: 700 }} />
-          </Card>
-        </Col>
       </Row>
 
-      <Row gutter={16}>
-        {/* Top Priority */}
-        <Col span={12}>
-          <Card
-            title={<span>🔥 Top Priority Accounts</span>}
-            size="small"
-            style={{ marginBottom: 16 }}
-          >
-            <Table
-              size="small"
-              pagination={false}
-              rowKey={(r, i) => i}
-              dataSource={data?.topPriority ?? []}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xl={12}>
+          <Card size="small" title={`Follow-ups due (${data.followUps.length})`}>
+            <Table size="small" rowKey="id" dataSource={data.followUps} pagination={{ pageSize: 10, size: "small", hideOnSinglePage: true }}
+              onRow={rowClick}
               columns={[
+                ...buyerCols,
                 {
-                  title: "Company",
-                  dataIndex: "retailer",
-                  render: (name, r) => (
-                    <Link to={`/crm/accounts?name=${encodeURIComponent(name)}`}>{name}</Link>
-                  ),
-                },
-                { title: "Category", dataIndex: "category" },
-                { title: "Buyer", dataIndex: "buyer", render: (v) => v || "—" },
-                {
-                  title: "Status",
-                  dataIndex: "status",
-                  render: (v) => <Tag color={STATUS_COLORS[v]}>{v}</Tag>,
+                  title: "Due", dataIndex: "nextFollowUp",
+                  render: (d) => <span style={{ color: d < data.today ? "#cf1322" : "#d46b08", fontWeight: 600 }}>{dayjs(d).format("MMM D")}</span>,
                 },
               ]}
-              locale={{ emptyText: "No high-priority active accounts" }}
+              locale={{ emptyText: "Nothing due — nice." }}
             />
           </Card>
         </Col>
-
-        {/* Not touched in 30 days */}
-        <Col span={12}>
-          <Card
-            title={<span>⏰ Not Touched in 30+ Days</span>}
-            size="small"
-            style={{ marginBottom: 16 }}
-          >
-            <Table
-              size="small"
-              pagination={false}
-              rowKey={(r, i) => i}
-              dataSource={data?.notTouched ?? []}
+        <Col xs={24} xl={12}>
+          <Card size="small" title={`Not touched in 30+ days (${data.notTouched.length})`}>
+            <Table size="small" rowKey="id" dataSource={data.notTouched} pagination={{ pageSize: 10, size: "small", hideOnSinglePage: true }}
+              onRow={rowClick}
+              columns={[...buyerCols, { title: "Last", key: "last", render: (_, r) => <LastActivity a={r.lastActivity} /> }]}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} xl={12}>
+          <Card size="small" title={`Top priority accounts (${data.topPriority.length})`}>
+            <Table size="small" rowKey="id" dataSource={data.topPriority} pagination={{ pageSize: 10, size: "small", hideOnSinglePage: true }}
+              onRow={rowClick}
+              columns={[...buyerCols, { title: "Last", key: "last", render: (_, r) => <LastActivity a={r.lastActivity} /> }]}
+              locale={{ emptyText: "No warm or active buyers at high-priority retailers yet" }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} xl={12}>
+          <Card size="small" title="Recent activity">
+            <Table size="small" rowKey="id" dataSource={data.recentActivity} pagination={{ pageSize: 10, size: "small", hideOnSinglePage: true }}
+              onRow={(a) => ({ onClick: () => setOpenId(a.contactId), style: { cursor: "pointer" } })}
               columns={[
-                {
-                  title: "Company",
-                  dataIndex: "retailer",
-                  render: (name) => (
-                    <Link to={`/crm/accounts?name=${encodeURIComponent(name)}`}>{name}</Link>
-                  ),
-                },
-                { title: "Category", dataIndex: "category" },
-                { title: "Buyer", dataIndex: "buyer", render: (v) => v || "—" },
-                {
-                  title: "Last Logged",
-                  dataIndex: "lastLogged",
-                  render: (v) => v ? dayjs(v).format("MMM D") : <span style={{ color: "#cf1322" }}>Never logged</span>,
-                },
+                { title: "Date", dataIndex: "date", width: 70, render: (d) => dayjs(d).format("MMM D") },
+                { title: "Who", key: "who", render: (_, a) => <><a>{a.contactName}</a><div style={{ fontSize: 12, color: "#888" }}>{a.retailerName}</div></> },
+                { title: "Action", dataIndex: "actionTaken", render: (v) => <Tag color={ACTION_COLORS[v]}>{ACTION_LABELS[v] || v}</Tag> },
+                { title: "Note", dataIndex: "notes", ellipsis: true },
               ]}
-              locale={{ emptyText: "All accounts touched recently" }}
             />
           </Card>
         </Col>
       </Row>
 
-      {/* Overdue follow-ups */}
-      {data?.overdueActivity?.length > 0 && (
-        <Card
-          title={<span><Badge status="error" /> Overdue Follow-ups ({data.overdueActivity.length})</span>}
-          size="small"
-          style={{ marginBottom: 16 }}
-        >
-          <Table
-            size="small"
-            pagination={false}
-            rowKey="id"
-            dataSource={data.overdueActivity}
-            columns={[
-              { title: "Company", dataIndex: "retailerName", render: (n) => <Link to={`/crm/accounts?name=${encodeURIComponent(n)}`}>{n}</Link> },
-              { title: "Category", dataIndex: "category", render: (v) => v || "—" },
-              { title: "Next Step", dataIndex: "nextStep", render: (v) => v || "—" },
-              {
-                title: "Due",
-                dataIndex: "nextStepDate",
-                render: (v) => <span style={{ color: "#cf1322" }}>{dayjs(v).format("MMM D, YYYY")}</span>,
-              },
-              { title: "Rep", dataIndex: "rep", render: (v) => v || "—" },
-            ]}
-          />
-        </Card>
-      )}
-
-      {/* Recently sent */}
-      <Card title="📬 Recently Sent — Linesheets, Samples & Follow-ups" size="small">
-        <Table
-          size="small"
-          pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
-          rowKey="id"
-          dataSource={data?.recentSent ?? []}
-          columns={[
-            { title: "Date", dataIndex: "dateSent", render: (v) => dayjs(v).format("MMM D, YYYY") },
-            { title: "Company", dataIndex: "retailerName", render: (n) => <Link to={`/crm/accounts?name=${encodeURIComponent(n)}`}>{n}</Link> },
-            { title: "Category", dataIndex: "category", render: (v) => v || "—" },
-            { title: "Buyer", dataIndex: "buyerName", render: (v) => v || "—" },
-            { title: "Sent Item", dataIndex: "itemSent" },
-            { title: "Notes", dataIndex: "notes", render: (v) => v || "—" },
-            {
-              title: "Response",
-              dataIndex: "responseReceived",
-              render: (v) => v ? (
-                <Tag color={v === "Interested" ? "green" : v === "Not Interested" ? "red" : "default"}>{v}</Tag>
-              ) : "—",
-            },
-            { title: "Follow-up", dataIndex: "followUpDate", render: (v) => v ? dayjs(v).format("MMM D") : "—" },
-          ]}
-          locale={{ emptyText: "Nothing sent yet" }}
-        />
-      </Card>
-    </Spin>
+      {openId && <ContactDrawer key={openId} contactId={openId} onClose={() => setOpenId(null)} onChanged={load} />}
+      <BulkLogModal open={bulkOpen} onClose={() => setBulkOpen(false)} onLogged={load} />
+    </>
   );
 }

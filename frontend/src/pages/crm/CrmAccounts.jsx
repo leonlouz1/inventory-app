@@ -1,11 +1,9 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Table, Button, Tag, Spin, Alert, Typography, Space, Input, Select, Modal, Form, Popconfirm, message } from "antd";
-import { PlusOutlined, DeleteOutlined, UploadOutlined, InboxOutlined, RollbackOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, InboxOutlined, RollbackOutlined } from "@ant-design/icons";
 import { crmApi } from "../../api/inventory";
-import ImportCrmSheetModal from "../../components/crm/ImportCrmSheetModal";
 import ImportRetailersModal from "../../components/crm/ImportRetailersModal";
-import ImportContactsModal from "../../components/crm/ImportContactsModal";
 import ManageRetailerTypesModal from "../../components/crm/ManageRetailerTypesModal";
 
 const STATUSES = [
@@ -32,7 +30,7 @@ function bestStatus(retailer) {
 }
 
 function primaryContact(retailer) {
-  return retailer.contacts?.[0] || null;
+  return retailer.contacts?.find((c) => c.role === "Buyer") || retailer.contacts?.[0] || null;
 }
 
 function NewRetailerModal({ open, onClose, onCreated, retailerTypes }) {
@@ -84,8 +82,6 @@ export default function CrmAccounts() {
   const [modalOpen, setModalOpen] = useState(false);
   const [manageTypesOpen, setManageTypesOpen] = useState(false);
   const [importRetailersOpen, setImportRetailersOpen] = useState(false);
-  const [importContactsOpen, setImportContactsOpen] = useState(false);
-  const [importSheetOpen, setImportSheetOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
   const load = useCallback(() => {
@@ -275,7 +271,7 @@ export default function CrmAccounts() {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <Typography.Title level={5} style={{ margin: 0 }}>
-          Accounts <span style={{ color: "#aaa", fontWeight: 400, fontSize: 14 }}>({filtered.length})</span>
+          Retailers <span style={{ color: "#aaa", fontWeight: 400, fontSize: 14 }}>({filtered.length})</span>
         </Typography.Title>
         <Space wrap>
           <Input.Search
@@ -310,7 +306,6 @@ export default function CrmAccounts() {
           >
             {showArchived ? "Back to Active" : "Archived"}
           </Button>
-          <Button icon={<UploadOutlined />} onClick={() => setImportSheetOpen(true)}>Import Sheet</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>Add Account</Button>
         </Space>
       </div>
@@ -327,8 +322,6 @@ export default function CrmAccounts() {
       <NewRetailerModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={load} retailerTypes={retailerTypes} />
       <ManageRetailerTypesModal open={manageTypesOpen} onClose={() => setManageTypesOpen(false)} onChanged={() => load()} />
       <ImportRetailersModal open={importRetailersOpen} onClose={() => setImportRetailersOpen(false)} onImported={load} />
-      <ImportContactsModal open={importContactsOpen} onClose={() => setImportContactsOpen(false)} onImported={load} retailers={retailers} />
-      <ImportCrmSheetModal open={importSheetOpen} onClose={() => setImportSheetOpen(false)} onImported={load} />
     </Spin>
   );
 }

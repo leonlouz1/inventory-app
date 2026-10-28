@@ -160,8 +160,11 @@ export async function downloadFullExport() {
     contacts.map((c) => ({
       Retailer: c.retailerName,
       Name: c.name,
+      Role: c.role || "",
       Title: c.title || "",
-      Category: c.category || "",
+      Categories: (c.categories || []).join(", "),
+      Status: c.role === "Buyer" ? c.status : "",
+      "Next Follow-up": c.nextFollowUp || "",
       Email: c.email || "",
       "Direct #": c.directPhone || "",
       "Mobile #": c.mobilePhone || "",
@@ -177,13 +180,11 @@ export async function downloadFullExport() {
     activity.map((a) => ({
       Date: a.date,
       Retailer: a.retailerName,
+      Contact: a.contactName || "",
       Category: a.category || "",
       Rep: a.rep || "",
-      "Action Taken": a.actionTaken,
+      Action: a.actionTaken,
       Notes: a.notes || "",
-      "Next Step": a.nextStep || "",
-      "Next Step Date": a.nextStepDate || "",
-      Done: a.done ? "Yes" : "No",
     }))
   );
 

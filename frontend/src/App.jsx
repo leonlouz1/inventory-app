@@ -13,8 +13,8 @@ import Shipments from "./pages/Shipments";
 import CrmDashboard from "./pages/crm/CrmDashboard";
 import CrmAccounts from "./pages/crm/CrmAccounts";
 import CrmAccountDetail from "./pages/crm/CrmAccountDetail";
-import CrmActivity from "./pages/crm/CrmActivity";
-import CrmSentTracker from "./pages/crm/CrmSentTracker";
+import CrmContacts from "./pages/crm/CrmContacts";
+import CrmCategory from "./pages/crm/CrmCategory";
 import SkuGroups from "./pages/SkuGroups";
 import Catalog from "./pages/Catalog";
 import Billing from "./pages/Billing";
@@ -61,8 +61,8 @@ function AppRoutes() {
         <Route path="/crm" element={<CrmDashboard />} />
         <Route path="/crm/accounts" element={<CrmAccounts />} />
         <Route path="/crm/accounts/:id" element={<CrmAccountDetail />} />
-        <Route path="/crm/activity" element={<CrmActivity />} />
-        <Route path="/crm/sent" element={<CrmSentTracker />} />
+        <Route path="/crm/contacts" element={<CrmContacts />} />
+        <Route path="/crm/category/:category" element={<CrmCategory />} />
         <Route path="/timeline" element={<Timeline />} />
         <Route path="/restocks" element={<Restocks />} />
         <Route path="/products" element={<Products />} />
