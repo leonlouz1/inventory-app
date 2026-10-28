@@ -70,6 +70,7 @@ function serializeContact(c) {
     title: c.title,
     role: c.role,
     categories: c.categories || [],
+    hiddenCategories: c.hiddenCategories || [],
     status: c.status,
     nextFollowUp: isoDate(c.nextFollowUp),
     email: c.email,
@@ -360,6 +361,28 @@ router.get("/category/:category", async (req, res) => {
       retailerPriority: c.retailer.priority,
       lastActivity: latest.get(c.id) || null,
     })));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/crm/category/:category/hide — { contactIds, hidden } parks buyers
+// on (or brings them back to) that category's work list
+router.post("/category/:category/hide", async (req, res) => {
+  try {
+    const { category } = req.params;
+    const hidden = req.body.hidden !== false;
+    const ids = (req.body.contactIds || []).map(Number).filter(Boolean);
+    const contacts = await prisma.crmContact.findMany({ where: { id: { in: ids } } });
+    await prisma.$transaction(contacts.map((c) => prisma.crmContact.update({
+      where: { id: c.id },
+      data: {
+        hiddenCategories: hidden
+          ? [...new Set([...c.hiddenCategories, category])]
+          : c.hiddenCategories.filter((x) => x !== category),
+      },
+    })));
+    res.json({ updated: contacts.length });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -669,10 +692,12 @@ router.get("/dashboard", async (req, res) => {
     const cutoff = new Date(today);
     cutoff.setDate(cutoff.getDate() - 30);
 
-    const buyers = await prisma.crmContact.findMany({
+    const everyone = await prisma.crmContact.findMany({
       where: { role: "Buyer", retailer: { archived: false } },
       include: { retailer: true },
     });
+    // Buyers parked on every one of their category lists aren't being chased
+    const buyers = everyone.filter((b) => !b.categories.length || b.categories.some((c) => !b.hiddenCategories.includes(c)));
     const latest = await latestActivity(buyers.map((b) => b.id));
     const row = (b) => ({ ...serializeContact(b), retailerName: b.retailer.name, lastActivity: latest.get(b.id) || null });
 

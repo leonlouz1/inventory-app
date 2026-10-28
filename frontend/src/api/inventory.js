@@ -94,6 +94,7 @@ export const crmApi = {
   deleteContact: (id) => apiClient.delete(`/crm/contacts/${id}`),
   getContact: (id) => apiClient.get(`/crm/contacts/${id}`),
   categoryList: (category) => apiClient.get(`/crm/category/${encodeURIComponent(category)}`),
+  hideInCategory: (category, contactIds, hidden = true) => apiClient.post(`/crm/category/${encodeURIComponent(category)}/hide`, { contactIds, hidden }),
   log: (data) => apiClient.post("/crm/log", data),
   importRows: (category, rows) => apiClient.post("/crm/import", { category, rows }),
   // activity

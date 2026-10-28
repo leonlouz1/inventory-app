@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Alert, Button, Input, Segmented, Select, Space, Table, Tag, Typography } from "antd";
-import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import { Alert, Button, Collapse, Input, Segmented, Select, Space, Table, Tag, Tooltip, Typography, message } from "antd";
+import { EyeInvisibleOutlined, EyeOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
 import { ACTION_COLORS, ACTION_LABELS, CRM_CATEGORIES, STATUSES, STATUS_COLORS } from "../../constants/crm";
@@ -34,6 +34,8 @@ function CrmCategory({ category }) {
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [selected, setSelected] = useState([]);
+  const [selectedHidden, setSelectedHidden] = useState([]);
 
   const load = useCallback(() => crmApi.categoryList(category)
     .then((r) => { setRows(r); setError(null); })
@@ -41,19 +43,37 @@ function CrmCategory({ category }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const filtered = useMemo(() => {
+  const isHidden = useCallback((r) => r.hiddenCategories.includes(category), [category]);
+
+  const matches = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (rows || []).filter((r) => {
       // Buyers at archived retailers only show up when searched for
       if (r.retailerArchived && !term) return false;
       if (term && !`${r.retailerName} ${r.name} ${r.email || ""} ${r.lastActivity?.notes || ""}`.toLowerCase().includes(term)) return false;
       if (statuses.length && !statuses.includes(r.status)) return false;
-      if (view === "due" && !(r.nextFollowUp && r.nextFollowUp <= today() && !["Not Interested", "N/A"].includes(r.status))) return false;
       return true;
     });
-  }, [rows, search, statuses, view]);
+  }, [rows, search, statuses]);
 
-  const dueCount = (rows || []).filter((r) => !r.retailerArchived && r.nextFollowUp && r.nextFollowUp <= today() && !["Not Interested", "N/A"].includes(r.status)).length;
+  // Buyers you're chasing; the rest are parked in the Hidden section at the bottom
+  const filtered = matches.filter((r) => !isHidden(r)
+    && (view !== "due" || (r.nextFollowUp && r.nextFollowUp <= today() && !["Not Interested", "N/A"].includes(r.status))));
+  const hiddenRows = matches.filter(isHidden);
+
+  async function setHidden(ids, hidden) {
+    try {
+      await crmApi.hideInCategory(category, ids, hidden);
+      message.success(`${hidden ? "Hid" : "Brought back"} ${ids.length} buyer${ids.length === 1 ? "" : "s"}`);
+      setSelected([]);
+      setSelectedHidden([]);
+      load();
+    } catch (err) {
+      message.error(err.message);
+    }
+  }
+
+  const dueCount = (rows || []).filter((r) => !r.retailerArchived && !isHidden(r) && r.nextFollowUp && r.nextFollowUp <= today() && !["Not Interested", "N/A"].includes(r.status)).length;
 
   if (!CRM_CATEGORIES.includes(category)) return <Alert type="error" message={`Unknown category "${category}"`} />;
   if (error) return <Alert type="error" message={error} showIcon />;
@@ -128,15 +148,36 @@ function CrmCategory({ category }) {
         </div>
       ),
     },
+    {
+      title: "",
+      key: "hide",
+      width: 44,
+      render: (_, r) => (
+        <span onClick={(e) => e.stopPropagation()}>
+          {isHidden(r) ? (
+            <Tooltip title={`Bring back to ${category}`}>
+              <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => setHidden([r.id], false)} />
+            </Tooltip>
+          ) : (
+            <Tooltip title={`Hide from ${category} for now`}>
+              <Button type="text" size="small" icon={<EyeInvisibleOutlined />} onClick={() => setHidden([r.id], true)} />
+            </Tooltip>
+          )}
+        </span>
+      ),
+    },
   ];
 
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>
-          {category} {rows && <span style={{ color: "#aaa", fontWeight: 400, fontSize: 15 }}>({filtered.length} buyers)</span>}
+          {category} {rows && <span style={{ color: "#aaa", fontWeight: 400, fontSize: 15 }}>({filtered.length} buyers{hiddenRows.length ? `, ${hiddenRows.length} hidden` : ""})</span>}
         </Typography.Title>
         <Space wrap>
+          {selected.length > 0 && (
+            <Button icon={<EyeInvisibleOutlined />} onClick={() => setHidden(selected, true)}>Hide {selected.length}</Button>
+          )}
           <Segmented value={view} onChange={setView} options={[{ value: "all", label: "All" }, { value: "due", label: `Follow-ups due (${dueCount})` }]} />
           <Input.Search placeholder="Search company, buyer, notes" allowClear style={{ width: 220 }} value={search} onChange={(e) => setSearch(e.target.value)} />
           <Select mode="multiple" placeholder="Status" allowClear style={{ minWidth: 160 }} maxTagCount="responsive"
@@ -153,10 +194,47 @@ function CrmCategory({ category }) {
         columns={columns}
         dataSource={filtered}
         rowClassName={(r) => (r.retailerArchived ? "crm-archived-row" : "")}
-        scroll={{ x: 1200 }}
+        rowSelection={{ selectedRowKeys: selected, onChange: setSelected, columnWidth: 36 }}
+        scroll={{ x: 1250 }}
         pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["25", "50", "100", "200"] }}
         onRow={(r) => ({ onClick: () => setOpenId(r.id), style: { cursor: "pointer" } })}
       />
+
+      {rows && (
+        <Collapse
+          style={{ marginTop: 16 }}
+          items={[{
+            key: "hidden",
+            label: (
+              <span>
+                <EyeInvisibleOutlined /> Hidden ({hiddenRows.length})
+                <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+                  Buyers you're not chasing right now. Their history is kept; bring them back any time.
+                </Typography.Text>
+              </span>
+            ),
+            extra: selectedHidden.length > 0 && (
+              <Button size="small" icon={<EyeOutlined />} onClick={(e) => { e.stopPropagation(); setHidden(selectedHidden, false); }}>
+                Bring back {selectedHidden.length}
+              </Button>
+            ),
+            children: (
+              <Table
+                rowKey="id"
+                size="small"
+                columns={columns}
+                dataSource={hiddenRows}
+                rowClassName="crm-archived-row"
+                rowSelection={{ selectedRowKeys: selectedHidden, onChange: setSelectedHidden, columnWidth: 36 }}
+                scroll={{ x: 1250 }}
+                pagination={{ defaultPageSize: 50, hideOnSinglePage: true }}
+                onRow={(r) => ({ onClick: () => setOpenId(r.id), style: { cursor: "pointer" } })}
+                locale={{ emptyText: "Nothing hidden. Use the eye button on a row to park a buyer here." }}
+              />
+            ),
+          }]}
+        />
+      )}
 
       {openId && <ContactDrawer key={openId} contactId={openId} category={category} onClose={() => setOpenId(null)} onChanged={load} />}
       <ContactFormModal
