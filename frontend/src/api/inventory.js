@@ -102,6 +102,8 @@ export const crmApi = {
   createActivity: (data) => apiClient.post("/crm/activity", data),
   updateActivity: (id, data) => apiClient.put(`/crm/activity/${id}`, data),
   deleteActivity: (id) => apiClient.delete(`/crm/activity/${id}`),
+  addAttachment: (activityId, data) => apiClient.post(`/crm/activity/${activityId}/attachments`, data),
+  deleteAttachment: (id) => apiClient.delete(`/crm/attachments/${id}`),
   // active customers (Active or Order Placed in CRM)
   activeCustomers: () => apiClient.get("/crm/active-customers"),
   // retailer types

@@ -116,6 +116,8 @@ function serializeActivity(a) {
     date: isoDate(a.date),
     actionTaken: a.actionTaken,
     notes: a.notes,
+    recap: a.recap ?? null,
+    attachments: (a.attachments || []).map((f) => ({ id: f.id, filename: f.filename, contentType: f.contentType, size: f.size })),
     nextStep: a.nextStep,
     nextStepDate: isoDate(a.nextStepDate),
     done: a.done,
@@ -405,7 +407,7 @@ router.get("/contacts/:id", async (req, res) => {
 
     const logs = await prisma.activityLog.findMany({
       where: { OR: [{ contactId: id }, { ccContactIds: { has: id } }] },
-      include: { contact: true },
+      include: { contact: true, attachments: { select: ATTACHMENT_FIELDS } },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     });
     const ccIds = [...new Set(logs.flatMap((l) => l.ccContactIds))];
@@ -469,8 +471,20 @@ router.delete("/contacts/:id", async (req, res) => {
   }
 });
 
+const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const ATTACHMENT_FIELDS = { id: true, filename: true, contentType: true, size: true };
+
+// { filename, contentType, data: base64 } → fields for a CrmAttachment, or throws a 400-style message
+function attachmentData(file) {
+  const filename = String(file?.filename || "").trim().slice(0, 255);
+  const buffer = Buffer.from(String(file?.data || ""), "base64");
+  if (!filename || !buffer.length) throw Object.assign(new Error("The file is empty"), { status: 400 });
+  if (buffer.length > MAX_FILE_BYTES) throw Object.assign(new Error("File is too large (15 MB max)"), { status: 400 });
+  return { filename, contentType: String(file.contentType || "application/octet-stream").slice(0, 150), size: buffer.length, data: buffer };
+}
+
 // POST /api/crm/log — log one action on one or many people
-// { contactIds, ccContactIds?, action, note?, date?, category?, nextFollowUp?, status? }
+// { contactIds, ccContactIds?, action, note?, recap?, attachment?: { filename, contentType, data }, date?, category?, nextFollowUp?, status? }
 // nextFollowUp: a date, null to clear, or left out to keep. status: left out = automatic.
 router.post("/log", async (req, res) => {
   try {
@@ -485,6 +499,15 @@ router.post("/log", async (req, res) => {
 
     const contacts = await prisma.crmContact.findMany({ where: { id: { in: contactIds } } });
     if (contacts.length !== contactIds.length) return res.status(404).json({ message: "Contact not found" });
+    const recap = req.body.recap ? String(req.body.recap).trim() || null : null;
+    let file = null;
+    if (req.body.attachment) {
+      try {
+        file = attachmentData(req.body.attachment);
+      } catch (err) {
+        return res.status(400).json({ message: err.message });
+      }
+    }
 
     await prisma.$transaction(contacts.flatMap((c) => {
       // Bulk logs without a category use the person's only category, if they have one
@@ -495,6 +518,7 @@ router.post("/log", async (req, res) => {
           data: {
             retailerId: c.retailerId, contactId: c.id, ccContactIds, category: cat,
             rep: req.userName || null, date, actionTaken: action, notes: note ? String(note).trim() : null,
+            recap, ...(file && { attachments: { create: file } }),
           },
         }),
         prisma.crmContact.update({
@@ -574,7 +598,7 @@ router.post("/activity", async (req, res) => {
 // PUT /api/crm/activity/:id
 router.put("/activity/:id", async (req, res) => {
   try {
-    const { category, rep, date, actionTaken, notes, nextStep, nextStepDate, done } = req.body;
+    const { category, rep, date, actionTaken, notes, recap, nextStep, nextStepDate, done } = req.body;
     if (actionTaken !== undefined && !ALL_ACTIONS.includes(actionTaken)) return res.status(400).json({ message: "Unknown action" });
     const log = await prisma.activityLog.update({
       where: { id: Number(req.params.id) },
@@ -584,11 +608,12 @@ router.put("/activity/:id", async (req, res) => {
         ...(date !== undefined && { date: new Date(date) }),
         ...(actionTaken !== undefined && { actionTaken }),
         ...(notes !== undefined && { notes: notes || null }),
+        ...(recap !== undefined && { recap: recap ? String(recap).trim() || null : null }),
         ...(nextStep !== undefined && { nextStep: nextStep || null }),
         ...(nextStepDate !== undefined && { nextStepDate: nextStepDate ? new Date(nextStepDate) : null }),
         ...(done !== undefined && { done }),
       },
-      include: { retailer: true },
+      include: { retailer: true, attachments: { select: ATTACHMENT_FIELDS } },
     });
     res.json(serializeActivity(log));
   } catch (err) {
@@ -600,6 +625,47 @@ router.put("/activity/:id", async (req, res) => {
 router.delete("/activity/:id", async (req, res) => {
   try {
     await prisma.activityLog.delete({ where: { id: Number(req.params.id) } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/crm/activity/:id/attachments — { filename, contentType, data: base64 }
+router.post("/activity/:id/attachments", async (req, res) => {
+  try {
+    const log = await prisma.activityLog.findUnique({ where: { id: Number(req.params.id) }, select: { id: true } });
+    if (!log) return res.status(404).json({ message: "Entry not found" });
+    let file;
+    try {
+      file = attachmentData(req.body);
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
+    const created = await prisma.crmAttachment.create({ data: { activityLogId: log.id, ...file }, select: ATTACHMENT_FIELDS });
+    res.status(201).json(created);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/crm/attachments/:id/file — the file itself
+router.get("/attachments/:id/file", async (req, res) => {
+  try {
+    const f = await prisma.crmAttachment.findUnique({ where: { id: Number(req.params.id) } });
+    if (!f) return res.status(404).json({ message: "File not found" });
+    res.set("Content-Type", f.contentType);
+    res.set("Content-Disposition", `inline; filename="${f.filename.replace(/["\\\r\n]/g, "_")}"`);
+    res.send(Buffer.from(f.data));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/crm/attachments/:id
+router.delete("/attachments/:id", async (req, res) => {
+  try {
+    await prisma.crmAttachment.delete({ where: { id: Number(req.params.id) } });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ message: err.message });

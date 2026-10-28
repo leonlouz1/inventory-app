@@ -3,12 +3,22 @@ import { Link } from "react-router-dom";
 import {
   Button, DatePicker, Divider, Drawer, Empty, Input, Modal, Popconfirm, Select, Space, Spin, Tag, Timeline, Typography, message,
 } from "antd";
-import { DeleteOutlined, EditOutlined, MailOutlined, PhoneOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, FilePdfOutlined, MailOutlined, PaperClipOutlined, PhoneOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
 import { ACTION_COLORS, ACTION_LABELS, LOG_ACTIONS, STATUSES, STATUS_COLORS } from "../../constants/crm";
 import ContactFormModal from "./ContactFormModal";
-import LogForm from "./LogForm";
+import LogForm, { RecapFields } from "./LogForm";
+import { fileToUpload, openCrmAttachment } from "../../utils/crmFiles";
+
+function AttachmentLink({ file }) {
+  const Icon = file.contentType === "application/pdf" ? FilePdfOutlined : PaperClipOutlined;
+  return (
+    <a onClick={() => openCrmAttachment(file).catch((err) => message.error(err.message))}>
+      <Icon /> {file.filename}
+    </a>
+  );
+}
 
 export function PhoneLinks({ contact, size = 13 }) {
   const phones = [
@@ -33,11 +43,27 @@ function EditEntryModal({ entry, onClose, onSaved }) {
   const [action, setAction] = useState(entry.actionTaken);
   const [date, setDate] = useState(dayjs(entry.date));
   const [notes, setNotes] = useState(entry.notes || "");
+  const [recap, setRecap] = useState(entry.recap || "");
+  const [newFile, setNewFile] = useState(null);
+  const [files, setFiles] = useState(entry.attachments || []);
   const [saving, setSaving] = useState(false);
+  const showRecap = action === "Meeting" || entry.recap || files.length > 0;
+
+  async function removeFile(f) {
+    try {
+      await crmApi.deleteAttachment(f.id);
+      setFiles((list) => list.filter((x) => x.id !== f.id));
+      onSaved();
+    } catch (err) {
+      message.error(err.message);
+    }
+  }
+
   async function save() {
     setSaving(true);
     try {
-      await crmApi.updateActivity(entry.id, { actionTaken: action, date: date.format("YYYY-MM-DD"), notes });
+      await crmApi.updateActivity(entry.id, { actionTaken: action, date: date.format("YYYY-MM-DD"), notes, recap });
+      if (newFile) await crmApi.addAttachment(entry.id, await fileToUpload(newFile));
       onSaved();
       onClose();
     } catch (err) {
@@ -56,6 +82,20 @@ function EditEntryModal({ entry, onClose, onSaved }) {
           <DatePicker allowClear={false} value={date} onChange={setDate} />
         </Space>
         <Input.TextArea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        {showRecap && (
+          <>
+            <Typography.Text strong>Meeting recap</Typography.Text>
+            {files.map((f) => (
+              <Space key={f.id} size={4}>
+                <AttachmentLink file={f} />
+                <Popconfirm title={`Remove ${f.filename}?`} onConfirm={() => removeFile(f)}>
+                  <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                </Popconfirm>
+              </Space>
+            ))}
+            <RecapFields recap={recap} onRecap={setRecap} file={newFile} onFile={setNewFile} />
+          </>
+        )}
       </Space>
     </Modal>
   );
@@ -213,6 +253,22 @@ export default function ContactDrawer({ contactId, category, onClose, onChanged 
                       </span>
                     </Space>
                     {h.notes && <div style={{ whiteSpace: "pre-wrap" }}>{h.notes}</div>}
+                    {h.recap && (
+                      <div style={{ background: "#fafafa", border: "1px solid #f0f0f0", borderRadius: 6, padding: "6px 10px", margin: "4px 0" }}>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>Recap</Typography.Text>
+                        <Typography.Paragraph
+                          ellipsis={{ rows: 3, expandable: "collapsible", symbol: (open) => (open ? "Show less" : "Show all") }}
+                          style={{ margin: 0, whiteSpace: "pre-wrap" }}
+                        >
+                          {h.recap}
+                        </Typography.Paragraph>
+                      </div>
+                    )}
+                    {h.attachments?.length > 0 && (
+                      <Space size={12} wrap style={{ margin: "2px 0" }}>
+                        {h.attachments.map((f) => <AttachmentLink key={f.id} file={f} />)}
+                      </Space>
+                    )}
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                       {h.contactId !== data.id && `Logged on ${h.contactName} · `}
                       {h.ccNames.length > 0 && `With ${h.ccNames.join(", ")} · `}

@@ -1,13 +1,53 @@
 import { useState } from "react";
-import { Button, DatePicker, Input, Radio, Select, Space, Typography, message } from "antd";
+import { Button, DatePicker, Input, Radio, Select, Space, Tag, Typography, Upload, message } from "antd";
+import { FilePdfOutlined, SnippetsOutlined, UploadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
 import { LOG_ACTIONS, STATUSES, defaultFollowUp, statusAfter } from "../../constants/crm";
+import { fileToUpload } from "../../utils/crmFiles";
+
+// Meeting recap: paste the text and/or attach the recap PDF
+export function RecapFields({ recap, onRecap, file, onFile }) {
+  async function pasteFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) return message.info("The clipboard is empty");
+      onRecap(recap ? `${recap}\n\n${text}` : text);
+    } catch {
+      message.info("Couldn't read the clipboard. Click in the box and press ⌘V instead.");
+    }
+  }
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <Space size={8} wrap style={{ marginBottom: 6 }}>
+        <Button size="small" icon={<SnippetsOutlined />} onClick={pasteFromClipboard}>Paste recap</Button>
+        <Upload
+          accept=".pdf,application/pdf"
+          showUploadList={false}
+          beforeUpload={(f) => { onFile(f); return false; }}
+        >
+          <Button size="small" icon={<UploadOutlined />}>{file ? "Replace PDF" : "Upload recap PDF"}</Button>
+        </Upload>
+        {file && (
+          <Tag icon={<FilePdfOutlined />} closable onClose={() => onFile(null)} style={{ margin: 0 }}>{file.name}</Tag>
+        )}
+      </Space>
+      <Input.TextArea
+        autoSize={{ minRows: 3, maxRows: 12 }}
+        value={recap}
+        onChange={(e) => onRecap(e.target.value)}
+        placeholder="Meeting recap: who was there, what they liked, next steps…"
+      />
+    </div>
+  );
+}
 
 // Log an action on one person. Others on the same email/call go in "Also on it".
 export default function LogForm({ contact, ccOptions = [], category, onLogged }) {
   const [action, setAction] = useState("Emailed");
   const [note, setNote] = useState("");
+  const [recap, setRecap] = useState("");
+  const [recapFile, setRecapFile] = useState(null);
   const [date, setDate] = useState(dayjs());
   const [cc, setCc] = useState([]);
   const [followUp, setFollowUp] = useState(defaultFollowUp("Emailed"));
@@ -33,12 +73,18 @@ export default function LogForm({ contact, ccOptions = [], category, onLogged })
         ccContactIds: cc,
         action,
         note,
+        ...(action === "Meeting" && {
+          recap: recap || null,
+          ...(recapFile && { attachment: await fileToUpload(recapFile) }),
+        }),
         date: date.format("YYYY-MM-DD"),
         category,
         ...(isBuyer && { status, nextFollowUp: followUp ? followUp.format("YYYY-MM-DD") : null }),
       });
       message.success("Logged");
       setNote("");
+      setRecap("");
+      setRecapFile(null);
       setCc([]);
       onLogged?.();
     } catch (err) {
@@ -66,6 +112,7 @@ export default function LogForm({ contact, ccOptions = [], category, onLogged })
         placeholder="What happened? e.g. Sent ATS, sent updated pricing, left voicemail"
         style={{ marginBottom: 8 }}
       />
+      {action === "Meeting" && <RecapFields recap={recap} onRecap={setRecap} file={recapFile} onFile={setRecapFile} />}
       {ccOptions.length > 0 && (
         <Select
           mode="multiple"
