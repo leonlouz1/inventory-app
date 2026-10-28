@@ -156,7 +156,7 @@ router.get("/active-customers", async (req, res) => {
     });
     res.json(retailers);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -197,7 +197,7 @@ router.get("/retailers", async (req, res) => {
       return base;
     }));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -209,7 +209,7 @@ router.patch("/retailers/:id/archive", async (req, res) => {
     const retailer = await prisma.retailer.update({ where: { id }, data: { archived: !!archived } });
     res.json({ id: retailer.id, archived: retailer.archived });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -224,20 +224,28 @@ router.get("/retailers/:id", async (req, res) => {
         activityLogs: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], include: { contact: true } },
       },
     });
-    if (!r) return res.status(404).json({ error: "Not found" });
+    if (!r) return res.status(404).json({ message: "Not found" });
     const out = serializeRetailer(r, true);
     const latest = await latestActivity(r.contacts.map((c) => c.id));
     out.contacts = out.contacts.map((c) => ({ ...c, lastActivity: latest.get(c.id) || null }));
     res.json(out);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
+
+function retailerError(res, err, name) {
+  if (err.code === "P2002") {
+    return res.status(409).json({ message: `${name ? `"${String(name).trim()}"` : "That retailer"} already exists — find it on the Retailers page` });
+  }
+  return res.status(500).json({ message: err.message });
+}
 
 // POST /api/crm/retailers
 router.post("/retailers", async (req, res) => {
   try {
     const { name, type, priority, notes } = req.body;
+    if (!name || !String(name).trim()) return res.status(400).json({ message: "Company name is required" });
     const retailer = await prisma.retailer.create({
       data: {
         name,
@@ -248,7 +256,7 @@ router.post("/retailers", async (req, res) => {
     });
     res.status(201).json(serializeRetailer(retailer));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    retailerError(res, err, req.body.name);
   }
 });
 
@@ -272,7 +280,7 @@ router.put("/retailers/:id", async (req, res) => {
     });
     res.json(serializeRetailer(retailer));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    retailerError(res, err, req.body.name);
   }
 });
 
@@ -282,7 +290,7 @@ router.delete("/retailers/:id", async (req, res) => {
     await prisma.retailer.delete({ where: { id: Number(req.params.id) } });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -320,7 +328,7 @@ router.get("/contacts", async (req, res) => {
     const latest = await latestActivity(contacts.map((c) => c.id));
     res.json(contacts.map((c) => ({ ...serializeContact(c), lastActivity: latest.get(c.id) || null })));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -340,7 +348,7 @@ router.get("/category/:category", async (req, res) => {
       lastActivity: latest.get(c.id) || null,
     })));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -349,7 +357,7 @@ router.get("/contacts/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
     const contact = await prisma.crmContact.findUnique({ where: { id }, include: { retailer: true } });
-    if (!contact) return res.status(404).json({ error: "Not found" });
+    if (!contact) return res.status(404).json({ message: "Not found" });
 
     // Team = everyone else at the retailer who shares a category with them
     const colleagues = await prisma.crmContact.findMany({
@@ -380,21 +388,21 @@ router.get("/contacts/:id", async (req, res) => {
       })),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
 // POST /api/crm/contacts
 router.post("/contacts", async (req, res) => {
   try {
-    if (!req.body.name || !req.body.retailerId) return res.status(400).json({ error: "Name and retailer are required" });
+    if (!req.body.name || !req.body.retailerId) return res.status(400).json({ message: "Name and retailer are required" });
     const contact = await prisma.crmContact.create({
       data: { retailerId: Number(req.body.retailerId), ...contactData(req.body) },
       include: { retailer: true },
     });
     res.status(201).json(serializeContact(contact));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -411,7 +419,7 @@ router.put("/contacts/:id", async (req, res) => {
     });
     res.json(serializeContact(contact));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -421,7 +429,7 @@ router.delete("/contacts/:id", async (req, res) => {
     await prisma.crmContact.delete({ where: { id: Number(req.params.id) } });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -433,14 +441,14 @@ router.post("/log", async (req, res) => {
     const { action, note, category, status } = req.body;
     const contactIds = [...new Set((req.body.contactIds || []).map(Number))].filter(Boolean);
     const ccContactIds = [...new Set((req.body.ccContactIds || []).map(Number))].filter((id) => id && !contactIds.includes(id));
-    if (!contactIds.length) return res.status(400).json({ error: "Pick at least one person" });
-    if (!LOG_ACTIONS.includes(action)) return res.status(400).json({ error: `Action must be one of ${LOG_ACTIONS.join(", ")}` });
-    if (status !== undefined && status !== null && !STATUSES.includes(status)) return res.status(400).json({ error: "Unknown status" });
+    if (!contactIds.length) return res.status(400).json({ message: "Pick at least one person" });
+    if (!LOG_ACTIONS.includes(action)) return res.status(400).json({ message: `Action must be one of ${LOG_ACTIONS.join(", ")}` });
+    if (status !== undefined && status !== null && !STATUSES.includes(status)) return res.status(400).json({ message: "Unknown status" });
     const date = new Date(req.body.date || todayNY());
-    if (Number.isNaN(date.getTime())) return res.status(400).json({ error: "Bad date" });
+    if (Number.isNaN(date.getTime())) return res.status(400).json({ message: "Bad date" });
 
     const contacts = await prisma.crmContact.findMany({ where: { id: { in: contactIds } } });
-    if (contacts.length !== contactIds.length) return res.status(404).json({ error: "Contact not found" });
+    if (contacts.length !== contactIds.length) return res.status(404).json({ message: "Contact not found" });
 
     await prisma.$transaction(contacts.flatMap((c) => {
       // Bulk logs without a category use the person's only category, if they have one
@@ -466,7 +474,7 @@ router.post("/log", async (req, res) => {
     }));
     res.status(201).json({ logged: contacts.length });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -474,12 +482,12 @@ router.post("/log", async (req, res) => {
 router.post("/import", async (req, res) => {
   try {
     const { category, rows } = req.body;
-    if (!CONTACT_CATEGORIES.includes(category)) return res.status(400).json({ error: "Pick a category" });
-    if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ error: "No rows to import" });
+    if (!CONTACT_CATEGORIES.includes(category)) return res.status(400).json({ message: "Pick a category" });
+    if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ message: "No rows to import" });
     const summary = await importRows(prisma, rows, { category, rep: req.userName || null, today: todayNY() });
     res.json(summary);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -500,7 +508,7 @@ router.get("/activity", async (req, res) => {
     });
     res.json(logs.map(serializeActivity));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -523,7 +531,7 @@ router.post("/activity", async (req, res) => {
     });
     res.status(201).json(serializeActivity(log));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -531,7 +539,7 @@ router.post("/activity", async (req, res) => {
 router.put("/activity/:id", async (req, res) => {
   try {
     const { category, rep, date, actionTaken, notes, nextStep, nextStepDate, done } = req.body;
-    if (actionTaken !== undefined && !ALL_ACTIONS.includes(actionTaken)) return res.status(400).json({ error: "Unknown action" });
+    if (actionTaken !== undefined && !ALL_ACTIONS.includes(actionTaken)) return res.status(400).json({ message: "Unknown action" });
     const log = await prisma.activityLog.update({
       where: { id: Number(req.params.id) },
       data: {
@@ -548,7 +556,7 @@ router.put("/activity/:id", async (req, res) => {
     });
     res.json(serializeActivity(log));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -558,7 +566,7 @@ router.delete("/activity/:id", async (req, res) => {
     await prisma.activityLog.delete({ where: { id: Number(req.params.id) } });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -578,7 +586,7 @@ router.get("/sent", async (req, res) => {
     });
     res.json(items.map(serializeSentItem));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -601,7 +609,7 @@ router.post("/sent", async (req, res) => {
     });
     res.status(201).json(serializeSentItem(item));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -625,7 +633,7 @@ router.put("/sent/:id", async (req, res) => {
     });
     res.json(serializeSentItem(item));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -635,7 +643,7 @@ router.delete("/sent/:id", async (req, res) => {
     await prisma.sentItem.delete({ where: { id: Number(req.params.id) } });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -693,7 +701,7 @@ router.get("/dashboard", async (req, res) => {
       recentActivity: recent.map(serializeActivity),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -718,7 +726,7 @@ router.get("/retailer-types", async (req, res) => {
     }
     res.json(types.map((t) => ({ id: t.id, name: t.name })));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -729,7 +737,7 @@ router.post("/retailer-types", async (req, res) => {
     const type = await prisma.retailerType.create({ data: { name: name.trim() } });
     res.status(201).json({ id: type.id, name: type.name });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -743,7 +751,7 @@ router.put("/retailer-types/:id", async (req, res) => {
     });
     res.json({ id: type.id, name: type.name });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -753,7 +761,7 @@ router.delete("/retailer-types/:id", async (req, res) => {
     await prisma.retailerType.delete({ where: { id: Number(req.params.id) } });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 

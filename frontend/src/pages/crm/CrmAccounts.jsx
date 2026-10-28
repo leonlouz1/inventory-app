@@ -219,7 +219,7 @@ export default function CrmAccounts() {
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>
-          {showArchived ? "Archived retailers" : "Retailers"} <span style={{ color: "#aaa", fontWeight: 400, fontSize: 15 }}>({filtered.length})</span>
+          {showArchived ? "Archived retailers" : "Retailers"} {retailers && <span style={{ color: "#aaa", fontWeight: 400, fontSize: 15 }}>({filtered.length})</span>}
         </Typography.Title>
         <Space wrap>
           <Input.Search placeholder="Search retailer or buyer" allowClear style={{ width: 210 }} value={search} onChange={(e) => setSearch(e.target.value)} />

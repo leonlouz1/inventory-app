@@ -1,6 +1,6 @@
 // Turns rows from the Excel CRM (a category NOTES tab, Cold Account Notes, or
 // CONTACTS) into retailers, contacts and history entries.
-const { CONTACT_CATEGORIES, STATUSES } = require("../constants/crm");
+const { CONTACT_CATEGORIES, CONTACT_ROLES, STATUSES } = require("../constants/crm");
 
 // "Beall's" and "Bealls" are the same retailer
 function normName(s) {
@@ -38,10 +38,18 @@ function roleFrom(text) {
   return null;
 }
 
-function categoryFrom(v, fallback) {
-  const t = normName(v);
-  const match = CONTACT_CATEGORIES.find((c) => normName(c) === t);
-  return match || fallback;
+// "Bath, Slippers" → ["Bath", "Slippers"]; nothing recognised → [fallback]
+function categoriesFrom(v, fallback) {
+  const found = String(v || "").split(/[,;/\n]/)
+    .map((part) => CONTACT_CATEGORIES.find((c) => normName(c) === normName(part)))
+    .filter(Boolean);
+  return found.length ? [...new Set(found)] : [fallback];
+}
+
+// An explicit Role column: exact role names, or words like "DMM" / "Assistant"
+function roleColumn(v) {
+  if (!v) return null;
+  return CONTACT_ROLES.find((r) => normName(r) === normName(v)) || roleFrom(v) || "Other";
 }
 
 function statusFrom(v) {
@@ -51,12 +59,15 @@ function statusFrom(v) {
   return STATUSES.find((s) => normName(s) === t) || null;
 }
 
-// One spreadsheet row → { company, category, people[], status, nextFollowUp, history[] }
+// One spreadsheet row → { company, categories[], category, people[], status, nextFollowUp, history[] }
+// (category = the first one, used to tag history entries)
 // people[0] is the main buyer; history entries go on that person with the rest cc'd.
 function parseRow(row, fallbackCategory) {
   const company = String(pick(row, "Company", "Retailer", "Accounts") || "").trim();
   if (!company) return null;
-  const category = categoryFrom(pick(row, "Category"), fallbackCategory);
+  const categories = categoriesFrom(pick(row, "Category", "Categories"), fallbackCategory);
+  const category = categories[0];
+  const roleCol = roleColumn(pick(row, "Role"));
 
   const names = lines(pick(row, "Buyer Name", "Name"));
   const emails = lines(pick(row, "Email", "Emails")).filter((e) => e.includes("@"));
@@ -76,7 +87,7 @@ function parseRow(row, fallbackCategory) {
     const roleText = suffix || (names.length === 1 ? title : null);
     return {
       name: name.trim(),
-      role: roleFrom(roleText) || (suffix ? "Other" : "Buyer"),
+      role: (suffix && roleFrom(suffix)) || (names.length === 1 && roleCol) || roleFrom(roleText) || (suffix ? "Other" : "Buyer"),
       title: suffix || (names.length === 1 && title ? String(title).trim() : null),
       email: emails[i] || null,
       directPhone: direct ? String(direct).replace(/^d:\s*/i, "") : null,
@@ -106,7 +117,7 @@ function parseRow(row, fallbackCategory) {
     history.push({ action: "Called", date: lastCalled, note: callStatus && callStatus !== "NA" ? String(callStatus) : null });
   }
 
-  return { company, category, people, status, nextFollowUp, history };
+  return { company, categories, category, people, status, nextFollowUp, history };
 }
 
 // Applies parsed rows. Retailers and contacts are matched by name, so
@@ -140,7 +151,7 @@ async function importRows(prisma, rows, { category: fallbackCategory, rep, today
         await prisma.crmContact.update({
           where: { id: match.id },
           data: {
-            categories: [...new Set([...match.categories, row.category])],
+            categories: [...new Set([...match.categories, ...row.categories])],
             role: match.role === "Buyer" && p.role !== "Buyer" ? p.role : match.role,
             title: match.title || p.title,
             email: match.email || p.email,
@@ -154,7 +165,7 @@ async function importRows(prisma, rows, { category: fallbackCategory, rep, today
         summary.contactsUpdated++;
       } else {
         const created = await prisma.crmContact.create({
-          data: { retailerId: retailer.id, ...p, categories: [row.category], ...statusData },
+          data: { retailerId: retailer.id, ...p, categories: row.categories, ...statusData },
         });
         existing.push(created);
         contactIds.push(created.id);
