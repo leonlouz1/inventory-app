@@ -18,6 +18,25 @@ function FollowUp({ date, status }) {
   return <span style={{ color, fontWeight: color ? 600 : 400 }}>{dayjs(date).format("MMM D")}</span>;
 }
 
+const isDue = (b) => b.nextFollowUp && b.nextFollowUp <= today() && !["Not Interested", "N/A"].includes(b.status);
+
+// One row per retailer. The main buyer is whoever was worked with most
+// recently (then the most advanced status); the rest fold under the row.
+function groupByRetailer(buyers) {
+  const byRetailer = new Map();
+  for (const b of buyers) {
+    if (!byRetailer.has(b.retailerId)) byRetailer.set(b.retailerId, []);
+    byRetailer.get(b.retailerId).push(b);
+  }
+  return [...byRetailer.values()].map((group) => {
+    const [main, ...others] = [...group].sort((a, b) =>
+      (b.lastActivity?.date || "").localeCompare(a.lastActivity?.date || "")
+      || STATUSES.indexOf(a.status) - STATUSES.indexOf(b.status)
+      || a.name.localeCompare(b.name));
+    return { ...main, key: `r${main.retailerId}`, others, buyerIds: group.map((b) => b.id) };
+  });
+}
+
 // Fresh state per category when switching between them in the menu
 export default function CrmCategoryRoute() {
   const { category } = useParams();
@@ -56,15 +75,17 @@ function CrmCategory({ category }) {
     });
   }, [rows, search, statuses]);
 
-  // Buyers you're chasing; the rest are parked in the Hidden section at the bottom
-  const filtered = matches.filter((r) => !isHidden(r)
-    && (view !== "due" || (r.nextFollowUp && r.nextFollowUp <= today() && !["Not Interested", "N/A"].includes(r.status))));
-  const hiddenRows = matches.filter(isHidden);
+  // Retailers you're chasing; the rest are parked in the Hidden section at the bottom
+  const visibleBuyers = matches.filter((r) => !isHidden(r));
+  const filtered = groupByRetailer(visibleBuyers)
+    .filter((g) => view !== "due" || [g, ...g.others].some(isDue));
+  const hiddenRows = groupByRetailer(matches.filter(isHidden));
+  const idsFor = (keys, groups) => groups.filter((g) => keys.includes(g.key)).flatMap((g) => g.buyerIds);
 
   async function setHidden(ids, hidden) {
     try {
       await crmApi.hideInCategory(category, ids, hidden);
-      message.success(`${hidden ? "Hid" : "Brought back"} ${ids.length} buyer${ids.length === 1 ? "" : "s"}`);
+      message.success(hidden ? "Moved to Hidden" : "Brought back");
       setSelected([]);
       setSelectedHidden([]);
       load();
@@ -73,7 +94,7 @@ function CrmCategory({ category }) {
     }
   }
 
-  const dueCount = (rows || []).filter((r) => !r.retailerArchived && !isHidden(r) && r.nextFollowUp && r.nextFollowUp <= today() && !["Not Interested", "N/A"].includes(r.status)).length;
+  const dueCount = new Set((rows || []).filter((r) => !r.retailerArchived && !isHidden(r) && isDue(r)).map((r) => r.retailerId)).size;
 
   if (!CRM_CATEGORIES.includes(category)) return <Alert type="error" message={`Unknown category "${category}"`} />;
   if (error) return <Alert type="error" message={error} showIcon />;
@@ -96,7 +117,16 @@ function CrmCategory({ category }) {
       dataIndex: "name",
       width: 160,
       sorter: (a, b) => a.name.localeCompare(b.name),
-      render: (v) => <a style={{ fontWeight: 500 }}>{v}</a>,
+      render: (v, r) => (
+        <Space size={4}>
+          <a style={{ fontWeight: 500 }}>{v}</a>
+          {r.others?.length > 0 && (
+            <Tooltip title={r.others.map((o) => o.name).join(", ")}>
+              <Tag style={{ margin: 0, fontSize: 11 }}>+{r.others.length}</Tag>
+            </Tooltip>
+          )}
+        </Space>
+      ),
     },
     {
       title: "Status",
@@ -156,11 +186,11 @@ function CrmCategory({ category }) {
         <span onClick={(e) => e.stopPropagation()}>
           {isHidden(r) ? (
             <Tooltip title={`Bring back to ${category}`}>
-              <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => setHidden([r.id], false)} />
+              <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => setHidden(r.buyerIds || [r.id], false)} />
             </Tooltip>
           ) : (
             <Tooltip title={`Hide from ${category} for now`}>
-              <Button type="text" size="small" icon={<EyeInvisibleOutlined />} onClick={() => setHidden([r.id], true)} />
+              <Button type="text" size="small" icon={<EyeInvisibleOutlined />} onClick={() => setHidden(r.buyerIds || [r.id], true)} />
             </Tooltip>
           )}
         </span>
@@ -168,15 +198,35 @@ function CrmCategory({ category }) {
     },
   ];
 
+  // The other buyers at a retailer, under its row
+  const expandable = {
+    rowExpandable: (r) => r.others.length > 0,
+    expandedRowRender: (r) => (
+      <Space direction="vertical" size={6} style={{ width: "100%", paddingLeft: 8 }}>
+        {r.others.map((o) => (
+          <div key={o.id} style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+            <a onClick={() => setOpenId(o.id)} style={{ fontWeight: 500, minWidth: 150 }}>{o.name}</a>
+            <Tag color={STATUS_COLORS[o.status]} style={{ margin: 0 }}>{o.status}</Tag>
+            <Typography.Text type="secondary" style={{ fontSize: 12, flex: 1, minWidth: 200 }} ellipsis>
+              {o.lastActivity ? `${dayjs(o.lastActivity.date).format("MMM D")} · ${o.lastActivity.notes || o.lastActivity.actionTaken}` : "Nothing logged"}
+            </Typography.Text>
+            {o.nextFollowUp && <span style={{ fontSize: 12 }}>Follow up <FollowUp date={o.nextFollowUp} status={o.status} /></span>}
+            {o.email && <a href={`mailto:${o.email}`} style={{ fontSize: 12 }}>{o.email}</a>}
+          </div>
+        ))}
+      </Space>
+    ),
+  };
+
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>
-          {category} {rows && <span style={{ color: "#aaa", fontWeight: 400, fontSize: 15 }}>({filtered.length} buyers{hiddenRows.length ? `, ${hiddenRows.length} hidden` : ""})</span>}
+          {category} {rows && <span style={{ color: "#aaa", fontWeight: 400, fontSize: 15 }}>({filtered.length} retailers{hiddenRows.length ? `, ${hiddenRows.length} hidden` : ""})</span>}
         </Typography.Title>
         <Space wrap>
           {selected.length > 0 && (
-            <Button icon={<EyeInvisibleOutlined />} onClick={() => setHidden(selected, true)}>Hide {selected.length}</Button>
+            <Button icon={<EyeInvisibleOutlined />} onClick={() => setHidden(idsFor(selected, filtered), true)}>Hide {selected.length}</Button>
           )}
           <Segmented value={view} onChange={setView} options={[{ value: "all", label: "All" }, { value: "due", label: `Follow-ups due (${dueCount})` }]} />
           <Input.Search placeholder="Search company, buyer, notes" allowClear style={{ width: 220 }} value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -188,9 +238,10 @@ function CrmCategory({ category }) {
       </div>
 
       <Table
-        rowKey="id"
+        rowKey="key"
         size="small"
         loading={rows === null}
+        expandable={expandable}
         columns={columns}
         dataSource={filtered}
         rowClassName={(r) => (r.retailerArchived ? "crm-archived-row" : "")}
@@ -214,14 +265,15 @@ function CrmCategory({ category }) {
               </span>
             ),
             extra: selectedHidden.length > 0 && (
-              <Button size="small" icon={<EyeOutlined />} onClick={(e) => { e.stopPropagation(); setHidden(selectedHidden, false); }}>
+              <Button size="small" icon={<EyeOutlined />} onClick={(e) => { e.stopPropagation(); setHidden(idsFor(selectedHidden, hiddenRows), false); }}>
                 Bring back {selectedHidden.length}
               </Button>
             ),
             children: (
               <Table
-                rowKey="id"
+                rowKey="key"
                 size="small"
+                expandable={expandable}
                 columns={columns}
                 dataSource={hiddenRows}
                 rowClassName="crm-archived-row"
