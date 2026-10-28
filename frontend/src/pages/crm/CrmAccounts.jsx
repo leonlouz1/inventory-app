@@ -68,9 +68,11 @@ export default function CrmAccounts() {
   const [manageTypesOpen, setManageTypesOpen] = useState(false);
   const [openId, setOpenId] = useState(null);
 
-  const load = useCallback(() => crmApi.listRetailers(showArchived)
+  // Active and archived come back together: archived ones stay out of the
+  // main list but still turn up when searched for
+  const load = useCallback(() => crmApi.listRetailers("all")
     .then((r) => { setRetailers(r); setError(null); })
-    .catch((err) => setError(err.message)), [showArchived]);
+    .catch((err) => setError(err.message)), []);
 
   const loadTypes = useCallback(() => crmApi.listRetailerTypes()
     .then((t) => setRetailerTypes(t.map((x) => x.name)))
@@ -82,13 +84,27 @@ export default function CrmAccounts() {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (retailers || []).filter((r) => {
+      if (showArchived ? !r.archived : r.archived && !term) return false;
       if (term && !r.name.toLowerCase().includes(term) && !r.categories.some((c) => c.buyerName.toLowerCase().includes(term))) return false;
       if (typeFilter && r.type !== typeFilter) return false;
       if (priorityFilter && r.priority !== priorityFilter) return false;
       if (categoryFilter && !r.categories.some((c) => c.category === categoryFilter)) return false;
       return true;
     });
-  }, [retailers, search, typeFilter, priorityFilter, categoryFilter]);
+  }, [retailers, search, typeFilter, priorityFilter, categoryFilter, showArchived]);
+
+  // Archived retailers that have people on them — likely archived by mistake
+  const archivedWithPeople = (retailers || []).filter((r) => r.archived && r.contacts.length);
+
+  async function restore(ids) {
+    try {
+      const { restored } = await crmApi.unarchiveRetailers(ids);
+      message.success(`Restored ${restored} retailer${restored === 1 ? "" : "s"}`);
+      load();
+    } catch (err) {
+      message.error(err.message);
+    }
+  }
 
   async function updateRetailer(r, fields) {
     try {
@@ -120,7 +136,12 @@ export default function CrmAccounts() {
       fixed: "left",
       width: 170,
       sorter: (a, b) => a.name.localeCompare(b.name),
-      render: (name, r) => <Link to={`/crm/accounts/${r.id}`} style={{ fontWeight: 600 }}>{name}</Link>,
+      render: (name, r) => (
+        <Space size={4} wrap>
+          <Link to={`/crm/accounts/${r.id}`} style={{ fontWeight: 600 }}>{name}</Link>
+          {r.archived && <Tag style={{ margin: 0, fontSize: 11 }}>Archived</Tag>}
+        </Space>
+      ),
     },
     {
       title: "Type",
@@ -200,11 +221,11 @@ export default function CrmAccounts() {
       render: (_, r) => (
         <Space size={0}>
           <Popconfirm
-            title={showArchived ? `Restore ${r.name}?` : `Archive ${r.name}?`}
-            description={showArchived ? "Moves them back to the main list." : "Hides them here and from the category lists."}
-            onConfirm={async () => { await crmApi.archiveRetailer(r.id, !showArchived); load(); }}
+            title={r.archived ? `Restore ${r.name}?` : `Archive ${r.name}?`}
+            description={r.archived ? "Moves them back to the main list." : "Hides them from the main lists. They still turn up in searches."}
+            onConfirm={async () => { await crmApi.archiveRetailer(r.id, !r.archived); load(); }}
           >
-            <Button icon={showArchived ? <RollbackOutlined /> : <InboxOutlined />} type="text" size="small" title={showArchived ? "Restore" : "Archive"} />
+            <Button icon={r.archived ? <RollbackOutlined /> : <InboxOutlined />} type="text" size="small" title={r.archived ? "Restore" : "Archive"} />
           </Popconfirm>
           <Popconfirm title={`Delete ${r.name}?`} description="Deletes their contacts and history too."
             okButtonProps={{ danger: true }} onConfirm={async () => { await crmApi.deleteRetailer(r.id); load(); }}>
@@ -232,6 +253,14 @@ export default function CrmAccounts() {
           <Button icon={<InboxOutlined />} type={showArchived ? "primary" : "default"} onClick={() => setShowArchived((v) => !v)}>
             {showArchived ? "Back to active" : "Archived"}
           </Button>
+          {showArchived && archivedWithPeople.length > 0 && (
+            <Popconfirm
+              title={`Restore ${archivedWithPeople.length} archived retailers that have contacts?`}
+              onConfirm={() => restore(archivedWithPeople.map((r) => r.id))}
+            >
+              <Button icon={<RollbackOutlined />}>Restore {archivedWithPeople.length} with contacts</Button>
+            </Popconfirm>
+          )}
           <Button icon={<SettingOutlined />} onClick={() => setManageTypesOpen(true)}>Types</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>Add retailer</Button>
         </Space>
@@ -244,6 +273,7 @@ export default function CrmAccounts() {
         loading={retailers === null}
         columns={columns}
         dataSource={filtered}
+        rowClassName={(r) => (r.archived && !showArchived ? "crm-archived-row" : "")}
         scroll={{ x: "max-content", y: "calc(100vh - 280px)" }}
         pagination={{ defaultPageSize: 100, showSizeChanger: true, pageSizeOptions: ["50", "100", "200", "500"] }}
       />

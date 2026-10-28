@@ -21,6 +21,7 @@ function serializeRetailer(r, includeRelations = false) {
     name: r.name,
     type: r.type,
     priority: r.priority,
+    archived: r.archived,
     notes: r.notes,
     billingAddress: r.billingAddress || null,
     billingCity: r.billingCity || null,
@@ -64,6 +65,7 @@ function serializeContact(c) {
     id: c.id,
     retailerId: c.retailerId,
     retailerName: c.retailer?.name ?? undefined,
+    retailerArchived: c.retailer?.archived ?? undefined,
     name: c.name,
     title: c.title,
     role: c.role,
@@ -160,12 +162,12 @@ router.get("/active-customers", async (req, res) => {
   }
 });
 
-// GET /api/crm/retailers?archived=true
+// GET /api/crm/retailers?archived=true|all — active only by default
 router.get("/retailers", async (req, res) => {
   try {
-    const showArchived = req.query.archived === "true";
+    const where = req.query.archived === "all" ? {} : { archived: req.query.archived === "true" };
     const retailers = await prisma.retailer.findMany({
-      where: { archived: showArchived },
+      where,
       include: {
         contacts: { orderBy: { createdAt: "asc" } },
         activityLogs: { orderBy: { date: "desc" }, take: 1 },
@@ -196,6 +198,17 @@ router.get("/retailers", async (req, res) => {
       base.lastContactDate = r.activityLogs?.[0]?.date ? isoDate(r.activityLogs[0].date) : null;
       return base;
     }));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/crm/retailers/unarchive — { ids } restores several at once
+router.post("/retailers/unarchive", async (req, res) => {
+  try {
+    const ids = (req.body.ids || []).map(Number).filter(Boolean);
+    const { count } = await prisma.retailer.updateMany({ where: { id: { in: ids } }, data: { archived: false } });
+    res.json({ restored: count });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -337,7 +350,7 @@ router.get("/category/:category", async (req, res) => {
   try {
     const { category } = req.params;
     const contacts = await prisma.crmContact.findMany({
-      where: { role: "Buyer", categories: { has: category }, retailer: { archived: false } },
+      where: { role: "Buyer", categories: { has: category } },
       include: { retailer: true },
       orderBy: [{ retailer: { name: "asc" } }, { name: "asc" }],
     });

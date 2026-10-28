@@ -6,3 +6,9 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* CRM: archived retailers that turned up in a search */
+.crm-archived-row > td {
+  background: #fafafa;
+  color: #8c8c8c;
+}

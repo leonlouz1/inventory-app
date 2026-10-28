@@ -77,7 +77,9 @@ export const crmApi = {
   // dashboard
   dashboard: () => apiClient.get("/crm/dashboard"),
   // retailers
-  listRetailers: (archived = false) => apiClient.get(`/crm/retailers${archived ? "?archived=true" : ""}`),
+  // archived: false (active only), true (archived only) or "all"
+  listRetailers: (archived = false) => apiClient.get(`/crm/retailers${archived ? `?archived=${archived}` : ""}`),
+  unarchiveRetailers: (ids) => apiClient.post("/crm/retailers/unarchive", { ids }),
   getRetailer: (id) => apiClient.get(`/crm/retailers/${id}`),
   createRetailer: (data) => apiClient.post("/crm/retailers", data),
   updateRetailer: (id, data) => apiClient.put(`/crm/retailers/${id}`, data),

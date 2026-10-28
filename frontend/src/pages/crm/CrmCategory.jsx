@@ -44,6 +44,8 @@ function CrmCategory({ category }) {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (rows || []).filter((r) => {
+      // Buyers at archived retailers only show up when searched for
+      if (r.retailerArchived && !term) return false;
       if (term && !`${r.retailerName} ${r.name} ${r.email || ""} ${r.lastActivity?.notes || ""}`.toLowerCase().includes(term)) return false;
       if (statuses.length && !statuses.includes(r.status)) return false;
       if (view === "due" && !(r.nextFollowUp && r.nextFollowUp <= today() && !["Not Interested", "N/A"].includes(r.status))) return false;
@@ -51,7 +53,7 @@ function CrmCategory({ category }) {
     });
   }, [rows, search, statuses, view]);
 
-  const dueCount = (rows || []).filter((r) => r.nextFollowUp && r.nextFollowUp <= today() && !["Not Interested", "N/A"].includes(r.status)).length;
+  const dueCount = (rows || []).filter((r) => !r.retailerArchived && r.nextFollowUp && r.nextFollowUp <= today() && !["Not Interested", "N/A"].includes(r.status)).length;
 
   if (!CRM_CATEGORIES.includes(category)) return <Alert type="error" message={`Unknown category "${category}"`} />;
   if (error) return <Alert type="error" message={error} showIcon />;
@@ -62,7 +64,12 @@ function CrmCategory({ category }) {
       dataIndex: "retailerName",
       width: 150,
       sorter: (a, b) => a.retailerName.localeCompare(b.retailerName),
-      render: (v, r) => <Link to={`/crm/accounts/${r.retailerId}`} onClick={(e) => e.stopPropagation()}>{v}</Link>,
+      render: (v, r) => (
+        <Space size={4} wrap>
+          <Link to={`/crm/accounts/${r.retailerId}`} onClick={(e) => e.stopPropagation()}>{v}</Link>
+          {r.retailerArchived && <Tag style={{ margin: 0, fontSize: 11 }}>Archived</Tag>}
+        </Space>
+      ),
     },
     {
       title: "Buyer",
@@ -127,7 +134,7 @@ function CrmCategory({ category }) {
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>
-          {category} <span style={{ color: "#aaa", fontWeight: 400, fontSize: 15 }}>({filtered.length} buyers)</span>
+          {category} {rows && <span style={{ color: "#aaa", fontWeight: 400, fontSize: 15 }}>({filtered.length} buyers)</span>}
         </Typography.Title>
         <Space wrap>
           <Segmented value={view} onChange={setView} options={[{ value: "all", label: "All" }, { value: "due", label: `Follow-ups due (${dueCount})` }]} />
@@ -145,6 +152,7 @@ function CrmCategory({ category }) {
         loading={rows === null}
         columns={columns}
         dataSource={filtered}
+        rowClassName={(r) => (r.retailerArchived ? "crm-archived-row" : "")}
         scroll={{ x: 1200 }}
         pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["25", "50", "100", "200"] }}
         onRow={(r) => ({ onClick: () => setOpenId(r.id), style: { cursor: "pointer" } })}

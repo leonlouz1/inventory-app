@@ -46,7 +46,12 @@ export default function CrmContacts() {
     {
       title: "Retailer", dataIndex: "retailerName", width: 150,
       sorter: (a, b) => a.retailerName.localeCompare(b.retailerName),
-      render: (v, c) => <Link to={`/crm/accounts/${c.retailerId}`} onClick={(e) => e.stopPropagation()}>{v}</Link>,
+      render: (v, c) => (
+        <Space size={4} wrap>
+          <Link to={`/crm/accounts/${c.retailerId}`} onClick={(e) => e.stopPropagation()}>{v}</Link>
+          {c.retailerArchived && <Tag style={{ margin: 0, fontSize: 11 }}>Archived</Tag>}
+        </Space>
+      ),
     },
     { title: "Role", dataIndex: "role", width: 120, sorter: (a, b) => a.role.localeCompare(b.role) },
     {

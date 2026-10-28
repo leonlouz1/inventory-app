@@ -180,6 +180,12 @@ export default function CrmAccountDetail() {
               <Button type="text" size="small" icon={<EditOutlined />} onClick={() => { setNameValue(retailer.name); setEditingName(true); }} />
             </Space>
           )}
+          {retailer.archived && (
+            <Space size={4}>
+              <Tag color="default">Archived</Tag>
+              <Button size="small" onClick={() => crmApi.archiveRetailer(retailer.id, false).then(load)}>Restore</Button>
+            </Space>
+          )}
           <Select size="small" placeholder="Type" value={retailer.type} style={{ width: 150 }} allowClear
             options={types.map((t) => ({ value: t, label: t }))} onChange={(type) => update({ type: type || null })} />
           <Select size="small" value={retailer.priority} style={{ width: 120 }}
