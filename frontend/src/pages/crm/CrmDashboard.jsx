@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Alert, Button, Card, Col, Row, Space, Spin, Statistic, Table, Tag, Typography } from "antd";
-import { EditOutlined, TeamOutlined } from "@ant-design/icons";
+import { EditOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
 import { ACTION_COLORS, ACTION_LABELS, STATUS_COLORS } from "../../constants/crm";
@@ -51,7 +51,6 @@ export default function CrmDashboard() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 8 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>Sales Dashboard</Typography.Title>
         <Space>
-          <Link to="/crm/accounts"><Button icon={<TeamOutlined />}>All retailers</Button></Link>
           <Button type="primary" icon={<EditOutlined />} onClick={() => setBulkOpen(true)}>Log</Button>
         </Space>
       </div>

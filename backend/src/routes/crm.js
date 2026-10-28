@@ -36,15 +36,19 @@ function serializeRetailer(r, includeRelations = false) {
   return base;
 }
 
-// Buyers and status per category, worked out from the retailer's contacts
-function categoriesFromContacts(contacts) {
+// Buyers and status per category, worked out from the retailer's contacts.
+// latest(contactId, category), when given, adds each buyer's latest entry.
+function categoriesFromContacts(contacts, latest) {
   const byCat = new Map();
   for (const c of contacts) {
     if (c.role !== "Buyer") continue;
     for (const cat of c.categories || []) {
       if (cat === "Other") continue;
       if (!byCat.has(cat)) byCat.set(cat, { category: cat, buyers: [] });
-      byCat.get(cat).buyers.push({ id: c.id, name: c.name, status: c.status });
+      byCat.get(cat).buyers.push({
+        id: c.id, name: c.name, status: c.status, nextFollowUp: isoDate(c.nextFollowUp),
+        ...(latest && { lastActivity: latest(c.id, cat) }),
+      });
     }
   }
   return [...byCat.values()].map((c) => ({
@@ -168,8 +172,26 @@ router.get("/retailers", async (req, res) => {
       },
       orderBy: [{ priority: "desc" }, { name: "asc" }],
     });
+    // Latest entry per buyer per category, for the grid's Notes columns
+    const buyerIds = retailers.flatMap((r) => r.contacts.filter((c) => c.role === "Buyer").map((c) => c.id));
+    const logs = buyerIds.length
+      ? await prisma.activityLog.findMany({
+        where: { contactId: { in: buyerIds } },
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      })
+      : [];
+    const logsByContact = new Map();
+    for (const l of logs) {
+      if (!logsByContact.has(l.contactId)) logsByContact.set(l.contactId, []);
+      logsByContact.get(l.contactId).push(l);
+    }
+    const latest = (contactId, cat) => {
+      const log = (logsByContact.get(contactId) || []).find((l) => !l.category || l.category === cat);
+      return log ? serializeActivity(log) : null;
+    };
     res.json(retailers.map((r) => {
       const base = serializeRetailer(r);
+      base.categories = categoriesFromContacts(r.contacts || [], latest);
       base.contacts = (r.contacts || []).map(serializeContact);
       base.lastContactDate = r.activityLogs?.[0]?.date ? isoDate(r.activityLogs[0].date) : null;
       return base;
