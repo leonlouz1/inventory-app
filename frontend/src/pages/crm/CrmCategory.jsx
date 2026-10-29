@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Alert, Button, Collapse, Input, Segmented, Select, Space, Table, Tag, Tooltip, Typography, message } from "antd";
-import { EyeInvisibleOutlined, EyeOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import {
+  CheckCircleOutlined, EyeInvisibleOutlined, EyeOutlined, PlusOutlined, UploadOutlined, VerticalAlignBottomOutlined, VerticalAlignTopOutlined,
+} from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
 import { ACTION_COLORS, ACTION_LABELS, CRM_CATEGORIES, STATUSES, STATUS_COLORS } from "../../constants/crm";
@@ -54,6 +56,7 @@ function CrmCategory({ category }) {
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState([]);
+  const [selectedActive, setSelectedActive] = useState([]);
   const [selectedHidden, setSelectedHidden] = useState([]);
 
   const load = useCallback(() => crmApi.categoryList(category)
@@ -63,6 +66,7 @@ function CrmCategory({ category }) {
   useEffect(() => { load(); }, [load]);
 
   const isHidden = useCallback((r) => r.hiddenCategories.includes(category), [category]);
+  const isActive = useCallback((r) => !r.hiddenCategories.includes(category) && r.activeCategories.includes(category), [category]);
 
   const matches = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -75,18 +79,20 @@ function CrmCategory({ category }) {
     });
   }, [rows, search, statuses]);
 
-  // Retailers you're chasing; the rest are parked in the Hidden section at the bottom
-  const visibleBuyers = matches.filter((r) => !isHidden(r));
-  const filtered = groupByRetailer(visibleBuyers)
-    .filter((g) => view !== "due" || [g, ...g.others].some(isDue));
+  // Retailers you're chasing up top; accounts already ordering sit in Active
+  // accounts below, and the ones you're not chasing are parked in Hidden
+  const dueOnly = (groups) => groups.filter((g) => view !== "due" || [g, ...g.others].some(isDue));
+  const filtered = dueOnly(groupByRetailer(matches.filter((r) => !isHidden(r) && !isActive(r))));
+  const activeRows = dueOnly(groupByRetailer(matches.filter(isActive)));
   const hiddenRows = groupByRetailer(matches.filter(isHidden));
   const idsFor = (keys, groups) => groups.filter((g) => keys.includes(g.key)).flatMap((g) => g.buyerIds);
 
-  async function setHidden(ids, hidden) {
+  async function moveTo(ids, to) {
     try {
-      await crmApi.hideInCategory(category, ids, hidden);
-      message.success(hidden ? "Moved to Hidden" : "Brought back");
+      await crmApi.moveInCategory(category, ids, to);
+      message.success({ hidden: "Moved to Hidden", active: "Moved to Active accounts", list: "Moved back to the list" }[to]);
       setSelected([]);
+      setSelectedActive([]);
       setSelectedHidden([]);
       load();
     } catch (err) {
@@ -94,7 +100,9 @@ function CrmCategory({ category }) {
     }
   }
 
-  const dueCount = new Set((rows || []).filter((r) => !r.retailerArchived && !isHidden(r) && isDue(r)).map((r) => r.retailerId)).size;
+  const dueIn = (inSection) => new Set((rows || []).filter((r) => !r.retailerArchived && inSection(r) && isDue(r)).map((r) => r.retailerId)).size;
+  const dueCount = dueIn((r) => !isHidden(r) && !isActive(r));
+  const activeDueCount = dueIn(isActive);
 
   if (!CRM_CATEGORIES.includes(category)) return <Alert type="error" message={`Unknown category "${category}"`} />;
   if (error) return <Alert type="error" message={error} showIcon />;
@@ -180,21 +188,35 @@ function CrmCategory({ category }) {
     },
     {
       title: "",
-      key: "hide",
-      width: 44,
-      render: (_, r) => (
-        <span onClick={(e) => e.stopPropagation()}>
-          {isHidden(r) ? (
-            <Tooltip title={`Bring back to ${category}`}>
-              <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => setHidden(r.buyerIds || [r.id], false)} />
-            </Tooltip>
-          ) : (
-            <Tooltip title={`Hide from ${category} for now`}>
-              <Button type="text" size="small" icon={<EyeInvisibleOutlined />} onClick={() => setHidden(r.buyerIds || [r.id], true)} />
-            </Tooltip>
-          )}
-        </span>
-      ),
+      key: "move",
+      width: 72,
+      render: (_, r) => {
+        const ids = r.buyerIds || [r.id];
+        return (
+          <span onClick={(e) => e.stopPropagation()} style={{ whiteSpace: "nowrap" }}>
+            {isHidden(r) ? (
+              <Tooltip title={`Bring back to ${category}`}>
+                <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => moveTo(ids, "list")} />
+              </Tooltip>
+            ) : (
+              <>
+                {isActive(r) ? (
+                  <Tooltip title="Back up to the main list">
+                    <Button type="text" size="small" icon={<VerticalAlignTopOutlined />} onClick={() => moveTo(ids, "list")} />
+                  </Tooltip>
+                ) : (
+                  <Tooltip title="Move down to Active accounts">
+                    <Button type="text" size="small" icon={<VerticalAlignBottomOutlined />} onClick={() => moveTo(ids, "active")} />
+                  </Tooltip>
+                )}
+                <Tooltip title={`Hide from ${category} for now`}>
+                  <Button type="text" size="small" icon={<EyeInvisibleOutlined />} onClick={() => moveTo(ids, "hidden")} />
+                </Tooltip>
+              </>
+            )}
+          </span>
+        );
+      },
     },
   ];
 
@@ -222,11 +244,18 @@ function CrmCategory({ category }) {
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>
-          {category} {rows && <span style={{ color: "#aaa", fontWeight: 400, fontSize: 15 }}>({filtered.length} retailers{hiddenRows.length ? `, ${hiddenRows.length} hidden` : ""})</span>}
+          {category} {rows && (
+            <span style={{ color: "#aaa", fontWeight: 400, fontSize: 15 }}>
+              ({filtered.length} retailers{activeRows.length ? `, ${activeRows.length} active` : ""}{hiddenRows.length ? `, ${hiddenRows.length} hidden` : ""})
+            </span>
+          )}
         </Typography.Title>
         <Space wrap>
           {selected.length > 0 && (
-            <Button icon={<EyeInvisibleOutlined />} onClick={() => setHidden(idsFor(selected, filtered), true)}>Hide {selected.length}</Button>
+            <>
+              <Button icon={<VerticalAlignBottomOutlined />} onClick={() => moveTo(idsFor(selected, filtered), "active")}>Move {selected.length} to Active</Button>
+              <Button icon={<EyeInvisibleOutlined />} onClick={() => moveTo(idsFor(selected, filtered), "hidden")}>Hide {selected.length}</Button>
+            </>
           )}
           <Segmented value={view} onChange={setView} options={[{ value: "all", label: "All" }, { value: "due", label: `Follow-ups due (${dueCount})` }]} />
           <Input.Search placeholder="Search company, buyer, notes" allowClear style={{ width: 220 }} value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -246,10 +275,54 @@ function CrmCategory({ category }) {
         dataSource={filtered}
         rowClassName={(r) => (r.retailerArchived ? "crm-archived-row" : "")}
         rowSelection={{ selectedRowKeys: selected, onChange: setSelected, columnWidth: 36 }}
-        scroll={{ x: 1250 }}
+        scroll={{ x: 1280 }}
         pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ["25", "50", "100", "200"] }}
         onRow={(r) => ({ onClick: () => setOpenId(r.id), style: { cursor: "pointer" } })}
       />
+
+      {rows && (
+        <Collapse
+          style={{ marginTop: 16 }}
+          defaultActiveKey={["active"]}
+          items={[{
+            key: "active",
+            label: (
+              <span>
+                <CheckCircleOutlined style={{ color: "#52c41a" }} /> Active accounts ({activeRows.length})
+                {activeDueCount > 0 && <Tag color="orange" style={{ marginLeft: 8 }}>{activeDueCount} follow-up{activeDueCount === 1 ? "" : "s"} due</Tag>}
+                <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+                  Accounts you've moved down so they stay out of the way of the list above.
+                </Typography.Text>
+              </span>
+            ),
+            extra: selectedActive.length > 0 && (
+              <Space size={6} onClick={(e) => e.stopPropagation()}>
+                <Button size="small" icon={<VerticalAlignTopOutlined />} onClick={() => moveTo(idsFor(selectedActive, activeRows), "list")}>
+                  Move {selectedActive.length} up
+                </Button>
+                <Button size="small" icon={<EyeInvisibleOutlined />} onClick={() => moveTo(idsFor(selectedActive, activeRows), "hidden")}>
+                  Hide {selectedActive.length}
+                </Button>
+              </Space>
+            ),
+            children: (
+              <Table
+                rowKey="key"
+                size="small"
+                expandable={expandable}
+                columns={columns}
+                dataSource={activeRows}
+                rowClassName={(r) => (r.retailerArchived ? "crm-archived-row" : "")}
+                rowSelection={{ selectedRowKeys: selectedActive, onChange: setSelectedActive, columnWidth: 36 }}
+                scroll={{ x: 1280 }}
+                pagination={{ defaultPageSize: 50, hideOnSinglePage: true }}
+                onRow={(r) => ({ onClick: () => setOpenId(r.id), style: { cursor: "pointer" } })}
+                locale={{ emptyText: "No active accounts here yet. Use the down-arrow button on a row to move one here." }}
+              />
+            ),
+          }]}
+        />
+      )}
 
       {rows && (
         <Collapse
@@ -265,7 +338,7 @@ function CrmCategory({ category }) {
               </span>
             ),
             extra: selectedHidden.length > 0 && (
-              <Button size="small" icon={<EyeOutlined />} onClick={(e) => { e.stopPropagation(); setHidden(idsFor(selectedHidden, hiddenRows), false); }}>
+              <Button size="small" icon={<EyeOutlined />} onClick={(e) => { e.stopPropagation(); moveTo(idsFor(selectedHidden, hiddenRows), "list"); }}>
                 Bring back {selectedHidden.length}
               </Button>
             ),
@@ -278,7 +351,7 @@ function CrmCategory({ category }) {
                 dataSource={hiddenRows}
                 rowClassName="crm-archived-row"
                 rowSelection={{ selectedRowKeys: selectedHidden, onChange: setSelectedHidden, columnWidth: 36 }}
-                scroll={{ x: 1250 }}
+                scroll={{ x: 1280 }}
                 pagination={{ defaultPageSize: 50, hideOnSinglePage: true }}
                 onRow={(r) => ({ onClick: () => setOpenId(r.id), style: { cursor: "pointer" } })}
                 locale={{ emptyText: "Nothing hidden. Use the eye button on a row to park a buyer here." }}

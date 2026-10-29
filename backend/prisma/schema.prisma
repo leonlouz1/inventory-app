@@ -239,6 +239,7 @@ model CrmContact {
   category         String?   @db.VarChar(50) // legacy single category; see categories
   categories       String[]  @default([])
   hiddenCategories String[]  @default([]) @map("hidden_categories") // parked on these category work lists
+  activeCategories String[]  @default([]) @map("active_categories") // in the Active accounts section of these work lists
   role             String    @default("Buyer") @db.VarChar(50)
   status           String    @default("Not Contacted") @db.VarChar(50)
   nextFollowUp     DateTime? @map("next_follow_up") @db.Date

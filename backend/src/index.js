@@ -264,6 +264,7 @@ async function runStartupMigrations() {
     await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "status" VARCHAR(50) NOT NULL DEFAULT 'Not Contacted'`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "next_follow_up" DATE`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "hidden_categories" TEXT[] NOT NULL DEFAULT '{}'`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "active_categories" TEXT[] NOT NULL DEFAULT '{}'`);
     await prisma.$executeRawUnsafe(`UPDATE "crm_contacts" SET "categories" = ARRAY["category"] WHERE "category" IS NOT NULL AND "categories" = '{}'`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "activity_logs" ADD COLUMN IF NOT EXISTS "contact_id" INTEGER`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "activity_logs" ADD COLUMN IF NOT EXISTS "cc_contact_ids" INTEGER[] NOT NULL DEFAULT '{}'`);
