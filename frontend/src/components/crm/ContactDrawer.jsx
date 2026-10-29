@@ -47,7 +47,8 @@ function EditEntryModal({ entry, onClose, onSaved }) {
   const [newFile, setNewFile] = useState(null);
   const [files, setFiles] = useState(entry.attachments || []);
   const [saving, setSaving] = useState(false);
-  const showRecap = action === "Meeting" || entry.recap || files.length > 0;
+  const isMeeting = action === "Meeting" || !!entry.recap;
+  const showFiles = isMeeting || action === "PO Received" || files.length > 0;
 
   async function removeFile(f) {
     try {
@@ -82,9 +83,9 @@ function EditEntryModal({ entry, onClose, onSaved }) {
           <DatePicker allowClear={false} value={date} onChange={setDate} />
         </Space>
         <Input.TextArea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        {showRecap && (
+        {showFiles && (
           <>
-            <Typography.Text strong>Meeting recap</Typography.Text>
+            <Typography.Text strong>{isMeeting ? "Meeting recap" : "Files"}</Typography.Text>
             {files.map((f) => (
               <Space key={f.id} size={4}>
                 <AttachmentLink file={f} />
@@ -93,7 +94,10 @@ function EditEntryModal({ entry, onClose, onSaved }) {
                 </Popconfirm>
               </Space>
             ))}
-            <RecapFields recap={recap} onRecap={setRecap} file={newFile} onFile={setNewFile} />
+            <RecapFields
+              recap={recap} onRecap={setRecap} file={newFile} onFile={setNewFile}
+              withText={isMeeting} fileLabel={isMeeting ? "recap PDF" : action === "PO Received" ? "PO PDF" : "PDF"}
+            />
           </>
         )}
       </Space>
