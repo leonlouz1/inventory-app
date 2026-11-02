@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Alert, Button, Card, Col, Row, Space, Spin, Statistic, Table, Tag, Typography } from "antd";
-import { EditOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Col, Row, Space, Spin, Statistic, Table, Tag, Tooltip, Typography, message } from "antd";
+import { ClockCircleOutlined, EditOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
 import { ACTION_COLORS, ACTION_LABELS, STATUS_COLORS } from "../../constants/crm";
 import ContactDrawer from "../../components/crm/ContactDrawer";
 import BulkLogModal from "../../components/crm/BulkLogModal";
+
+const SNOOZE_DAYS = 2;
 
 const STAT_ORDER = ["Active", "Order Placed", "Warm", "No Response", "Not Contacted", "Not Interested"];
 const STAT_COLORS = {
@@ -34,6 +36,18 @@ export default function CrmDashboard() {
     .catch((err) => setError(err.message)), []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Counted from today, so an overdue follow-up doesn't stay overdue
+  async function snooze(buyer) {
+    const until = dayjs(data.today).add(SNOOZE_DAYS, "day");
+    try {
+      await crmApi.updateContact(buyer.id, { nextFollowUp: until.format("YYYY-MM-DD") });
+      message.success(`${buyer.name} snoozed to ${until.format("MMM D")}`);
+      load();
+    } catch (err) {
+      message.error(err.message);
+    }
+  }
 
   if (error) return <Alert type="error" message={error} showIcon />;
   if (!data) return <Spin />;
@@ -73,6 +87,22 @@ export default function CrmDashboard() {
                 {
                   title: "Due", dataIndex: "nextFollowUp",
                   render: (d) => <span style={{ color: d < data.today ? "#cf1322" : "#d46b08", fontWeight: 600 }}>{dayjs(d).format("MMM D")}</span>,
+                },
+                {
+                  title: "",
+                  key: "snooze",
+                  width: 44,
+                  render: (_, r) => (
+                    <Tooltip title={`Snooze ${SNOOZE_DAYS} days`}>
+                      <Button
+                        type="text"
+                        size="small"
+                        aria-label={`Snooze ${r.name}`}
+                        icon={<ClockCircleOutlined />}
+                        onClick={(e) => { e.stopPropagation(); snooze(r); }}
+                      />
+                    </Tooltip>
+                  ),
                 },
               ]}
               locale={{ emptyText: "Nothing due — nice." }}
