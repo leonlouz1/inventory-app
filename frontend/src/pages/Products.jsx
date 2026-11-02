@@ -7,6 +7,7 @@ import { productsApi, warehousesApi } from "../api/inventory";
 import { authHeaders } from "../api/client";
 import { useRole } from "../hooks/useRole";
 import { downloadInventoryReport } from "../utils/inventoryReport";
+import { downloadAtsLinesheet } from "../utils/atsLinesheet";
 import { NewProductModal } from "../components/ProductModals";
 import ProductWindow from "../components/ProductWindow";
 import BulkImportProductsModal from "../components/BulkImportProductsModal";
@@ -54,6 +55,9 @@ export default function Products() {
   const [inventoryReportCategories, setInventoryReportCategories] = useState([]);
   const [atsOpen, setAtsOpen] = useState(false);
   const [atsCategories, setAtsCategories] = useState([]);
+  const [linesheetOpen, setLinesheetOpen] = useState(false);
+  const [linesheetCategories, setLinesheetCategories] = useState([]);
+  const [linesheetBrands, setLinesheetBrands] = useState([]);
   const [inventoryReportActiveOnly, setInventoryReportActiveOnly] = useState(false);
 
   const filteredProducts = useMemo(() => {
@@ -159,6 +163,28 @@ export default function Products() {
     const today = new Date().toISOString().slice(0, 10);
     downloadCsv(`available_to_sell_${today}.csv`, csv);
     setAtsOpen(false);
+  }
+
+  // Products in the picked categories; the brand list only offers what's in them
+  const linesheetInCategories = products.filter((p) => !linesheetCategories.length || linesheetCategories.includes(p.category ?? null));
+  const linesheetBrandOptions = [...new Set(linesheetInCategories.map((p) => p.brand).filter(Boolean))].sort();
+
+  function handleLinesheetCategories(categories) {
+    setLinesheetCategories(categories);
+    const brandsLeft = new Set(products
+      .filter((p) => !categories.length || categories.includes(p.category ?? null))
+      .map((p) => p.brand ?? null));
+    setLinesheetBrands((picked) => picked.filter((b) => brandsLeft.has(b)));
+  }
+
+  function handleLinesheetDownload() {
+    const picked = linesheetInCategories.filter((p) => !linesheetBrands.length || linesheetBrands.includes(p.brand ?? null));
+    if (!picked.some((p) => p.availableToSell > 0)) {
+      message.warning("Nothing available to sell in that selection");
+      return;
+    }
+    downloadAtsLinesheet(picked, warehouses);
+    setLinesheetOpen(false);
   }
 
   async function handleRollingTotalsDownload() {
@@ -323,11 +349,11 @@ export default function Products() {
 
   return (
     <Spin spinning={loading}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-        <Typography.Title level={5} style={{ margin: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+        <Typography.Title level={5} style={{ margin: 0, flexShrink: 0 }}>
           Products
         </Typography.Title>
-        <Space>
+        <Space wrap>
           <Input.Search
             placeholder="Search SKU or name"
             allowClear
@@ -350,6 +376,9 @@ export default function Products() {
           </Button>
           <Button icon={<DownloadOutlined />} onClick={() => { setAtsCategories([]); setAtsOpen(true); }}>
             Export Available to Sell
+          </Button>
+          <Button icon={<DownloadOutlined />} onClick={() => { setLinesheetCategories([]); setLinesheetBrands([]); setLinesheetOpen(true); }}>
+            ATS Linesheet
           </Button>
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
             Import CSV
@@ -448,6 +477,48 @@ export default function Products() {
         products={products}
         warehouses={warehouses}
       />
+
+      <Modal
+        title="ATS Linesheet"
+        open={linesheetOpen}
+        onCancel={() => setLinesheetOpen(false)}
+        okText="Download"
+        onOk={handleLinesheetDownload}
+        destroyOnHidden
+        width={420}
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          Pick a category, then a brand. Leave blank for all. Only SKUs with quantity available to sell are included.
+        </Typography.Paragraph>
+        <Typography.Text strong>Category</Typography.Text>
+        <Select
+          mode="multiple"
+          placeholder="All categories"
+          allowClear
+          style={{ width: "100%", margin: "4px 0 12px" }}
+          options={[
+            ...PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c })),
+            { value: null, label: "(No category)" },
+          ]}
+          value={linesheetCategories}
+          onChange={handleLinesheetCategories}
+          maxTagCount="responsive"
+        />
+        <Typography.Text strong>Brand</Typography.Text>
+        <Select
+          mode="multiple"
+          placeholder="All brands"
+          allowClear
+          style={{ width: "100%", marginTop: 4 }}
+          options={[
+            ...linesheetBrandOptions.map((b) => ({ value: b, label: b })),
+            { value: null, label: "(No brand)" },
+          ]}
+          value={linesheetBrands}
+          onChange={setLinesheetBrands}
+          maxTagCount="responsive"
+        />
+      </Modal>
 
       <Modal
         title="Export Available to Sell"
