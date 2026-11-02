@@ -52,6 +52,8 @@ export default function Products() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [inventoryReportOpen, setInventoryReportOpen] = useState(false);
   const [inventoryReportCategories, setInventoryReportCategories] = useState([]);
+  const [atsOpen, setAtsOpen] = useState(false);
+  const [atsCategories, setAtsCategories] = useState([]);
   const [inventoryReportActiveOnly, setInventoryReportActiveOnly] = useState(false);
 
   const filteredProducts = useMemo(() => {
@@ -145,6 +147,7 @@ export default function Products() {
   function handleExportAvailableToSell() {
     const rows = products
       .filter((p) => p.availableToSell > 0)
+      .filter((p) => !atsCategories.length || atsCategories.includes(p.category ?? null))
       .sort((a, b) => a.sku.localeCompare(b.sku))
       .map((p) => ({
         sku: p.sku,
@@ -155,6 +158,7 @@ export default function Products() {
     const csv = Papa.unparse(rows);
     const today = new Date().toISOString().slice(0, 10);
     downloadCsv(`available_to_sell_${today}.csv`, csv);
+    setAtsOpen(false);
   }
 
   async function handleRollingTotalsDownload() {
@@ -344,7 +348,7 @@ export default function Products() {
           <Button icon={<DownloadOutlined />} onClick={() => { setInventoryReportCategories([]); setInventoryReportOpen(true); }}>
             Inventory Report
           </Button>
-          <Button icon={<DownloadOutlined />} onClick={handleExportAvailableToSell}>
+          <Button icon={<DownloadOutlined />} onClick={() => { setAtsCategories([]); setAtsOpen(true); }}>
             Export Available to Sell
           </Button>
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
@@ -444,6 +448,33 @@ export default function Products() {
         products={products}
         warehouses={warehouses}
       />
+
+      <Modal
+        title="Export Available to Sell"
+        open={atsOpen}
+        onCancel={() => setAtsOpen(false)}
+        okText="Download"
+        onOk={handleExportAvailableToSell}
+        destroyOnHidden
+        width={420}
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          Select which categories to include. Leave blank for all.
+        </Typography.Paragraph>
+        <Select
+          mode="multiple"
+          placeholder="All categories"
+          allowClear
+          style={{ width: "100%" }}
+          options={[
+            ...PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c })),
+            { value: null, label: "(No category)" },
+          ]}
+          value={atsCategories}
+          onChange={setAtsCategories}
+          maxTagCount="responsive"
+        />
+      </Modal>
 
       <Modal
         title="Inventory Report"
