@@ -2,7 +2,7 @@
 // Keep in sync with frontend/src/constants/crm.js.
 
 const CRM_CATEGORIES = ["Travel", "Bedding", "Pet", "Bath", "Slippers", "Storage"];
-const CONTACT_CATEGORIES = [...CRM_CATEGORIES, "Other"];
+const CONTACT_CATEGORIES = [...CRM_CATEGORIES, "Non-buying", "Other"];
 const CONTACT_ROLES = ["Buyer", "DMM", "MA/Assistant", "Accounts Payable", "Logistics", "Other"];
 const STATUSES = ["Active", "Order Placed", "Warm", "Not Contacted", "No Response", "Not Interested", "No Contact Found", "N/A"];
 const LOG_ACTIONS = ["Called", "Emailed", "Sent Sample", "Meeting", "PO Received"];

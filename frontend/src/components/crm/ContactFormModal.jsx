@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DatePicker, Form, Input, Modal, Select, message } from "antd";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
-import { CONTACT_CATEGORIES, CONTACT_ROLES, STATUSES } from "../../constants/crm";
+import { CONTACT_CATEGORIES, CONTACT_ROLES, NON_BUYING_ROLES, STATUSES } from "../../constants/crm";
 
 const NEW_PREFIX = "new:";
 
@@ -59,6 +59,13 @@ export default function ContactFormModal({ open, contact, defaults, onClose, onS
 
   const role = Form.useWatch("role", form);
 
+  function addNonBuying(newRole) {
+    const cats = form.getFieldValue("categories") || [];
+    if (NON_BUYING_ROLES.includes(newRole) && !cats.includes("Non-buying")) {
+      form.setFieldValue("categories", [...cats, "Non-buying"]);
+    }
+  }
+
   return (
     <Modal
       title={contact ? `Edit ${contact.name}` : "New contact"}
@@ -85,7 +92,7 @@ export default function ContactFormModal({ open, contact, defaults, onClose, onS
         </Form.Item>
         <div style={{ display: "flex", gap: 12 }}>
           <Form.Item name="role" label="Role" style={{ flex: 1 }}>
-            <Select options={CONTACT_ROLES.map((r) => ({ value: r, label: r }))} />
+            <Select options={CONTACT_ROLES.map((r) => ({ value: r, label: r }))} onChange={addNonBuying} />
           </Form.Item>
           <Form.Item name="categories" label="Categories" style={{ flex: 2 }}>
             <Select mode="multiple" options={CONTACT_CATEGORIES.map((c) => ({ value: c, label: c }))} placeholder="Pick one or more" />

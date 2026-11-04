@@ -2,7 +2,9 @@ import dayjs from "dayjs";
 
 // CRM vocabulary. Keep in sync with backend/src/constants/crm.js.
 export const CRM_CATEGORIES = ["Travel", "Bedding", "Pet", "Bath", "Slippers", "Storage"];
-export const CONTACT_CATEGORIES = [...CRM_CATEGORIES, "Other"];
+export const CONTACT_CATEGORIES = [...CRM_CATEGORIES, "Non-buying", "Other"];
+// Picking one of these roles adds the Non-buying category
+export const NON_BUYING_ROLES = ["Accounts Payable", "Logistics"];
 export const CONTACT_ROLES = ["Buyer", "DMM", "MA/Assistant", "Accounts Payable", "Logistics", "Other"];
 export const STATUSES = ["Active", "Order Placed", "Warm", "Not Contacted", "No Response", "Not Interested", "No Contact Found", "N/A"];
 export const STATUS_COLORS = {
