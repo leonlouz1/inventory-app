@@ -6,7 +6,7 @@ import {
 import { ArrowLeftOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
-import { ACTION_COLORS, ACTION_LABELS, CONTACT_CATEGORIES, STATUSES, STATUS_COLORS } from "../../constants/crm";
+import { ACTION_COLORS, ACTION_LABELS, CONTACT_CATEGORIES, STATUSES, STATUS_COLORS, TRACKED_ROLES } from "../../constants/crm";
 import ContactDrawer, { PhoneLinks } from "../../components/crm/ContactDrawer";
 import ContactFormModal from "../../components/crm/ContactFormModal";
 
@@ -86,7 +86,7 @@ function CategorySection({ category, people, onOpen, onAdd }) {
               </Space>
             ),
           },
-          { title: "Status", dataIndex: "status", width: 120, render: (s, c) => (c.role === "Buyer" ? <Tag color={STATUS_COLORS[s]}>{s}</Tag> : null) },
+          { title: "Status", dataIndex: "status", width: 120, render: (s, c) => (TRACKED_ROLES.includes(c.role) ? <Tag color={STATUS_COLORS[s]}>{s}</Tag> : null) },
           {
             title: "Last action", key: "last",
             render: (_, c) => c.lastActivity ? (
@@ -101,11 +101,11 @@ function CategorySection({ category, people, onOpen, onAdd }) {
                   <Typography.Paragraph ellipsis={{ rows: 1 }} type="secondary" style={{ margin: 0, fontSize: 12 }}>{c.lastActivity.notes}</Typography.Paragraph>
                 )}
               </div>
-            ) : (c.role === "Buyer" ? <Typography.Text type="secondary">Never</Typography.Text> : null),
+            ) : (TRACKED_ROLES.includes(c.role) ? <Typography.Text type="secondary">Never</Typography.Text> : null),
           },
           {
             title: "Follow-up", dataIndex: "nextFollowUp", width: 90,
-            render: (d, c) => (c.role === "Buyer" && d ? dayjs(d).format("MMM D") : null),
+            render: (d, c) => (TRACKED_ROLES.includes(c.role) && d ? dayjs(d).format("MMM D") : null),
           },
           {
             title: "Contact", key: "contact", width: 220,

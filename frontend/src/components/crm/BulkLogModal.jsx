@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Checkbox, DatePicker, Input, Modal, Radio, Select, Space, Table, Tag, Typography, message } from "antd";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
-import { CRM_CATEGORIES, LOG_ACTIONS, STATUSES, STATUS_COLORS, defaultFollowUp, statusAfter } from "../../constants/crm";
+import { CRM_CATEGORIES, LOG_ACTIONS, STATUSES, STATUS_COLORS, TRACKED_ROLES, defaultFollowUp, statusAfter } from "../../constants/crm";
 
 // One action + note logged on many people at once, e.g. the same linesheet
 // emailed to ten buyers. Each person gets their own history entry, and
@@ -27,7 +27,7 @@ export default function BulkLogModal({ open, onClose, onLogged }) {
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     return contacts.filter((c) => {
-      if (!everyone && c.role !== "Buyer") return false;
+      if (!everyone && !TRACKED_ROLES.includes(c.role)) return false;
       if (category && !c.categories.includes(category)) return false;
       if (statuses.length && !statuses.includes(c.status)) return false;
       if (term && !`${c.name} ${c.retailerName}`.toLowerCase().includes(term)) return false;
@@ -131,7 +131,7 @@ export default function BulkLogModal({ open, onClose, onLogged }) {
             {
               title: "Status now → after", key: "status", width: 230,
               render: (_, c) => {
-                if (c.role !== "Buyer") return null;
+                if (!TRACKED_ROLES.includes(c.role)) return null;
                 const next = statusAfter(action, c.status);
                 return (
                   <Space size={2}>

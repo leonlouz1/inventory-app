@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Alert, Button, Input, Select, Space, Table, Tag, Typography } from "antd";
 import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import { crmApi } from "../../api/inventory";
-import { CONTACT_CATEGORIES, CONTACT_ROLES, STATUS_COLORS } from "../../constants/crm";
+import { CONTACT_CATEGORIES, CONTACT_ROLES, STATUS_COLORS, TRACKED_ROLES } from "../../constants/crm";
 import ContactDrawer, { PhoneLinks } from "../../components/crm/ContactDrawer";
 import ContactFormModal from "../../components/crm/ContactFormModal";
 import ImportCrmTabModal from "../../components/crm/ImportCrmTabModal";
@@ -61,7 +61,7 @@ export default function CrmContacts() {
     { title: "Title", dataIndex: "title", width: 160, ellipsis: true },
     {
       title: "Status", dataIndex: "status", width: 120,
-      render: (s, c) => (c.role === "Buyer" ? <Tag color={STATUS_COLORS[s]}>{s}</Tag> : null),
+      render: (s, c) => (TRACKED_ROLES.includes(c.role) ? <Tag color={STATUS_COLORS[s]}>{s}</Tag> : null),
     },
     {
       title: "Contact", key: "contact", width: 240,

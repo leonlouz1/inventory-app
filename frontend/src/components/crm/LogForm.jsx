@@ -3,7 +3,7 @@ import { Button, DatePicker, Input, Radio, Select, Space, Tag, Typography, Uploa
 import { FilePdfOutlined, SnippetsOutlined, UploadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
-import { LOG_ACTIONS, STATUSES, defaultFollowUp, statusAfter } from "../../constants/crm";
+import { LOG_ACTIONS, STATUSES, TRACKED_ROLES, defaultFollowUp, statusAfter } from "../../constants/crm";
 import { fileToUpload } from "../../utils/crmFiles";
 
 // Actions that can carry a file: the meeting recap PDF or the PO
@@ -61,7 +61,7 @@ export default function LogForm({ contact, ccOptions = [], category, onLogged })
   const [statusOverride, setStatusOverride] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const isBuyer = contact.role === "Buyer";
+  const isBuyer = TRACKED_ROLES.includes(contact.role);
   const autoStatus = statusAfter(action, contact.status);
   const status = statusOverride ?? autoStatus;
 

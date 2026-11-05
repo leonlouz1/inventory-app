@@ -128,6 +128,11 @@ function CrmCategory({ category }) {
       render: (v, r) => (
         <Space size={4}>
           <a style={{ fontWeight: 500 }}>{v}</a>
+          {r.role === "DMM" && (
+            <Tooltip title="No buyer here for this category yet">
+              <Tag color="gold" style={{ margin: 0, fontSize: 11 }}>DMM</Tag>
+            </Tooltip>
+          )}
           {r.others?.length > 0 && (
             <Tooltip title={r.others.map((o) => o.name).join(", ")}>
               <Tag style={{ margin: 0, fontSize: 11 }}>+{r.others.length}</Tag>

@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { productsApi, ordersApi, restocksApi, warehousesApi, shipmentsApi, crmApi } from "../api/inventory";
+import { TRACKED_ROLES } from "../constants/crm";
 
 function saveWorkbook(wb, filename) {
   const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
@@ -163,7 +164,7 @@ export async function downloadFullExport() {
       Role: c.role || "",
       Title: c.title || "",
       Categories: (c.categories || []).join(", "),
-      Status: c.role === "Buyer" ? c.status : "",
+      Status: TRACKED_ROLES.includes(c.role) ? c.status : "",
       "Next Follow-up": c.nextFollowUp || "",
       Email: c.email || "",
       "Direct #": c.directPhone || "",

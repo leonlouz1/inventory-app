@@ -5,6 +5,8 @@ export const CRM_CATEGORIES = ["Travel", "Bedding", "Pet", "Bath", "Slippers", "
 export const CONTACT_CATEGORIES = [...CRM_CATEGORIES, "Non-buying", "Other"];
 // Picking one of these roles adds the Non-buying category
 export const NON_BUYING_ROLES = ["Accounts Payable", "Logistics"];
+// Roles that carry a status and follow-up (a DMM is worked like a buyer where there is no buyer)
+export const TRACKED_ROLES = ["Buyer", "DMM"];
 export const CONTACT_ROLES = ["Buyer", "DMM", "MA/Assistant", "Accounts Payable", "Logistics", "Other"];
 export const STATUSES = ["Active", "Order Placed", "Warm", "Not Contacted", "No Response", "Not Interested", "No Contact Found", "N/A"];
 export const STATUS_COLORS = {

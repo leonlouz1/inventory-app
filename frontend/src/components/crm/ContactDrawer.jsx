@@ -6,7 +6,7 @@ import {
 import { DeleteOutlined, EditOutlined, FilePdfOutlined, MailOutlined, PaperClipOutlined, PhoneOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
-import { ACTION_COLORS, ACTION_LABELS, LOG_ACTIONS, STATUSES, STATUS_COLORS } from "../../constants/crm";
+import { ACTION_COLORS, ACTION_LABELS, LOG_ACTIONS, STATUSES, STATUS_COLORS, TRACKED_ROLES } from "../../constants/crm";
 import ContactFormModal from "./ContactFormModal";
 import LogForm, { RecapFields } from "./LogForm";
 import { fileToUpload, openCrmAttachment } from "../../utils/crmFiles";
@@ -189,7 +189,7 @@ export default function ContactDrawer({ contactId, category, onClose, onChanged 
               <span><PhoneOutlined style={{ color: "#999", marginRight: 6 }} /><PhoneLinks contact={data} /></span>
             )}
             {data.notes && <Typography.Paragraph type="secondary" style={{ margin: 0 }}>{data.notes}</Typography.Paragraph>}
-            {data.role === "Buyer" && (
+            {TRACKED_ROLES.includes(data.role) && (
               <Space wrap style={{ marginTop: 4 }}>
                 <span>
                   <Typography.Text type="secondary">Status </Typography.Text>

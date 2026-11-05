@@ -37,14 +37,26 @@ function serializeRetailer(r, includeRelations = false) {
   return base;
 }
 
+// Who we work a category through: its buyers, or a DMM when the retailer has no buyer in it.
+// Returns those contacts with `leadCategories` set; everyone else is dropped.
+function withLeadCategories(contacts) {
+  const buyerCats = new Set(contacts.filter((c) => c.role === "Buyer")
+    .flatMap((c) => (c.categories || []).map((cat) => `${c.retailerId}:${cat}`)));
+  return contacts.flatMap((c) => {
+    if (c.role === "Buyer") return [{ ...c, leadCategories: c.categories || [] }];
+    if (c.role !== "DMM") return [];
+    const cats = (c.categories || []).filter((cat) => !buyerCats.has(`${c.retailerId}:${cat}`));
+    return cats.length ? [{ ...c, leadCategories: cats }] : [];
+  });
+}
+
 // Buyers and status per category, worked out from the retailer's contacts.
 // latest(contactId, category), when given, adds each buyer's latest entry.
 function categoriesFromContacts(contacts, latest) {
   const byCat = new Map();
-  for (const c of contacts) {
-    if (c.role !== "Buyer") continue;
-    for (const cat of c.categories || []) {
-      if (cat === "Other") continue;
+  for (const c of withLeadCategories(contacts)) {
+    for (const cat of c.leadCategories) {
+      if (cat === "Other" || cat === "Non-buying") continue;
       if (!byCat.has(cat)) byCat.set(cat, { category: cat, buyers: [] });
       byCat.get(cat).buyers.push({
         id: c.id, name: c.name, status: c.status, nextFollowUp: isoDate(c.nextFollowUp),
@@ -179,7 +191,7 @@ router.get("/retailers", async (req, res) => {
       orderBy: [{ priority: "desc" }, { name: "asc" }],
     });
     // Latest entry per buyer per category, for the grid's Notes columns
-    const buyerIds = retailers.flatMap((r) => r.contacts.filter((c) => c.role === "Buyer").map((c) => c.id));
+    const buyerIds = retailers.flatMap((r) => withLeadCategories(r.contacts).map((c) => c.id));
     const logs = buyerIds.length
       ? await prisma.activityLog.findMany({
         where: { contactId: { in: buyerIds } },
@@ -349,15 +361,15 @@ router.get("/contacts", async (req, res) => {
   }
 });
 
-// GET /api/crm/category/:category — the work list: buyers in that category
+// GET /api/crm/category/:category — the work list: buyers in that category (or the DMM where there's no buyer)
 router.get("/category/:category", async (req, res) => {
   try {
     const { category } = req.params;
-    const contacts = await prisma.crmContact.findMany({
-      where: { role: "Buyer", categories: { has: category } },
+    const contacts = withLeadCategories(await prisma.crmContact.findMany({
+      where: { role: { in: ["Buyer", "DMM"] }, categories: { has: category } },
       include: { retailer: true },
       orderBy: [{ retailer: { name: "asc" } }, { name: "asc" }],
-    });
+    }));
     const latest = await latestActivity(contacts.map((c) => c.id), category);
     res.json(contacts.map((c) => ({
       ...serializeContact(c),
@@ -760,12 +772,12 @@ router.get("/dashboard", async (req, res) => {
     const cutoff = new Date(today);
     cutoff.setDate(cutoff.getDate() - 30);
 
-    const everyone = await prisma.crmContact.findMany({
-      where: { role: "Buyer", retailer: { archived: false } },
+    const everyone = withLeadCategories(await prisma.crmContact.findMany({
+      where: { role: { in: ["Buyer", "DMM"] }, retailer: { archived: false } },
       include: { retailer: true },
-    });
+    }));
     // Buyers parked on every one of their category lists aren't being chased
-    const buyers = everyone.filter((b) => !b.categories.length || b.categories.some((c) => !b.hiddenCategories.includes(c)));
+    const buyers = everyone.filter((b) => !b.leadCategories.length || b.leadCategories.some((c) => !b.hiddenCategories.includes(c)));
     const latest = await latestActivity(buyers.map((b) => b.id));
     const row = (b) => ({ ...serializeContact(b), retailerName: b.retailer.name, lastActivity: latest.get(b.id) || null });
 

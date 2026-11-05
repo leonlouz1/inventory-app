@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DatePicker, Form, Input, Modal, Select, message } from "antd";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
-import { CONTACT_CATEGORIES, CONTACT_ROLES, NON_BUYING_ROLES, STATUSES } from "../../constants/crm";
+import { CONTACT_CATEGORIES, CONTACT_ROLES, NON_BUYING_ROLES, STATUSES, TRACKED_ROLES } from "../../constants/crm";
 
 const NEW_PREFIX = "new:";
 
@@ -109,7 +109,7 @@ export default function ContactFormModal({ open, contact, defaults, onClose, onS
           <Form.Item name="mobilePhone" label="Mobile #" style={{ flex: 1 }}><Input /></Form.Item>
           <Form.Item name="hqPhone" label="HQ #" style={{ flex: 1 }}><Input /></Form.Item>
         </div>
-        {role === "Buyer" && (
+        {TRACKED_ROLES.includes(role) && (
           <div style={{ display: "flex", gap: 12 }}>
             <Form.Item name="status" label="Status" style={{ flex: 1 }}>
               <Select options={STATUSES.map((s) => ({ value: s, label: s }))} />
