@@ -1,21 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Alert, Button, Input, Popconfirm, Space, Table, Tag, Tooltip, Typography, message } from "antd";
+import { Alert, Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography, message } from "antd";
 import { CheckOutlined, CloseOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
-import { STATUS_COLORS } from "../../constants/crm";
+import { CRM_CATEGORIES, STATUS_COLORS } from "../../constants/crm";
 import ContactDrawer, { PhoneLinks } from "../../components/crm/ContactDrawer";
 import PitchModal from "../../components/crm/PitchModal";
 
 // Buyers pitched categories we don't know they buy. When they answer, "Buys it"
-// moves the category onto their real list; "Doesn't buy" drops the pitch.
+// moves the category onto their real list; "Doesn't" asks what they do buy, or
+// "Unsure" leaves them saved at the retailer with no category.
 export default function CrmPitches() {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(false);
+  // { contact, category } while the "doesn't buy" pop-up is open
+  const [notBuying, setNotBuying] = useState(null);
+  const [instead, setInstead] = useState(null);
 
   const load = useCallback(() => crmApi.listPitches()
     .then((r) => { setRows(r); setError(null); })
@@ -29,10 +33,12 @@ export default function CrmPitches() {
       || `${c.name} ${c.retailerName} ${c.email || ""} ${c.pitchedCategories.join(" ")}`.toLowerCase().includes(term));
   }, [rows, search]);
 
-  async function answer(c, category, buys) {
+  async function answer(c, category, buys, buysInstead) {
     try {
-      await crmApi.pitchResult(c.id, category, buys);
-      message.success(buys ? `${c.name} moved to the ${category} list` : `${category} pitch to ${c.name} closed`);
+      await crmApi.pitchResult(c.id, category, buys, buysInstead);
+      const to = buys ? category : buysInstead;
+      message.success(to ? `${c.name} moved to the ${to} list` : `${category} pitch to ${c.name} closed`);
+      setNotBuying(null);
       load();
     } catch (err) {
       message.error(err.message);
@@ -63,9 +69,7 @@ export default function CrmPitches() {
               <Popconfirm title={`${c.name} buys ${cat}?`} description={`Moves them to the ${cat} list.`} okText="Yes, move" onConfirm={() => answer(c, cat, true)}>
                 <Button size="small" icon={<CheckOutlined />} style={{ color: "#389e0d" }}>Buys it</Button>
               </Popconfirm>
-              <Popconfirm title={`${c.name} doesn't buy ${cat}?`} description="Drops this pitch." okText="Yes" onConfirm={() => answer(c, cat, false)}>
-                <Button size="small" icon={<CloseOutlined />} danger>Doesn't</Button>
-              </Popconfirm>
+              <Button size="small" icon={<CloseOutlined />} danger onClick={() => { setInstead(null); setNotBuying({ contact: c, category: cat }); }}>Doesn't</Button>
             </Space>
           ))}
         </Space>
@@ -130,6 +134,36 @@ export default function CrmPitches() {
         onRow={(c) => ({ onClick: () => setOpenId(c.id), style: { cursor: "pointer" } })}
       />
       {openId && <ContactDrawer key={openId} contactId={openId} onClose={() => setOpenId(null)} onChanged={load} />}
+      {notBuying && (
+        <Modal
+          open
+          title={`${notBuying.contact.name} doesn't buy ${notBuying.category}`}
+          onCancel={() => setNotBuying(null)}
+          footer={[
+            <Button key="cancel" onClick={() => setNotBuying(null)}>Cancel</Button>,
+            <Button key="unsure" onClick={() => answer(notBuying.contact, notBuying.category, false)}>Unsure</Button>,
+            <Button key="move" type="primary" disabled={!instead} onClick={() => answer(notBuying.contact, notBuying.category, false, instead)}>
+              {instead ? `Move to ${instead}` : "Move"}
+            </Button>,
+          ]}
+        >
+          <Typography.Paragraph>Which category do they buy?</Typography.Paragraph>
+          <Select
+            autoFocus
+            placeholder="Pick their category"
+            style={{ width: "100%" }}
+            value={instead}
+            onChange={setInstead}
+            options={CRM_CATEGORIES
+              .filter((c) => c !== notBuying.category && !notBuying.contact.categories.includes(c))
+              .map((c) => ({ value: c, label: c }))}
+          />
+          <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
+            Not sure? Click Unsure and they stay saved under {notBuying.contact.retailerName}
+            {notBuying.contact.categories.length ? ` (${notBuying.contact.categories.join(", ")})` : " with no category"}.
+          </Typography.Paragraph>
+        </Modal>
+      )}
       <PitchModal open={adding} onClose={() => setAdding(false)} onSaved={load} />
     </>
   );

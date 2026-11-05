@@ -378,12 +378,15 @@ router.get("/pitches", async (req, res) => {
   }
 });
 
-// POST /api/crm/contacts/:id/pitch-result — { category, buys }
-// buys: move the category to their real categories (its notes page); not: just drop the pitch
+// POST /api/crm/contacts/:id/pitch-result — { category, buys, buysInstead? }
+// buys: move the category to their real categories (its notes page); not: drop the pitch,
+// and when they said what they do buy (buysInstead), move them to that category instead
 router.post("/contacts/:id/pitch-result", async (req, res) => {
   try {
     const { category } = req.body;
     const buys = Boolean(req.body.buys);
+    const instead = !buys && CRM_CATEGORIES.includes(req.body.buysInstead) ? req.body.buysInstead : null;
+    const moveTo = buys ? category : instead;
     const contact = await prisma.crmContact.findUnique({ where: { id: Number(req.params.id) } });
     if (!contact) return res.status(404).json({ message: "Not found" });
     if (!contact.pitchedCategories.includes(category)) return res.status(400).json({ message: `${category} isn't pitched to ${contact.name}` });
@@ -391,16 +394,18 @@ router.post("/contacts/:id/pitch-result", async (req, res) => {
       prisma.crmContact.update({
         where: { id: contact.id },
         data: {
-          pitchedCategories: contact.pitchedCategories.filter((c) => c !== category),
-          ...(buys && { categories: [...new Set([...contact.categories, category])] }),
+          pitchedCategories: contact.pitchedCategories.filter((c) => c !== category && c !== moveTo),
+          ...(moveTo && { categories: [...new Set([...contact.categories, moveTo])] }),
         },
         include: { retailer: true },
       }),
       prisma.activityLog.create({
         data: {
-          retailerId: contact.retailerId, contactId: contact.id, category: buys ? category : null,
+          retailerId: contact.retailerId, contactId: contact.id, category: moveTo,
           rep: req.userName || null, date: new Date(todayNY()), actionTaken: "Pitch Result",
-          notes: buys ? `Buys ${category}: moved to the ${category} list` : `Doesn't buy ${category}`,
+          notes: buys ? `Buys ${category}: moved to the ${category} list`
+            : instead ? `Doesn't buy ${category}; buys ${instead}: moved to the ${instead} list`
+              : `Doesn't buy ${category}`,
         },
       }),
     ]);
