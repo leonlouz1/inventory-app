@@ -385,7 +385,7 @@ router.post("/contacts/:id/pitch-result", async (req, res) => {
   try {
     const { category } = req.body;
     const buys = Boolean(req.body.buys);
-    const instead = !buys && CRM_CATEGORIES.includes(req.body.buysInstead) ? req.body.buysInstead : null;
+    const instead = !buys && [...CRM_CATEGORIES, "Other"].includes(req.body.buysInstead) ? req.body.buysInstead : null;
     const moveTo = buys ? category : instead;
     const contact = await prisma.crmContact.findUnique({ where: { id: Number(req.params.id) } });
     if (!contact) return res.status(404).json({ message: "Not found" });
@@ -404,6 +404,7 @@ router.post("/contacts/:id/pitch-result", async (req, res) => {
           retailerId: contact.retailerId, contactId: contact.id, category: moveTo,
           rep: req.userName || null, date: new Date(todayNY()), actionTaken: "Pitch Result",
           notes: buys ? `Buys ${category}: moved to the ${category} list`
+            : instead === "Other" ? `Doesn't buy ${category}; buys something else (Other)`
             : instead ? `Doesn't buy ${category}; buys ${instead}: moved to the ${instead} list`
               : `Doesn't buy ${category}`,
         },

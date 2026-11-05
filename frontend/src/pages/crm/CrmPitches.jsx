@@ -37,7 +37,8 @@ export default function CrmPitches() {
     try {
       await crmApi.pitchResult(c.id, category, buys, buysInstead);
       const to = buys ? category : buysInstead;
-      message.success(to ? `${c.name} moved to the ${to} list` : `${category} pitch to ${c.name} closed`);
+      message.success(to === "Other" ? `${c.name} saved as Other`
+        : to ? `${c.name} moved to the ${to} list` : `${category} pitch to ${c.name} closed`);
       setNotBuying(null);
       load();
     } catch (err) {
@@ -154,7 +155,7 @@ export default function CrmPitches() {
             style={{ width: "100%" }}
             value={instead}
             onChange={setInstead}
-            options={CRM_CATEGORIES
+            options={[...CRM_CATEGORIES, "Other"]
               .filter((c) => c !== notBuying.category && !notBuying.contact.categories.includes(c))
               .map((c) => ({ value: c, label: c }))}
           />
