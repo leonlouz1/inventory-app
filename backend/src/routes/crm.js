@@ -5,7 +5,7 @@ const router = Router();
 const prisma = new PrismaClient();
 
 const {
-  CONTACT_CATEGORIES, CONTACT_ROLES, STATUSES, LOG_ACTIONS, ALL_ACTIONS, statusAfter,
+  CRM_CATEGORIES, CONTACT_CATEGORIES, CONTACT_ROLES, STATUSES, LOG_ACTIONS, ALL_ACTIONS, statusAfter,
 } = require("../constants/crm");
 const { importRows } = require("../services/crmImport");
 const { todayNY } = require("../services/reminders");
@@ -84,6 +84,7 @@ function serializeContact(c) {
     categories: c.categories || [],
     hiddenCategories: c.hiddenCategories || [],
     activeCategories: c.activeCategories || [],
+    pitchedCategories: c.pitchedCategories || [],
     status: c.status,
     nextFollowUp: isoDate(c.nextFollowUp),
     email: c.email,
@@ -326,7 +327,7 @@ router.delete("/retailers/:id", async (req, res) => {
 // ─── CONTACTS ────────────────────────────────────────────────────────────────
 
 function contactData(body) {
-  const { name, title, email, directPhone, mobilePhone, hqPhone, notes, role, categories, status, nextFollowUp } = body;
+  const { name, title, email, directPhone, mobilePhone, hqPhone, notes, role, categories, pitchedCategories, status, nextFollowUp } = body;
   return {
     ...(name !== undefined && { name: String(name).trim() }),
     ...(title !== undefined && { title: title || null }),
@@ -337,6 +338,7 @@ function contactData(body) {
     ...(notes !== undefined && { notes: notes || null }),
     ...(role !== undefined && CONTACT_ROLES.includes(role) && { role }),
     ...(categories !== undefined && { categories: cleanList(categories, CONTACT_CATEGORIES) }),
+    ...(pitchedCategories !== undefined && { pitchedCategories: cleanList(pitchedCategories, CRM_CATEGORIES) }),
     ...(status !== undefined && STATUSES.includes(status) && { status }),
     ...(nextFollowUp !== undefined && { nextFollowUp: nextFollowUp ? new Date(nextFollowUp) : null }),
   };
@@ -356,6 +358,53 @@ router.get("/contacts", async (req, res) => {
     });
     const latest = await latestActivity(contacts.map((c) => c.id));
     res.json(contacts.map((c) => ({ ...serializeContact(c), lastActivity: latest.get(c.id) || null })));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/crm/pitches — people pitched a category they haven't confirmed they buy
+router.get("/pitches", async (req, res) => {
+  try {
+    const contacts = await prisma.crmContact.findMany({
+      where: { NOT: { pitchedCategories: { isEmpty: true } } },
+      include: { retailer: true },
+      orderBy: [{ retailer: { name: "asc" } }, { name: "asc" }],
+    });
+    const latest = await latestActivity(contacts.map((c) => c.id));
+    res.json(contacts.map((c) => ({ ...serializeContact(c), lastActivity: latest.get(c.id) || null })));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/crm/contacts/:id/pitch-result — { category, buys }
+// buys: move the category to their real categories (its notes page); not: just drop the pitch
+router.post("/contacts/:id/pitch-result", async (req, res) => {
+  try {
+    const { category } = req.body;
+    const buys = Boolean(req.body.buys);
+    const contact = await prisma.crmContact.findUnique({ where: { id: Number(req.params.id) } });
+    if (!contact) return res.status(404).json({ message: "Not found" });
+    if (!contact.pitchedCategories.includes(category)) return res.status(400).json({ message: `${category} isn't pitched to ${contact.name}` });
+    const [updated] = await prisma.$transaction([
+      prisma.crmContact.update({
+        where: { id: contact.id },
+        data: {
+          pitchedCategories: contact.pitchedCategories.filter((c) => c !== category),
+          ...(buys && { categories: [...new Set([...contact.categories, category])] }),
+        },
+        include: { retailer: true },
+      }),
+      prisma.activityLog.create({
+        data: {
+          retailerId: contact.retailerId, contactId: contact.id, category: buys ? category : null,
+          rep: req.userName || null, date: new Date(todayNY()), actionTaken: "Pitch Result",
+          notes: buys ? `Buys ${category}: moved to the ${category} list` : `Doesn't buy ${category}`,
+        },
+      }),
+    ]);
+    res.json(serializeContact(updated));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -524,8 +573,10 @@ router.post("/log", async (req, res) => {
     }
 
     await prisma.$transaction(contacts.flatMap((c) => {
-      // Bulk logs without a category use the person's only category, if they have one
-      const cat = category && c.categories.includes(category) ? category
+      // Bulk logs without a category use the person's only category, if they have one.
+      // A pitch isn't for any of their confirmed categories.
+      const cat = req.body.pitch ? null
+        : category && c.categories.includes(category) ? category
         : c.categories.filter((x) => x !== "Other").length === 1 ? c.categories.find((x) => x !== "Other") : null;
       return [
         prisma.activityLog.create({

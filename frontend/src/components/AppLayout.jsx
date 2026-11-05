@@ -22,6 +22,7 @@ import {
   BellOutlined,
   TagOutlined,
   ShopOutlined,
+  SendOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useRole, DESIGNER_PATHS } from "../hooks/useRole";
@@ -43,6 +44,7 @@ const NAV_ITEMS = [
       { key: "/crm", label: "Dashboard", icon: <BarChartOutlined /> },
       { key: "/crm/accounts", label: "Retailers", icon: <ShopOutlined /> },
       { key: "/crm/contacts", label: "Contacts", icon: <TeamOutlined /> },
+      { key: "/crm/pitches", label: "Pitches", icon: <SendOutlined /> },
       ...CRM_CATEGORIES.map((c) => ({ key: `/crm/category/${c}`, label: c, icon: <TagOutlined /> })),
     ],
   },

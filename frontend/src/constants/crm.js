@@ -15,7 +15,7 @@ export const STATUS_COLORS = {
 };
 export const LOG_ACTIONS = ["Called", "Emailed", "Sent Sample", "Meeting", "PO Received"];
 export const ACTION_COLORS = {
-  Called: "blue", Emailed: "geekblue", "Sent Sample": "orange", Meeting: "purple", "PO Received": "green", Note: "default",
+  Called: "blue", Emailed: "geekblue", "Sent Sample": "orange", Meeting: "purple", "PO Received": "green", Note: "default", "Pitch Result": "cyan",
 };
 // "Note" entries came from the old spreadsheet's Notes column
 export const ACTION_LABELS = { Note: "From sheet" };

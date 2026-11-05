@@ -15,6 +15,7 @@ import CrmAccounts from "./pages/crm/CrmAccounts";
 import CrmAccountDetail from "./pages/crm/CrmAccountDetail";
 import CrmContacts from "./pages/crm/CrmContacts";
 import CrmCategory from "./pages/crm/CrmCategory";
+import CrmPitches from "./pages/crm/CrmPitches";
 import SkuGroups from "./pages/SkuGroups";
 import Catalog from "./pages/Catalog";
 import Billing from "./pages/Billing";
@@ -63,6 +64,7 @@ function AppRoutes() {
         <Route path="/crm/accounts/:id" element={<CrmAccountDetail />} />
         <Route path="/crm/contacts" element={<CrmContacts />} />
         <Route path="/crm/category/:category" element={<CrmCategory />} />
+        <Route path="/crm/pitches" element={<CrmPitches />} />
         <Route path="/timeline" element={<Timeline />} />
         <Route path="/restocks" element={<Restocks />} />
         <Route path="/products" element={<Products />} />

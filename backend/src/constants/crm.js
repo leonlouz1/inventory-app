@@ -6,8 +6,9 @@ const CONTACT_CATEGORIES = [...CRM_CATEGORIES, "Non-buying", "Other"];
 const CONTACT_ROLES = ["Buyer", "DMM", "MA/Assistant", "Accounts Payable", "Logistics", "Other"];
 const STATUSES = ["Active", "Order Placed", "Warm", "Not Contacted", "No Response", "Not Interested", "No Contact Found", "N/A"];
 const LOG_ACTIONS = ["Called", "Emailed", "Sent Sample", "Meeting", "PO Received"];
-// "Note" is only written by the spreadsheet import (the old Notes cell)
-const ALL_ACTIONS = [...LOG_ACTIONS, "Note"];
+// "Note" is only written by the spreadsheet import (the old Notes cell);
+// "Pitch Result" when a pitched buyer says they do or don't buy a category
+const ALL_ACTIONS = [...LOG_ACTIONS, "Note", "Pitch Result"];
 
 // Days until the next follow-up when an action is logged (null = clear it)
 const FOLLOW_UP_DAYS = { Called: 3, Emailed: 3, "Sent Sample": 7, Meeting: 7, "PO Received": null };

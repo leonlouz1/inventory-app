@@ -180,6 +180,7 @@ export default function ContactDrawer({ contactId, category, onClose, onChanged 
           <Space direction="vertical" size={6} style={{ width: "100%" }}>
             <Space size={4} wrap>
               {data.categories.map((c) => <Tag key={c} color="blue">{c}</Tag>)}
+              {(data.pitchedCategories || []).map((c) => <Tag key={`p-${c}`} color="cyan">Pitched {c}</Tag>)}
               {data.title && <Typography.Text type="secondary">{data.title}</Typography.Text>}
             </Space>
             {data.email && (
