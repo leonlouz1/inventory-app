@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Button, DatePicker, Divider, Drawer, Empty, Input, Modal, Popconfirm, Select, Space, Spin, Tag, Timeline, Typography, message,
+  Button, DatePicker, Divider, Drawer, Empty, Input, Modal, Popconfirm, Popover, Select, Space, Spin, Tag, Timeline, Typography, message,
 } from "antd";
-import { DeleteOutlined, EditOutlined, FilePdfOutlined, MailOutlined, PaperClipOutlined, PhoneOutlined } from "@ant-design/icons";
+import { CheckOutlined, DeleteOutlined, EditOutlined, FilePdfOutlined, MailOutlined, PaperClipOutlined, PhoneOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
 import { ACTION_COLORS, ACTION_LABELS, LOG_ACTIONS, STATUSES, STATUS_COLORS, TRACKED_ROLES } from "../../constants/crm";
@@ -105,6 +105,71 @@ function EditEntryModal({ entry, onClose, onSaved }) {
   );
 }
 
+// "Add to call list" in the panel header; once on the list, shows that and lets you take them off
+function CallListButton({ contact, category, onChanged }) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function add() {
+    setSaving(true);
+    try {
+      await crmApi.addToCallList(contact.id, { category: category || contact.categories[0], note });
+      message.success(`${contact.name} added to the call list`);
+      setOpen(false);
+      setNote("");
+      onChanged();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (contact.callListAt) {
+    return (
+      <Popconfirm
+        title={`Take ${contact.name} off the call list?`}
+        okText="Remove"
+        onConfirm={async () => {
+          try {
+            await crmApi.removeFromCallList(contact.id);
+            onChanged();
+          } catch (err) {
+            message.error(err.message);
+          }
+        }}
+      >
+        <Button size="small" icon={<CheckOutlined />} style={{ color: "#389e0d", borderColor: "#b7eb8f" }}>On call list</Button>
+      </Popconfirm>
+    );
+  }
+  return (
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      trigger="click"
+      placement="bottomRight"
+      title="Add to call list"
+      content={(
+        <Space direction="vertical" style={{ width: 260 }}>
+          <Input.TextArea
+            autoFocus
+            rows={2}
+            maxLength={300}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Why call? e.g. follow up on ATS (optional)"
+          />
+          <Button type="primary" block loading={saving} onClick={add}>Add</Button>
+        </Space>
+      )}
+    >
+      <Button size="small" icon={<PhoneOutlined />}>Add to call list</Button>
+    </Popover>
+  );
+}
+
 // Side panel for one person: details, team and the full history chain.
 // `category` is the work list it was opened from, used to tag new entries.
 export default function ContactDrawer({ contactId, category, onClose, onChanged }) {
@@ -158,6 +223,7 @@ export default function ContactDrawer({ contactId, category, onClose, onChanged 
       ) : "Loading…"}
       extra={loaded && (
         <Space>
+          <CallListButton contact={data} category={category} onChanged={changed} />
           <Button size="small" icon={<EditOutlined />} onClick={() => setEditing(true)}>Edit</Button>
           <Popconfirm
             title={`Delete ${data.name}?`}

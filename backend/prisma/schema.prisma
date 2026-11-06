@@ -241,6 +241,10 @@ model CrmContact {
   hiddenCategories String[]  @default([]) @map("hidden_categories") // parked on these category work lists
   activeCategories String[]  @default([]) @map("active_categories") // in the Active accounts section of these work lists
   pitchedCategories String[] @default([]) @map("pitched_categories") // pitched, not yet confirmed they buy it (Pitches page)
+  // On the Call List (cold calling) since this time; cleared when a call is logged
+  callListAt       DateTime? @map("call_list_at") @db.Timestamptz
+  callListCategory String?   @map("call_list_category") @db.VarChar(50)
+  callListNote     String?   @map("call_list_note") @db.VarChar(300)
   role             String    @default("Buyer") @db.VarChar(50)
   status           String    @default("Not Contacted") @db.VarChar(50)
   nextFollowUp     DateTime? @map("next_follow_up") @db.Date

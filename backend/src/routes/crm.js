@@ -85,6 +85,9 @@ function serializeContact(c) {
     hiddenCategories: c.hiddenCategories || [],
     activeCategories: c.activeCategories || [],
     pitchedCategories: c.pitchedCategories || [],
+    callListAt: c.callListAt ? c.callListAt.toISOString() : null,
+    callListCategory: c.callListCategory ?? null,
+    callListNote: c.callListNote ?? null,
     status: c.status,
     nextFollowUp: isoDate(c.nextFollowUp),
     email: c.email,
@@ -416,6 +419,54 @@ router.post("/contacts/:id/pitch-result", async (req, res) => {
   }
 });
 
+// GET /api/crm/call-list — people queued for cold calling
+router.get("/call-list", async (req, res) => {
+  try {
+    const contacts = await prisma.crmContact.findMany({
+      where: { callListAt: { not: null } },
+      include: { retailer: true },
+      orderBy: { callListAt: "asc" },
+    });
+    const latest = await latestActivity(contacts.map((c) => c.id));
+    res.json(contacts.map((c) => ({ ...serializeContact(c), lastActivity: latest.get(c.id) || null })));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/crm/contacts/:id/call-list — { category, note }: put them on the Call List
+router.post("/contacts/:id/call-list", async (req, res) => {
+  try {
+    const { category, note } = req.body;
+    const contact = await prisma.crmContact.update({
+      where: { id: Number(req.params.id) },
+      data: {
+        callListAt: new Date(),
+        callListCategory: CONTACT_CATEGORIES.includes(category) ? category : null,
+        callListNote: note ? String(note).trim().slice(0, 300) || null : null,
+      },
+      include: { retailer: true },
+    });
+    res.json(serializeContact(contact));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/crm/contacts/:id/call-list — take them off the Call List
+router.delete("/contacts/:id/call-list", async (req, res) => {
+  try {
+    const contact = await prisma.crmContact.update({
+      where: { id: Number(req.params.id) },
+      data: { callListAt: null, callListCategory: null, callListNote: null },
+      include: { retailer: true },
+    });
+    res.json(serializeContact(contact));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET /api/crm/category/:category — the work list: buyers in that category (or the DMM where there's no buyer)
 router.get("/category/:category", async (req, res) => {
   try {
@@ -596,6 +647,8 @@ router.post("/log", async (req, res) => {
           where: { id: c.id },
           data: {
             status: status || statusAfter(action, c.status),
+            // A logged call takes them off the Call List, unless asked to keep them (e.g. no answer)
+            ...(action === "Called" && !req.body.keepOnCallList && { callListAt: null, callListCategory: null, callListNote: null }),
             ...(req.body.nextFollowUp !== undefined && {
               nextFollowUp: req.body.nextFollowUp ? new Date(req.body.nextFollowUp) : null,
             }),

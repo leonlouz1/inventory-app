@@ -266,6 +266,9 @@ async function runStartupMigrations() {
     await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "hidden_categories" TEXT[] NOT NULL DEFAULT '{}'`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "active_categories" TEXT[] NOT NULL DEFAULT '{}'`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "pitched_categories" TEXT[] NOT NULL DEFAULT '{}'`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "call_list_at" TIMESTAMPTZ`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "call_list_category" VARCHAR(50)`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "crm_contacts" ADD COLUMN IF NOT EXISTS "call_list_note" VARCHAR(300)`);
     await prisma.$executeRawUnsafe(`UPDATE "crm_contacts" SET "categories" = ARRAY["category"] WHERE "category" IS NOT NULL AND "categories" = '{}'`);
     // One-time: tag existing AP/Logistics contacts Non-buying (skipped once anyone has it, so removals stick)
     await prisma.$executeRawUnsafe(`UPDATE "crm_contacts" SET "categories" = array_append("categories", 'Non-buying')
