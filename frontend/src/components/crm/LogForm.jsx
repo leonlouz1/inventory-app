@@ -3,7 +3,7 @@ import { Button, DatePicker, Input, Radio, Select, Space, Tag, Typography, Uploa
 import { FilePdfOutlined, SnippetsOutlined, UploadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
-import { FORM_ACTIONS, STATUSES, TRACKED_ROLES, defaultFollowUp, statusAfter } from "../../constants/crm";
+import { CRM_CATEGORIES, FORM_ACTIONS, STATUSES, TRACKED_ROLES, defaultFollowUp, statusAfter } from "../../constants/crm";
 import { fileToUpload } from "../../utils/crmFiles";
 import MeetingFields from "./MeetingFields";
 import { blankMeeting, meetingPayload, useTeamNames } from "../../utils/crmMeetings";
@@ -65,6 +65,10 @@ export default function LogForm({ contact, ccOptions = [], category, onLogged })
   const [meeting, setMeeting] = useState(blankMeeting);
   const teamNames = useTeamNames();
   const booking = action === "Meeting Scheduled";
+  // What the meeting is about: the list it was opened from, else the buyer's first category
+  const [meetingCategory, setMeetingCategory] = useState(
+    category || contact.categories?.find((c) => CRM_CATEGORIES.includes(c)) || null,
+  );
 
   const isBuyer = TRACKED_ROLES.includes(contact.role);
   const autoStatus = statusAfter(action, contact.status);
@@ -82,7 +86,7 @@ export default function LogForm({ contact, ccOptions = [], category, onLogged })
       if (booking) {
         await crmApi.createMeeting({
           contactId: contact.id,
-          category,
+          category: meetingCategory,
           ...meetingPayload(meeting),
           notes: note,
           ...(isBuyer && { status }),
@@ -128,6 +132,20 @@ export default function LogForm({ contact, ccOptions = [], category, onLogged })
         options={FORM_ACTIONS.map((a) => ({ value: a, label: a }))}
         style={{ marginBottom: 8, flexWrap: "wrap", display: "flex", rowGap: 4 }}
       />
+      {booking && (
+        <div style={{ marginBottom: 8 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 2 }}>Category</Typography.Text>
+          <Select
+            size="small"
+            value={meetingCategory}
+            onChange={setMeetingCategory}
+            options={CRM_CATEGORIES.map((c) => ({ value: c, label: c }))}
+            placeholder="Which category is it about?"
+            allowClear
+            style={{ width: 240 }}
+          />
+        </div>
+      )}
       {booking && (
         <MeetingFields
           value={meeting}

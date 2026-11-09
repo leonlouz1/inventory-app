@@ -519,7 +519,8 @@ async function serializeMeetings(meetings) {
     contactId: m.contactId,
     contactName: m.contact?.name ?? null,
     contactRole: m.contact?.role ?? null,
-    category: m.category,
+    // Older meetings booked without a category fall back to the buyer's categories
+    category: m.category || (m.contact?.categories || []).filter((c) => CRM_CATEGORIES.includes(c)).join(", ") || null,
     startsAt: m.startsAt.toISOString(),
     locationType: m.locationType,
     address: m.address,
@@ -534,7 +535,7 @@ async function serializeMeetings(meetings) {
   }));
 }
 
-const MEETING_INCLUDE = { retailer: { select: { name: true } }, contact: { select: { name: true, role: true } } };
+const MEETING_INCLUDE = { retailer: { select: { name: true } }, contact: { select: { name: true, role: true, categories: true } } };
 
 // GET /api/crm/meetings — every meeting, oldest first
 router.get("/meetings", async (req, res) => {
