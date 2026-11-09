@@ -47,6 +47,7 @@ const NAV_ITEMS = [
       { key: "/crm/contacts", label: "Contacts", icon: <TeamOutlined /> },
       { key: "/crm/pitches", label: "Pitches", icon: <SendOutlined /> },
       { key: "/crm/call-list", label: "Call List", icon: <PhoneOutlined /> },
+      { key: "/crm/meetings", label: "Meetings", icon: <CalendarOutlined /> },
       ...CRM_CATEGORIES.map((c) => ({ key: `/crm/category/${c}`, label: c, icon: <TagOutlined /> })),
     ],
   },

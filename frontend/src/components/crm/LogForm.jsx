@@ -3,8 +3,10 @@ import { Button, DatePicker, Input, Radio, Select, Space, Tag, Typography, Uploa
 import { FilePdfOutlined, SnippetsOutlined, UploadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { crmApi } from "../../api/inventory";
-import { LOG_ACTIONS, STATUSES, TRACKED_ROLES, defaultFollowUp, statusAfter } from "../../constants/crm";
+import { FORM_ACTIONS, STATUSES, TRACKED_ROLES, defaultFollowUp, statusAfter } from "../../constants/crm";
 import { fileToUpload } from "../../utils/crmFiles";
+import MeetingFields from "./MeetingFields";
+import { blankMeeting, meetingPayload, useTeamNames } from "../../utils/crmMeetings";
 
 // Actions that can carry a file: the meeting recap PDF or the PO
 const FILE_ACTIONS = ["Meeting", "PO Received"];
@@ -60,6 +62,9 @@ export default function LogForm({ contact, ccOptions = [], category, onLogged })
   // null = follow the automatic rule for the chosen action
   const [statusOverride, setStatusOverride] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [meeting, setMeeting] = useState(blankMeeting);
+  const teamNames = useTeamNames();
+  const booking = action === "Meeting Scheduled";
 
   const isBuyer = TRACKED_ROLES.includes(contact.role);
   const autoStatus = statusAfter(action, contact.status);
@@ -74,6 +79,20 @@ export default function LogForm({ contact, ccOptions = [], category, onLogged })
   async function save() {
     setSaving(true);
     try {
+      if (booking) {
+        await crmApi.createMeeting({
+          contactId: contact.id,
+          category,
+          ...meetingPayload(meeting),
+          notes: note,
+          ...(isBuyer && { status }),
+        });
+        message.success(`Meeting booked for ${meeting.startsAt.format("ddd MMM D, h:mm A")}`);
+        setNote("");
+        setMeeting(blankMeeting());
+        onLogged?.();
+        return;
+      }
       await crmApi.log({
         contactIds: [contact.id],
         ccContactIds: cc,
@@ -106,19 +125,28 @@ export default function LogForm({ contact, ccOptions = [], category, onLogged })
         buttonStyle="solid"
         value={action}
         onChange={(e) => pickAction(e.target.value)}
-        options={LOG_ACTIONS.map((a) => ({ value: a, label: a }))}
+        options={FORM_ACTIONS.map((a) => ({ value: a, label: a }))}
         style={{ marginBottom: 8, flexWrap: "wrap", display: "flex", rowGap: 4 }}
       />
+      {booking && (
+        <MeetingFields
+          value={meeting}
+          onChange={setMeeting}
+          attendeeOptions={ccOptions}
+          teamNames={teamNames}
+          retailerAddress={contact.retailerAddress}
+        />
+      )}
       <Input.TextArea
         rows={2}
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        placeholder="What happened? e.g. Sent ATS, sent updated pricing, left voicemail"
+        placeholder={booking ? "What's it about? Samples to bring, who asked for it…" : "What happened? e.g. Sent ATS, sent updated pricing, left voicemail"}
         style={{ marginBottom: 8 }}
       />
       {action === "Meeting" && <RecapFields recap={recap} onRecap={setRecap} file={recapFile} onFile={setRecapFile} />}
       {action === "PO Received" && <RecapFields withText={false} fileLabel="PO PDF" file={recapFile} onFile={setRecapFile} />}
-      {ccOptions.length > 0 && (
+      {!booking && ccOptions.length > 0 && (
         <Select
           mode="multiple"
           size="small"
@@ -131,16 +159,20 @@ export default function LogForm({ contact, ccOptions = [], category, onLogged })
         />
       )}
       <Space wrap size={[12, 6]} style={{ width: "100%" }}>
-        <span>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>Date </Typography.Text>
-          <DatePicker size="small" allowClear={false} value={date} onChange={setDate} style={{ width: 120 }} />
-        </span>
+        {!booking && (
+          <span>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>Date </Typography.Text>
+            <DatePicker size="small" allowClear={false} value={date} onChange={setDate} style={{ width: 120 }} />
+          </span>
+        )}
         {isBuyer && (
           <>
-            <span>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>Follow up </Typography.Text>
-              <DatePicker size="small" value={followUp} onChange={setFollowUp} placeholder="None" style={{ width: 120 }} />
-            </span>
+            {!booking && (
+              <span>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>Follow up </Typography.Text>
+                <DatePicker size="small" value={followUp} onChange={setFollowUp} placeholder="None" style={{ width: 120 }} />
+              </span>
+            )}
             <span>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>Status </Typography.Text>
               <Select
@@ -153,7 +185,7 @@ export default function LogForm({ contact, ccOptions = [], category, onLogged })
             </span>
           </>
         )}
-        <Button type="primary" size="small" loading={saving} onClick={save}>Log it</Button>
+        <Button type="primary" size="small" loading={saving} onClick={save}>{booking ? "Book meeting" : "Log it"}</Button>
       </Space>
     </div>
   );

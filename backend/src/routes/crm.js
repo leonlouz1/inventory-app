@@ -5,7 +5,7 @@ const router = Router();
 const prisma = new PrismaClient();
 
 const {
-  CRM_CATEGORIES, CONTACT_CATEGORIES, CONTACT_ROLES, STATUSES, LOG_ACTIONS, ALL_ACTIONS, statusAfter,
+  CRM_CATEGORIES, CONTACT_CATEGORIES, CONTACT_ROLES, STATUSES, LOG_ACTIONS, ALL_ACTIONS, MEETING_LOCATIONS, statusAfter,
 } = require("../constants/crm");
 const { importRows } = require("../services/crmImport");
 const { todayNY } = require("../services/reminders");
@@ -467,6 +467,188 @@ router.delete("/contacts/:id/call-list", async (req, res) => {
   }
 });
 
+// ─── MEETINGS ────────────────────────────────────────────────────────────────
+
+const TZ = "America/New_York";
+function meetingWhen(d) {
+  return new Date(d).toLocaleString("en-US", {
+    timeZone: TZ, weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+  });
+}
+// The meeting's day in New York, as a DATE (for follow-up)
+function meetingDay(d) {
+  return new Date(new Date(d).toLocaleDateString("en-CA", { timeZone: TZ }));
+}
+function meetingSummary(m, prefix = "Meeting") {
+  const where = m.locationType === "Buyer's office" && m.address ? `${m.locationType} (${m.address})` : m.locationType;
+  return `${prefix} ${meetingWhen(m.startsAt)} · ${where}`;
+}
+
+function meetingData(body) {
+  const out = {};
+  if (body.startsAt !== undefined) {
+    const d = new Date(body.startsAt);
+    if (Number.isNaN(d.getTime())) throw Object.assign(new Error("Bad date/time"), { status: 400 });
+    out.startsAt = d;
+  }
+  if (body.locationType !== undefined) {
+    if (!MEETING_LOCATIONS.includes(body.locationType)) throw Object.assign(new Error("Pick where the meeting is"), { status: 400 });
+    out.locationType = body.locationType;
+  }
+  if (body.address !== undefined) out.address = body.address ? String(body.address).trim().slice(0, 300) || null : null;
+  if (body.link !== undefined) out.link = body.link ? String(body.link).trim().slice(0, 500) || null : null;
+  if (body.attendeeIds !== undefined) out.attendeeIds = [...new Set((body.attendeeIds || []).map(Number))].filter(Boolean);
+  if (body.ourAttendees !== undefined) {
+    out.ourAttendees = [...new Set((body.ourAttendees || []).map((n) => String(n).trim()).filter(Boolean))];
+  }
+  if (body.notes !== undefined) out.notes = body.notes ? String(body.notes).trim() || null : null;
+  if (body.category !== undefined) out.category = CONTACT_CATEGORIES.includes(body.category) ? body.category : null;
+  return out;
+}
+
+async function serializeMeetings(meetings) {
+  const ids = [...new Set(meetings.flatMap((m) => m.attendeeIds))];
+  const people = ids.length
+    ? await prisma.crmContact.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, role: true } })
+    : [];
+  const byId = new Map(people.map((p) => [p.id, p]));
+  return meetings.map((m) => ({
+    id: m.id,
+    retailerId: m.retailerId,
+    retailerName: m.retailer?.name ?? null,
+    contactId: m.contactId,
+    contactName: m.contact?.name ?? null,
+    contactRole: m.contact?.role ?? null,
+    category: m.category,
+    startsAt: m.startsAt.toISOString(),
+    locationType: m.locationType,
+    address: m.address,
+    link: m.link,
+    attendees: m.attendeeIds.map((id) => byId.get(id)).filter(Boolean),
+    ourAttendees: m.ourAttendees,
+    notes: m.notes,
+    status: m.status,
+    scheduledLogId: m.scheduledLogId,
+    recapLogId: m.recapLogId,
+    rep: m.rep,
+  }));
+}
+
+const MEETING_INCLUDE = { retailer: { select: { name: true } }, contact: { select: { name: true, role: true } } };
+
+// GET /api/crm/meetings — every meeting, oldest first
+router.get("/meetings", async (req, res) => {
+  try {
+    const meetings = await prisma.crmMeeting.findMany({ include: MEETING_INCLUDE, orderBy: { startsAt: "asc" } });
+    res.json(await serializeMeetings(meetings));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/crm/meetings/team-names — names used before on our side, for suggestions
+router.get("/meetings/team-names", async (req, res) => {
+  try {
+    const rows = await prisma.crmMeeting.findMany({ select: { ourAttendees: true } });
+    const names = new Set(rows.flatMap((r) => r.ourAttendees));
+    if (req.userName) names.add(req.userName);
+    res.json([...names].sort((a, b) => a.localeCompare(b)));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/crm/meetings — schedule one: { contactId, startsAt, locationType, address, link,
+// attendeeIds, ourAttendees, notes, category, status? }. Logs "Meeting Scheduled" on the
+// buyer's history (their other attendees see it too) and sets their follow-up to the meeting day.
+router.post("/meetings", async (req, res) => {
+  try {
+    const contact = await prisma.crmContact.findUnique({ where: { id: Number(req.body.contactId) } });
+    if (!contact) return res.status(404).json({ message: "Contact not found" });
+    const data = meetingData(req.body);
+    if (!data.startsAt || !data.locationType) return res.status(400).json({ message: "Date/time and location are required" });
+    data.attendeeIds = (data.attendeeIds || []).filter((id) => id !== contact.id);
+    const { status } = req.body;
+    if (status && !STATUSES.includes(status)) return res.status(400).json({ message: "Unknown status" });
+
+    const meeting = await prisma.$transaction(async (tx) => {
+      const log = await tx.activityLog.create({
+        data: {
+          retailerId: contact.retailerId, contactId: contact.id, ccContactIds: data.attendeeIds, category: data.category ?? null,
+          rep: req.userName || null, date: new Date(todayNY()), actionTaken: "Meeting Scheduled",
+          notes: [meetingSummary(data), data.notes].filter(Boolean).join("\n"),
+        },
+      });
+      await tx.crmContact.update({
+        where: { id: contact.id },
+        data: { status: status || statusAfter("Meeting Scheduled", contact.status), nextFollowUp: meetingDay(data.startsAt) },
+      });
+      return tx.crmMeeting.create({
+        data: { ...data, retailerId: contact.retailerId, contactId: contact.id, scheduledLogId: log.id, rep: req.userName || null },
+        include: MEETING_INCLUDE,
+      });
+    });
+    res.status(201).json((await serializeMeetings([meeting]))[0]);
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
+  }
+});
+
+// PUT /api/crm/meetings/:id — edit, reschedule ({ startsAt }) or cancel ({ status: "Cancelled" }).
+// Rescheduling and cancelling add an entry to the buyer's history.
+router.put("/meetings/:id", async (req, res) => {
+  try {
+    const before = await prisma.crmMeeting.findUnique({ where: { id: Number(req.params.id) } });
+    if (!before) return res.status(404).json({ message: "Not found" });
+    const data = meetingData(req.body);
+    if (data.attendeeIds) data.attendeeIds = data.attendeeIds.filter((id) => id !== before.contactId);
+    if (req.body.status !== undefined) {
+      if (!["Scheduled", "Done", "Cancelled"].includes(req.body.status)) return res.status(400).json({ message: "Unknown meeting status" });
+      data.status = req.body.status;
+    }
+    const after = { ...before, ...data };
+    const moved = data.startsAt && data.startsAt.getTime() !== before.startsAt.getTime();
+    const cancelled = data.status === "Cancelled" && before.status !== "Cancelled";
+    const note = cancelled ? `Cancelled: ${meetingSummary(before)}`
+      : moved ? meetingSummary(after, before.status === "Cancelled" ? "Rebooked:" : "Rescheduled to")
+      : null;
+
+    const meeting = await prisma.$transaction(async (tx) => {
+      if (moved && before.status === "Cancelled" && !data.status) after.status = data.status = "Scheduled";
+      if (note) {
+        await tx.activityLog.create({
+          data: {
+            retailerId: before.retailerId, contactId: before.contactId, ccContactIds: after.attendeeIds, category: after.category,
+            rep: req.userName || null, date: new Date(todayNY()), actionTaken: "Meeting Scheduled", notes: note,
+          },
+        });
+      }
+      if (moved && after.status === "Scheduled") {
+        await tx.crmContact.update({ where: { id: before.contactId }, data: { nextFollowUp: meetingDay(after.startsAt) } });
+      }
+      return tx.crmMeeting.update({ where: { id: before.id }, data, include: MEETING_INCLUDE });
+    });
+    res.json((await serializeMeetings([meeting]))[0]);
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/crm/meetings/:id — remove one booked by mistake, with its "Meeting Scheduled" entry
+router.delete("/meetings/:id", async (req, res) => {
+  try {
+    const m = await prisma.crmMeeting.findUnique({ where: { id: Number(req.params.id) } });
+    if (!m) return res.status(404).json({ message: "Not found" });
+    await prisma.$transaction([
+      prisma.crmMeeting.delete({ where: { id: m.id } }),
+      ...(m.scheduledLogId ? [prisma.activityLog.deleteMany({ where: { id: m.scheduledLogId } })] : []),
+    ]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET /api/crm/category/:category — the work list: buyers in that category (or the DMM where there's no buyer)
 router.get("/category/:category", async (req, res) => {
   try {
@@ -535,11 +717,18 @@ router.get("/contacts/:id", async (req, res) => {
       ? await prisma.crmContact.findMany({ where: { id: { in: ccIds } }, select: { id: true, name: true } })
       : [];
     const ccName = new Map(ccPeople.map((p) => [p.id, p.name]));
+    const upcoming = await prisma.crmMeeting.findMany({
+      where: { status: "Scheduled", startsAt: { gte: new Date() }, OR: [{ contactId: id }, { attendeeIds: { has: id } }] },
+      orderBy: { startsAt: "asc" },
+    });
 
     res.json({
       ...serializeContact(contact),
       retailerName: contact.retailer.name,
+      retailerAddress: [contact.retailer.billingAddress, contact.retailer.billingCity,
+        [contact.retailer.billingState, contact.retailer.billingZip].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null,
       team: team.map(serializeContact),
+      upcomingMeetings: upcoming.map((m) => ({ id: m.id, startsAt: m.startsAt.toISOString(), locationType: m.locationType })),
       history: logs.map((l) => ({
         ...serializeActivity(l),
         ccNames: l.ccContactIds.map((cid) => ccName.get(cid)).filter(Boolean),
@@ -629,7 +818,8 @@ router.post("/log", async (req, res) => {
       }
     }
 
-    await prisma.$transaction(contacts.flatMap((c) => {
+    const meetingId = req.body.meetingId ? Number(req.body.meetingId) : null;
+    const results = await prisma.$transaction(contacts.flatMap((c) => {
       // Bulk logs without a category use the person's only category, if they have one.
       // A pitch isn't for any of their confirmed categories.
       const cat = req.body.pitch ? null
@@ -656,6 +846,10 @@ router.post("/log", async (req, res) => {
         }),
       ];
     }));
+    // Logging the recap of a scheduled meeting marks it done
+    if (meetingId && action === "Meeting") {
+      await prisma.crmMeeting.update({ where: { id: meetingId }, data: { status: "Done", recapLogId: results[0].id } });
+    }
     res.status(201).json({ logged: contacts.length });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -748,7 +942,12 @@ router.put("/activity/:id", async (req, res) => {
 // DELETE /api/crm/activity/:id
 router.delete("/activity/:id", async (req, res) => {
   try {
-    await prisma.activityLog.delete({ where: { id: Number(req.params.id) } });
+    const id = Number(req.params.id);
+    await prisma.$transaction([
+      prisma.crmMeeting.deleteMany({ where: { scheduledLogId: id } }),
+      prisma.crmMeeting.updateMany({ where: { recapLogId: id }, data: { recapLogId: null, status: "Scheduled" } }),
+      prisma.activityLog.delete({ where: { id } }),
+    ]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ message: err.message });

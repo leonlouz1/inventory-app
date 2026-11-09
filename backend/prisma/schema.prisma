@@ -210,6 +210,7 @@ model Retailer {
   contacts     CrmContact[]
   activityLogs ActivityLog[]
   sentItems    SentItem[]
+  meetings     CrmMeeting[]
 
   @@map("retailers")
 }
@@ -253,6 +254,7 @@ model CrmContact {
 
   retailer   Retailer      @relation(fields: [retailerId], references: [id], onDelete: Cascade)
   activities ActivityLog[]
+  meetings   CrmMeeting[]
 
   @@map("crm_contacts")
 }
@@ -282,6 +284,34 @@ model ActivityLog {
   @@index([contactId, date])
   @@index([nextStepDate, done])
   @@map("activity_logs")
+}
+
+// A scheduled meeting with a buyer (CRM → Meetings calendar). Logged as a
+// "Meeting Scheduled" history entry; logging the recap marks it Done.
+model CrmMeeting {
+  id             Int      @id @default(autoincrement())
+  retailerId     Int      @map("retailer_id")
+  contactId      Int      @map("contact_id")
+  category       String?  @db.VarChar(50)
+  startsAt       DateTime @map("starts_at") @db.Timestamptz
+  locationType   String   @map("location_type") @db.VarChar(50) // 5th Ave Showroom, Online call, Buyer's office
+  address        String?  @db.VarChar(300)
+  link           String?  @db.VarChar(500)
+  attendeeIds    Int[]    @default([]) @map("attendee_ids") // their other people (CRM contacts)
+  ourAttendees   String[] @default([]) @map("our_attendees") // our side, typed names
+  notes          String?
+  status         String   @default("Scheduled") @db.VarChar(20) // Scheduled, Done, Cancelled
+  scheduledLogId Int?     @map("scheduled_log_id") // the "Meeting Scheduled" history entry
+  recapLogId     Int?     @map("recap_log_id") // the "Meeting" entry with the recap
+  rep            String?  @db.VarChar(100)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  retailer Retailer   @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  contact  CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([startsAt])
+  @@index([contactId])
+  @@map("crm_meetings")
 }
 
 // A file kept with a history entry, e.g. a meeting recap PDF

@@ -14,8 +14,13 @@ export const STATUS_COLORS = {
   "No Response": "purple", "Not Interested": "red", "No Contact Found": "default", "N/A": "default",
 };
 export const LOG_ACTIONS = ["Called", "Emailed", "Sent Sample", "Meeting", "PO Received"];
+// The buyer panel's log form also books meetings (CRM → Meetings)
+export const FORM_ACTIONS = ["Called", "Emailed", "Sent Sample", "Meeting Scheduled", "Meeting", "PO Received"];
+export const MEETING_LOCATIONS = ["5th Ave Showroom", "Online call", "Buyer's office"];
+export const MEETING_STATUS_COLORS = { Scheduled: "blue", Done: "green", Cancelled: "default" };
 export const ACTION_COLORS = {
   Called: "blue", Emailed: "geekblue", "Sent Sample": "orange", Meeting: "purple", "PO Received": "green", Note: "default", "Pitch Result": "cyan",
+  "Meeting Scheduled": "magenta",
 };
 // "Note" entries came from the old spreadsheet's Notes column
 export const ACTION_LABELS = { Note: "From sheet" };
@@ -31,7 +36,7 @@ export function defaultFollowUp(action, from = dayjs()) {
 const SELLING = ["Active", "Order Placed"];
 export function statusAfter(action, current) {
   if (action === "PO Received") return "Active";
-  if (action === "Sent Sample" || action === "Meeting") return SELLING.includes(current) ? current : "Warm";
+  if (action === "Sent Sample" || action === "Meeting" || action === "Meeting Scheduled") return SELLING.includes(current) ? current : "Warm";
   if (action === "Called" || action === "Emailed") {
     return ["Not Contacted", "No Contact Found", "N/A"].includes(current) ? "No Response" : current;
   }

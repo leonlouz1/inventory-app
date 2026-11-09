@@ -73,7 +73,7 @@ function EditEntryModal({ entry, onClose, onSaved }) {
       setSaving(false);
     }
   }
-  const actions = entry.actionTaken === "Note" ? [...LOG_ACTIONS, "Note"] : LOG_ACTIONS;
+  const actions = ["Note", "Meeting Scheduled"].includes(entry.actionTaken) ? [...LOG_ACTIONS, entry.actionTaken] : LOG_ACTIONS;
   return (
     <Modal open title="Edit entry" onCancel={onClose} onOk={save} okText="Save" confirmLoading={saving}>
       <Space direction="vertical" style={{ width: "100%" }}>
@@ -283,6 +283,17 @@ export default function ContactDrawer({ contactId, category, onClose, onChanged 
 
           <Divider orientation="left" plain style={{ margin: "16px 0 8px" }}>Log</Divider>
           <LogForm key={data.id} contact={data} ccOptions={ccOptions} category={category} onLogged={changed} />
+          {data.upcomingMeetings?.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              {data.upcomingMeetings.map((m) => (
+                <div key={m.id} style={{ fontSize: 13 }}>
+                  <Tag color="magenta" style={{ marginRight: 6 }}>Upcoming meeting</Tag>
+                  {dayjs(m.startsAt).format("ddd MMM D, h:mm A")} · {m.locationType}
+                  {" "}<Link to="/crm/meetings" onClick={onClose}>Open calendar</Link>
+                </div>
+              ))}
+            </div>
+          )}
 
           {data.team.length > 0 && (
             <>
