@@ -293,7 +293,7 @@ export default function CrmMeetings() {
           <div
             key={m.id}
             onClick={(e) => { e.stopPropagation(); setOpenId(m.id); }}
-            title={`${m.contactName} · ${m.retailerName} · ${m.locationType}`}
+            title={`${m.contactName} · ${m.retailerName}${m.category ? ` · ${m.category}` : ""} · ${m.locationType}`}
             className="crm-meeting-chip"
             style={{
               fontSize: 11, lineHeight: "16px", padding: "1px 4px", borderRadius: 4, cursor: "pointer",
@@ -304,7 +304,8 @@ export default function CrmMeetings() {
               borderLeft: `3px solid ${needsRecap(m) ? "#ff4d4f" : m.status === "Done" ? "#52c41a" : m.status === "Cancelled" ? "#d9d9d9" : "#eb2f96"}`,
             }}
           >
-            {dayjs(m.startsAt).format("h:mma")} {m.retailerName}
+            <div style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{dayjs(m.startsAt).format("h:mma")} {m.retailerName}</div>
+            {m.category && <div style={{ overflow: "hidden", textOverflow: "ellipsis", fontSize: 10, color: "#888" }}>{m.category}</div>}
           </div>
         ))}
       </div>
