@@ -38,7 +38,7 @@ router.get(
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    const [products, warehouses, pendingByProduct, incomingByProduct] = await Promise.all([
+    const [products, warehouses, pendingByProduct, incomingByProduct, onHoldByProduct] = await Promise.all([
       prisma.product.findMany({
         orderBy: { sku: "asc" },
         include: { stock: true },
@@ -57,8 +57,18 @@ router.get(
         where: { status: { notIn: NOT_INCOMING_RESTOCK_STATUSES } },
         _sum: { quantity: true },
       }),
+      // On hold = paused restocks. Not counted as incoming, but shown so the
+      // user can see the stock exists.
+      prisma.restock.groupBy({
+        by: ["productId"],
+        where: { status: "ON_HOLD" },
+        _sum: { quantity: true },
+      }),
     ]);
 
+    const onHoldQtyByProductId = new Map(
+      onHoldByProduct.map((row) => [row.productId, row._sum.quantity ?? 0])
+    );
     const pendingQtyByProductId = new Map(
       pendingByProduct.map((row) => [row.productId, row._sum.quantity ?? 0])
     );
@@ -92,6 +102,7 @@ router.get(
         totalOnHand,
         pendingQty,
         incomingQty,
+        onHoldQty: onHoldQtyByProductId.get(product.id) ?? 0,
         availableToSell: totalOnHand - pendingQty,
         shadowParentId: product.shadowParentId ?? null,
       };

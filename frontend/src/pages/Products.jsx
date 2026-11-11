@@ -297,7 +297,16 @@ export default function Products() {
         dataIndex: "incomingQty",
         align: "right",
         sorter: (a, b) => a.incomingQty - b.incomingQty,
-        render: (v) => v > 0 ? <span style={{ color: "#389e0d", fontWeight: 500 }}>+{v}</span> : <span style={{ color: "#bbb" }}>0</span>,
+        render: (v, p) => (
+          <>
+            {v > 0 ? <span style={{ color: "#389e0d", fontWeight: 500 }}>+{v}</span> : <span style={{ color: "#bbb" }}>0</span>}
+            {p.onHoldQty > 0 && (
+              <Tooltip title="Restocks on hold. Not counted as incoming until taken off hold.">
+                <div style={{ color: "#d46b08", fontSize: 12, whiteSpace: "nowrap" }}>{p.onHoldQty} on hold</div>
+              </Tooltip>
+            )}
+          </>
+        ),
       },
       {
         title: "Pending Orders",

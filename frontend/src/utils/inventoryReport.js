@@ -10,6 +10,7 @@ export async function downloadInventoryReport(products) {
     "Current Stock",
     "Committed Orders",
     "Incoming Restocks",
+    "On Hold Restocks",
     "Net Available",
   ];
 
@@ -19,8 +20,9 @@ export async function downloadInventoryReport(products) {
       const onHand = p.totalOnHand ?? 0;
       const committed = p.pendingQty ?? 0;
       const incoming = p.incomingQty ?? 0;
+      const onHold = p.onHoldQty ?? 0; // shown, but not added to Net Available
       const net = onHand - committed + incoming;
-      return [p.sku, p.name, p.brand || "", onHand, committed, incoming, net];
+      return [p.sku, p.name, p.brand || "", onHand, committed, incoming, onHold, net];
     });
 
   const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
@@ -29,6 +31,7 @@ export async function downloadInventoryReport(products) {
     { wch: 28 },
     { wch: 16 },
     { wch: 14 },
+    { wch: 18 },
     { wch: 18 },
     { wch: 18 },
     { wch: 14 },

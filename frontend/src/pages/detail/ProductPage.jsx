@@ -45,6 +45,7 @@ export default function ProductPage() {
   const onHand = product.stockByWarehouse ? Object.values(product.stockByWarehouse).reduce((s, n) => s + n, 0) : null;
   const committed = (page.openLines || []).filter((l) => l.status !== "DRAFT").reduce((s, l) => s + l.quantity, 0);
   const incoming = (page.restocks || []).filter((r) => r.status !== "DRAFT" && r.status !== "ON_HOLD").reduce((s, r) => s + r.quantity, 0);
+  const onHold = (page.restocks || []).filter((r) => r.status === "ON_HOLD").reduce((s, r) => s + r.quantity, 0);
   const details = Object.entries(product.attributes || {}).filter(([, v]) => v);
 
   const orderColumns = [
@@ -100,7 +101,10 @@ export default function ProductPage() {
           <Col xs={12} md={6}><Card size="small"><Statistic title="On hand" value={onHand} /></Card></Col>
           <Col xs={12} md={6}><Card size="small"><Statistic title="On open orders" value={committed} /></Card></Col>
           <Col xs={12} md={6}><Card size="small"><Statistic title="Available to sell" value={onHand - committed} /></Card></Col>
-          <Col xs={12} md={6}><Card size="small"><Statistic title="Incoming" value={incoming} /></Card></Col>
+          <Col xs={12} md={6}><Card size="small">
+            <Statistic title="Incoming" value={incoming} />
+            {onHold > 0 && <div style={{ color: "#d46b08", fontSize: 12 }}>+ {onHold} on hold (not counted)</div>}
+          </Card></Col>
         </Row>
       )}
 
@@ -164,7 +168,7 @@ export default function ProductPage() {
                 { title: "Expected", dataIndex: "expectedDate" },
                 { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "—" },
                 { title: "Supplier / PO", dataIndex: "supplier", render: (v) => v || "—" },
-                { title: "Status", dataIndex: "status", render: (s) => <Tag>{s.replace(/_/g, " ")}</Tag> },
+                { title: "Status", dataIndex: "status", render: (s) => <Tag color={s === "ON_HOLD" ? "orange" : undefined}>{s.replace(/_/g, " ")}</Tag> },
               ]}
             />
           </Card>
