@@ -4,6 +4,7 @@ const asyncHandler = require("../middleware/asyncHandler");
 const { buildSkuTimeline } = require("../services/timeline");
 const { applyPendingRestocks } = require("../services/autoReceive");
 const { PENDING_STATUSES } = require("../constants/orderStatuses");
+const { NOT_INCOMING_RESTOCK_STATUSES } = require("../constants/restockStatuses");
 const { defaultCasePack } = require("../constants/categories");
 const { systemUpcFor } = require("../services/upcProducts");
 
@@ -53,7 +54,7 @@ router.get(
       // Incoming = restocks not yet received (any non-RECEIVED status)
       prisma.restock.groupBy({
         by: ["productId"],
-        where: { status: { notIn: ["DRAFT", "RECEIVED"] } },
+        where: { status: { notIn: NOT_INCOMING_RESTOCK_STATUSES } },
         _sum: { quantity: true },
       }),
     ]);
@@ -203,7 +204,7 @@ router.get(
           OR: [
             { expectedDate: { gte: since } },
             { receivedAt: { gte: since } },
-            { status: { notIn: ["RECEIVED", "DRAFT"] } }, // incoming
+            { status: { notIn: ["RECEIVED", "DRAFT"] } }, // still open (held ones count as activity)
           ],
         },
         select: { productId: true },

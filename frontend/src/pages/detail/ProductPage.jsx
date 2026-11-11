@@ -44,7 +44,7 @@ export default function ProductPage() {
 
   const onHand = product.stockByWarehouse ? Object.values(product.stockByWarehouse).reduce((s, n) => s + n, 0) : null;
   const committed = (page.openLines || []).filter((l) => l.status !== "DRAFT").reduce((s, l) => s + l.quantity, 0);
-  const incoming = (page.restocks || []).filter((r) => r.status !== "DRAFT").reduce((s, r) => s + r.quantity, 0);
+  const incoming = (page.restocks || []).filter((r) => r.status !== "DRAFT" && r.status !== "ON_HOLD").reduce((s, r) => s + r.quantity, 0);
   const details = Object.entries(product.attributes || {}).filter(([, v]) => v);
 
   const orderColumns = [

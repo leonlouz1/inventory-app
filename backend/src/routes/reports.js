@@ -53,10 +53,11 @@ router.get("/rolling-totals", async (req, res) => {
     }
 
     const { PENDING_STATUSES } = require("../constants/orderStatuses");
+    const { NOT_INCOMING_RESTOCK_STATUSES } = require("../constants/restockStatuses");
 
     // Restocks — future/pending (green, inbound positive)
     const restocks = await prisma.restock.findMany({
-      where: { ...whFilter, ...skuWhere, status: { notIn: ["DRAFT", "RECEIVED"] } },
+      where: { ...whFilter, ...skuWhere, status: { notIn: NOT_INCOMING_RESTOCK_STATUSES } },
       include: { product: true },
       orderBy: { expectedDate: "asc" },
     });

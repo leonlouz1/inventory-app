@@ -2,6 +2,7 @@ const express = require("express");
 const prisma = require("../prismaClient");
 const asyncHandler = require("../middleware/asyncHandler");
 const { PENDING_STATUSES } = require("../constants/orderStatuses");
+const { NOT_INCOMING_RESTOCK_STATUSES } = require("../constants/restockStatuses");
 const { systemUpcFor } = require("../services/upcProducts");
 
 const router = express.Router();
@@ -92,7 +93,7 @@ router.get(
       }),
       prisma.restock.groupBy({
         by: ["productId"],
-        where: { status: { notIn: ["DRAFT", "RECEIVED"] } },
+        where: { status: { notIn: NOT_INCOMING_RESTOCK_STATUSES } },
         _sum: { quantity: true },
       }),
     ]);

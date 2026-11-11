@@ -52,6 +52,8 @@ router.get(
             { expectedDate: { lte: today } },
             { status: "RECEIVED" },
           ],
+          // A held restock hasn't arrived, even if its date has passed
+          status: { not: "ON_HOLD" },
         },
         include: { warehouse: true, linkedOrder: true },
         orderBy: { expectedDate: "desc" },

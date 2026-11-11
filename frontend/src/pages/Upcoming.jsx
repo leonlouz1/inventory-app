@@ -51,7 +51,7 @@ export default function Upcoming() {
 
     // Containers not yet received, by ETA
     const containers = data.containers
-      .filter((c) => c.status !== "RECEIVED" && c.status !== "DRAFT")
+      .filter((c) => !["RECEIVED", "DRAFT", "ON_HOLD"].includes(c.status)) // held ones aren't arriving
       .map((c) => ({ kind: "container", date: c.eta, item: c }));
 
     // Orders not shipped/cancelled: one entry per ship date on the order
