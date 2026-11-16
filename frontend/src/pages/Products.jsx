@@ -53,6 +53,7 @@ export default function Products() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [inventoryReportOpen, setInventoryReportOpen] = useState(false);
   const [inventoryReportCategories, setInventoryReportCategories] = useState([]);
+  const [inventoryReportBrands, setInventoryReportBrands] = useState([]);
   const [atsOpen, setAtsOpen] = useState(false);
   const [atsCategories, setAtsCategories] = useState([]);
   const [linesheetOpen, setLinesheetOpen] = useState(false);
@@ -175,6 +176,18 @@ export default function Products() {
       .filter((p) => !categories.length || categories.includes(p.category ?? null))
       .map((p) => p.brand ?? null));
     setLinesheetBrands((picked) => picked.filter((b) => brandsLeft.has(b)));
+  }
+
+  // Inventory report: brand list only offers brands in the picked categories
+  const inventoryReportInCategories = products.filter((p) => !inventoryReportCategories.length || inventoryReportCategories.includes(p.category ?? null));
+  const inventoryReportBrandOptions = [...new Set(inventoryReportInCategories.map((p) => p.brand).filter(Boolean))].sort();
+
+  function handleInventoryReportCategories(categories) {
+    setInventoryReportCategories(categories);
+    const brandsLeft = new Set(products
+      .filter((p) => !categories.length || categories.includes(p.category ?? null))
+      .map((p) => p.brand ?? null));
+    setInventoryReportBrands((picked) => picked.filter((b) => brandsLeft.has(b)));
   }
 
   function handleLinesheetDownload() {
@@ -380,7 +393,7 @@ export default function Products() {
           <Button icon={<DownloadOutlined />} onClick={() => setRollingTotalsOpen(true)}>
             Rolling Totals
           </Button>
-          <Button icon={<DownloadOutlined />} onClick={() => { setInventoryReportCategories([]); setInventoryReportOpen(true); }}>
+          <Button icon={<DownloadOutlined />} onClick={() => { setInventoryReportCategories([]); setInventoryReportBrands([]); setInventoryReportOpen(true); }}>
             Inventory Report
           </Button>
           <Button icon={<DownloadOutlined />} onClick={() => { setAtsCategories([]); setAtsOpen(true); }}>
@@ -562,9 +575,7 @@ export default function Products() {
         onCancel={() => setInventoryReportOpen(false)}
         okText="Download"
         onOk={async () => {
-          let filtered = inventoryReportCategories.length === 0
-            ? products
-            : products.filter((p) => inventoryReportCategories.includes(p.category));
+          let filtered = inventoryReportInCategories.filter((p) => !inventoryReportBrands.length || inventoryReportBrands.includes(p.brand ?? null));
           if (inventoryReportActiveOnly) {
             try {
               const { productIds } = await productsApi.recentActivity(180);
@@ -585,19 +596,34 @@ export default function Products() {
         width={420}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          Select which categories to include. Leave blank for all.
+          Pick a category, then a brand. Leave blank for all.
         </Typography.Paragraph>
+        <Typography.Text strong>Category</Typography.Text>
         <Select
           mode="multiple"
           placeholder="All categories"
           allowClear
-          style={{ width: "100%" }}
+          style={{ width: "100%", margin: "4px 0 12px" }}
           options={[
             ...PRODUCT_CATEGORIES.map((c) => ({ value: c, label: c })),
             { value: null, label: "(No category)" },
           ]}
           value={inventoryReportCategories}
-          onChange={setInventoryReportCategories}
+          onChange={handleInventoryReportCategories}
+          maxTagCount="responsive"
+        />
+        <Typography.Text strong>Brand</Typography.Text>
+        <Select
+          mode="multiple"
+          placeholder="All brands"
+          allowClear
+          style={{ width: "100%", marginTop: 4 }}
+          options={[
+            ...inventoryReportBrandOptions.map((b) => ({ value: b, label: b })),
+            { value: null, label: "(No brand)" },
+          ]}
+          value={inventoryReportBrands}
+          onChange={setInventoryReportBrands}
           maxTagCount="responsive"
         />
         <Checkbox
