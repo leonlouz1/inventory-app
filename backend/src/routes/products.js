@@ -38,7 +38,7 @@ router.get(
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    const [products, warehouses, pendingByProduct, incomingByProduct, onHoldByProduct] = await Promise.all([
+    const [products, warehouses, pendingByProduct, incomingRestocks, onHoldByProduct] = await Promise.all([
       prisma.product.findMany({
         orderBy: { sku: "asc" },
         include: { stock: true },
@@ -51,11 +51,11 @@ router.get(
         where: { order: { status: { in: PENDING_STATUSES } } },
         _sum: { quantity: true },
       }),
-      // Incoming = restocks not yet received (any non-RECEIVED status)
-      prisma.restock.groupBy({
-        by: ["productId"],
+      // Incoming = restocks in production or en route (each one, with its date)
+      prisma.restock.findMany({
         where: { status: { notIn: NOT_INCOMING_RESTOCK_STATUSES } },
-        _sum: { quantity: true },
+        select: { productId: true, quantity: true, expectedDate: true, status: true },
+        orderBy: { expectedDate: "asc" },
       }),
       // On hold = paused restocks. Not counted as incoming, but shown so the
       // user can see the stock exists.
@@ -72,9 +72,15 @@ router.get(
     const pendingQtyByProductId = new Map(
       pendingByProduct.map((row) => [row.productId, row._sum.quantity ?? 0])
     );
-    const incomingQtyByProductId = new Map(
-      incomingByProduct.map((row) => [row.productId, row._sum.quantity ?? 0])
-    );
+    const incomingByProductId = new Map();
+    for (const r of incomingRestocks) {
+      if (!incomingByProductId.has(r.productId)) incomingByProductId.set(r.productId, []);
+      incomingByProductId.get(r.productId).push({
+        quantity: r.quantity,
+        expectedDate: r.expectedDate.toISOString().slice(0, 10),
+        status: r.status,
+      });
+    }
 
     const result = products.map((product) => {
       const stockByWarehouse = {};
@@ -86,7 +92,8 @@ router.get(
         totalOnHand += onHand;
       }
       const pendingQty = pendingQtyByProductId.get(product.id) ?? 0;
-      const incomingQty = incomingQtyByProductId.get(product.id) ?? 0;
+      const incoming = incomingByProductId.get(product.id) ?? [];
+      const incomingQty = incoming.reduce((sum, r) => sum + r.quantity, 0);
       return {
         id: product.id,
         sku: product.sku,
@@ -102,6 +109,10 @@ router.get(
         totalOnHand,
         pendingQty,
         incomingQty,
+        incoming,
+        groupId: product.groupId,
+        description: product.description,
+        wholesalePrice: product.wholesalePrice != null ? Number(product.wholesalePrice) : null,
         onHoldQty: onHoldQtyByProductId.get(product.id) ?? 0,
         availableToSell: totalOnHand - pendingQty,
         shadowParentId: product.shadowParentId ?? null,

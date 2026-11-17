@@ -17,7 +17,7 @@ const MONEY = '_("$"* #,##0.00_);_("$"* (#,##0.00);_("$"* "-"??_);_(@_)';
 
 // Load an image into a PNG buffer for Excel (also normalizes WEBP etc.).
 // Returns null when the image can't be loaded (e.g. another site blocks it).
-async function loadImage(url) {
+export async function loadImage(url) {
   try {
     const res = await fetch(url, { mode: "cors" });
     if (!res.ok) return null;

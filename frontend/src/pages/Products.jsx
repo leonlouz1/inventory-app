@@ -7,7 +7,7 @@ import { productsApi, warehousesApi } from "../api/inventory";
 import { authHeaders } from "../api/client";
 import { useRole } from "../hooks/useRole";
 import { downloadInventoryReport } from "../utils/inventoryReport";
-import { downloadAtsLinesheet } from "../utils/atsLinesheet";
+import { downloadAtsLinesheet, atsLinesheetBlocks } from "../utils/atsLinesheet";
 import { NewProductModal } from "../components/ProductModals";
 import ProductWindow from "../components/ProductWindow";
 import BulkImportProductsModal from "../components/BulkImportProductsModal";
@@ -59,6 +59,7 @@ export default function Products() {
   const [linesheetOpen, setLinesheetOpen] = useState(false);
   const [linesheetCategories, setLinesheetCategories] = useState([]);
   const [linesheetBrands, setLinesheetBrands] = useState([]);
+  const [linesheetExporting, setLinesheetExporting] = useState(false);
   const [inventoryReportActiveOnly, setInventoryReportActiveOnly] = useState(false);
 
   const filteredProducts = useMemo(() => {
@@ -190,14 +191,23 @@ export default function Products() {
     setInventoryReportBrands((picked) => picked.filter((b) => brandsLeft.has(b)));
   }
 
-  function handleLinesheetDownload() {
+  async function handleLinesheetDownload() {
     const picked = linesheetInCategories.filter((p) => !linesheetBrands.length || linesheetBrands.includes(p.brand ?? null));
-    if (!picked.some((p) => p.availableToSell > 0)) {
-      message.warning("Nothing available to sell in that selection");
+    if (!atsLinesheetBlocks(picked).length) {
+      message.warning("Nothing available to sell or on its way in that selection");
       return;
     }
-    downloadAtsLinesheet(picked, warehouses);
-    setLinesheetOpen(false);
+    setLinesheetExporting(true);
+    try {
+      const title = linesheetBrands.length === 1 && linesheetBrands[0] ? linesheetBrands[0] : "";
+      const { missingImages } = await downloadAtsLinesheet(picked, { title });
+      if (missingImages) message.warning(`${missingImages} picture${missingImages === 1 ? "" : "s"} couldn't be loaded and were left out`);
+      setLinesheetOpen(false);
+    } catch (err) {
+      message.error(`Couldn't build the linesheet: ${err.message}`);
+    } finally {
+      setLinesheetExporting(false);
+    }
   }
 
   async function handleRollingTotalsDownload() {
@@ -506,11 +516,12 @@ export default function Products() {
         onCancel={() => setLinesheetOpen(false)}
         okText="Download"
         onOk={handleLinesheetDownload}
+        okButtonProps={{ loading: linesheetExporting }}
         destroyOnHidden
         width={420}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          Pick a category, then a brand. Leave blank for all. Only SKUs with quantity available to sell are included.
+          Pick a category, then a brand. Leave blank for all. Styles with nothing to sell now and nothing in production or en route are left out.
         </Typography.Paragraph>
         <Typography.Text strong>Category</Typography.Text>
         <Select
