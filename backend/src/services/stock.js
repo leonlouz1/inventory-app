@@ -2,7 +2,8 @@
 // stock history (stock_movements) with the reason and who did it.
 //
 // reason: INITIAL, IMPORT, MANUAL, STOCK_UPLOAD, TRANSFER_IN, TRANSFER_OUT,
-//   RECEIVED, UNRECEIVED, RESTOCK_DELETED, SHIPPED, UNSHIPPED, ORDER_DELETED
+//   RECEIVED, UNRECEIVED, RESTOCK_DELETED, SHIPPED, UNSHIPPED, ORDER_DELETED,
+//   ADJUSTMENT (Adjust stock on a product page; note = the reason given)
 
 // Pass either `change` (+/- units) or `setTo` (a new on-hand total).
 // Returns the warehouse's on-hand after the change.

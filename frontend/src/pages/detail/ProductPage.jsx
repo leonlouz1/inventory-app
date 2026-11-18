@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Card, Col, Descriptions, Image, Row, Space, Spin, Statistic, Table, Tag, Typography } from "antd";
-import { ArrowLeftOutlined, BarcodeOutlined, EditOutlined, FieldTimeOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, BarcodeOutlined, DiffOutlined, EditOutlined, FieldTimeOutlined } from "@ant-design/icons";
 import { productsApi, warehousesApi } from "../../api/inventory";
 import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS } from "../../constants/orderStatuses";
 import { useRole } from "../../hooks/useRole";
@@ -9,6 +9,7 @@ import ProductWindow from "../../components/ProductWindow";
 import BarcodeModal from "../../components/BarcodeModal";
 import ShadowSkusCard from "../../components/ShadowSkusCard";
 import ProductCostCard from "../../components/ProductCostCard";
+import AdjustStockModal from "../../components/AdjustStockModal";
 
 const orderLink = (n, row) => <Link to={`/orders/${row.orderId}`}>{n}</Link>;
 
@@ -26,6 +27,7 @@ const STOCK_REASONS = {
   SHIPPED: { label: "Shipped", color: "blue" },
   UNSHIPPED: { label: "Un-shipped", color: "orange" },
   ORDER_DELETED: { label: "Order deleted", color: "orange" },
+  ADJUSTMENT: { label: "Adjustment", color: "purple" },
 };
 
 const formatWhen = (iso) => new Date(iso).toLocaleString(undefined, { month: "numeric", day: "numeric", year: "2-digit", hour: "numeric", minute: "2-digit" });
@@ -41,6 +43,7 @@ export default function ProductPage() {
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(false);
   const [showBarcode, setShowBarcode] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -103,6 +106,9 @@ export default function ProductPage() {
         </Space>
         <Space wrap>
           <Button type="primary" icon={<EditOutlined />} onClick={() => setEditing(true)}>Edit</Button>
+          {!isDesigner && (
+            <Button icon={<DiffOutlined />} onClick={() => setAdjusting(true)}>Adjust stock</Button>
+          )}
           {!isDesigner && (
             <Button icon={<FieldTimeOutlined />} onClick={() => navigate(`/timeline?sku=${encodeURIComponent(product.sku)}`)}>
               Timeline
@@ -290,6 +296,7 @@ export default function ProductPage() {
       )}
 
       {editing && <ProductWindow productId={product.id} onClose={() => setEditing(false)} onSaved={load} />}
+      {adjusting && <AdjustStockModal product={product} warehouses={warehouses} onClose={() => setAdjusting(false)} onSaved={load} />}
       {showBarcode && <BarcodeModal upc={product.upc} sku={product.sku} label={product.name} onClose={() => setShowBarcode(false)} />}
     </>
   );

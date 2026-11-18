@@ -548,6 +548,47 @@ router.put(
 // correct a count or set up a product that was created without initial stock.
 // This is a direct correction, distinct from logging a Restock (which records
 // an incoming shipment with an expected date, not an immediate adjustment).
+// POST /api/products/:id/adjust-stock — adjust one warehouse's on-hand with a reason
+// Body: { warehouseId, change } (+/- units) or { warehouseId, setTo } (counted total), reason
+router.post(
+  "/:id/adjust-stock",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { warehouseId, change, setTo } = req.body;
+    const reason = String(req.body.reason || "").trim();
+    if (!reason) return res.status(400).json({ message: "Give a reason for the adjustment" });
+    if ((change === undefined) === (setTo === undefined)) {
+      return res.status(400).json({ message: "Send either change or setTo" });
+    }
+    if (change !== undefined && (!Number.isInteger(change) || change === 0)) {
+      return res.status(400).json({ message: "Change must be a whole number, not 0" });
+    }
+    if (setTo !== undefined && (!Number.isInteger(setTo) || setTo < 0)) {
+      return res.status(400).json({ message: "New on-hand must be a whole number, 0 or more" });
+    }
+    const [product, warehouse] = await Promise.all([
+      prisma.product.findUnique({ where: { id } }),
+      prisma.warehouse.findUnique({ where: { id: Number(warehouseId) || 0 } }),
+    ]);
+    if (!product) return res.status(404).json({ message: "Product not found" });
+    if (!warehouse) return res.status(400).json({ message: "Pick a warehouse" });
+
+    try {
+      const onHand = await prisma.$transaction(async (tx) => {
+        const after = await changeStock(tx, {
+          productId: id, warehouseId: warehouse.id, change, setTo, reason: "ADJUSTMENT", note: reason, by: req.userName,
+        });
+        if (after < 0) throw Object.assign(new Error(`That would leave ${after} in ${warehouse.name}. Stock can't go below 0.`), { status: 400 });
+        return after;
+      });
+      res.json({ productId: id, warehouseId: warehouse.id, onHand });
+    } catch (err) {
+      if (err.status) return res.status(err.status).json({ message: err.message });
+      throw err;
+    }
+  })
+);
+
 router.put(
   "/:id/stock",
   asyncHandler(async (req, res) => {
