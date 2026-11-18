@@ -331,7 +331,7 @@ router.get(
       shippedAt: l.order.shippedAt ? l.order.shippedAt.toISOString().slice(0, 10) : null,
       warehouseName: l.warehouse?.name ?? null,
     });
-    const [openLines, shippedLines, restocks] = await Promise.all([
+    const [openLines, shippedLines, restocks, receivedRestocks] = await Promise.all([
       prisma.orderLine.findMany({
         where: { productId: product.id, order: { status: { notIn: ["SHIPPED", "CANCELLED"] } } },
         include: { order: true, warehouse: true },
@@ -348,6 +348,12 @@ router.get(
         include: { warehouse: true, container: { select: { containerNumber: true } } },
         orderBy: { expectedDate: "asc" },
       }),
+      // Past restocks: where the stock on hand came from
+      prisma.restock.findMany({
+        where: { productId: product.id, status: "RECEIVED" },
+        include: { warehouse: true, container: { select: { containerNumber: true, poNumber: true } } },
+        orderBy: [{ receivedAt: { sort: "desc", nulls: "last" } }, { expectedDate: "desc" }],
+      }),
     ]);
     res.json({
       id: product.id,
@@ -361,6 +367,17 @@ router.get(
         quantity: r.quantity,
         expectedDate: r.expectedDate.toISOString().slice(0, 10),
         status: r.status,
+        supplier: r.supplier,
+        warehouseName: r.warehouse?.name ?? null,
+      })),
+      receivedRestocks: receivedRestocks.map((r) => ({
+        id: r.id,
+        containerId: r.containerId,
+        containerNumber: r.container?.containerNumber ?? null,
+        poNumber: r.container?.poNumber ?? null,
+        quantity: r.quantity,
+        receivedQuantity: r.receivedQuantity ?? r.quantity,
+        receivedAt: (r.receivedAt ?? r.expectedDate).toISOString().slice(0, 10),
         supplier: r.supplier,
         warehouseName: r.warehouse?.name ?? null,
       })),

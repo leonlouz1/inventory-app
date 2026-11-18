@@ -172,6 +172,48 @@ export default function ProductPage() {
               ]}
             />
           </Card>
+          <Card
+            size="small"
+            title={`Received restocks (${(page.receivedRestocks || []).length})`}
+            extra={(page.receivedRestocks || []).length > 0 && (
+              <Typography.Text type="secondary">
+                {page.receivedRestocks.reduce((sum, r) => sum + r.receivedQuantity, 0).toLocaleString()} units received in total
+              </Typography.Text>
+            )}
+            style={{ marginBottom: 16 }}
+          >
+            <Table
+              size="small"
+              rowKey="id"
+              dataSource={page.receivedRestocks || []}
+              pagination={{ pageSize: 10, hideOnSinglePage: true }}
+              scroll={{ x: "max-content" }}
+              locale={{ emptyText: "No restocks received for this SKU yet" }}
+              columns={[
+                { title: "Received", dataIndex: "receivedAt" },
+                {
+                  title: "Container",
+                  dataIndex: "containerNumber",
+                  render: (n, r) => (r.containerId ? <Link to={`/restocks/${r.containerId}`}>{n || "Open"}</Link> : "—"),
+                },
+                {
+                  title: "Qty received",
+                  dataIndex: "receivedQuantity",
+                  align: "right",
+                  render: (q, r) => (
+                    <>
+                      {q.toLocaleString()}
+                      {q !== r.quantity && (
+                        <Typography.Text type="secondary" style={{ marginLeft: 6 }}>(ordered {r.quantity.toLocaleString()})</Typography.Text>
+                      )}
+                    </>
+                  ),
+                },
+                { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "—" },
+                { title: "Supplier / PO", key: "supplier", render: (_, r) => [r.supplier, r.poNumber].filter(Boolean).join(" · ") || "—" },
+              ]}
+            />
+          </Card>
           <Card size="small" title="Recently shipped">
             <Table
               size="small"
