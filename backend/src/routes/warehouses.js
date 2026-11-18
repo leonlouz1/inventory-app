@@ -2,6 +2,8 @@ const express = require("express");
 const prisma = require("../prismaClient");
 const asyncHandler = require("../middleware/asyncHandler");
 
+const { changeStock } = require("../services/stock");
+
 const router = express.Router();
 
 // Street address used as the ship-from on BOLs (only fields that were sent)
@@ -135,17 +137,20 @@ router.post(
       });
     }
 
-    await prisma.$transaction([
-      prisma.warehouseStock.update({
-        where: { productId_warehouseId: { productId: product.id, warehouseId: fromWarehouseId } },
-        data: { onHand: { decrement: quantity } },
-      }),
-      prisma.warehouseStock.upsert({
-        where: { productId_warehouseId: { productId: product.id, warehouseId: toWarehouseId } },
-        update: { onHand: { increment: quantity } },
-        create: { productId: product.id, warehouseId: toWarehouseId, onHand: quantity },
-      }),
+    const [fromWh, toWh] = await Promise.all([
+      prisma.warehouse.findUnique({ where: { id: fromWarehouseId } }),
+      prisma.warehouse.findUnique({ where: { id: toWarehouseId } }),
     ]);
+    await prisma.$transaction(async (tx) => {
+      await changeStock(tx, {
+        productId: product.id, warehouseId: fromWarehouseId, change: -quantity,
+        reason: "TRANSFER_OUT", note: `Transferred to ${toWh?.name ?? "another warehouse"}`, by: req.userName,
+      });
+      await changeStock(tx, {
+        productId: product.id, warehouseId: toWarehouseId, change: quantity,
+        reason: "TRANSFER_IN", note: `Transferred from ${fromWh?.name ?? "another warehouse"}`, by: req.userName,
+      });
+    });
 
     res.json({ message: `Transferred ${quantity} units of ${sku} successfully` });
   })

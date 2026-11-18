@@ -2,6 +2,8 @@
 // supplier and status are copied onto each line (Restock row) so everything
 // that reads restocks (projections, timeline, product pages) keeps working.
 
+const { changeStock } = require("./stock");
+
 const CONTAINER_STATUSES = ["DRAFT", "ON_HOLD", "IN_PRODUCTION", "EN_ROUTE", "RECEIVED"];
 
 function isoDate(d) {
@@ -72,9 +74,11 @@ async function syncLines(tx, container) {
   });
 }
 
+const containerNote = (c) => `Container ${c.containerNumber || `#${c.id}`}${c.poNumber ? ` · PO ${c.poNumber}` : ""}`;
+
 // Receive a container: each line gets its received quantity (defaults to what
 // was ordered), that quantity is added to stock, and the difference is kept.
-async function receiveContainer(tx, containerId, receivedByLine) {
+async function receiveContainer(tx, containerId, receivedByLine, by) {
   const container = await tx.container.findUnique({ where: { id: containerId }, include: { lines: true } });
   if (!container) throw Object.assign(new Error("Container not found"), { status: 404 });
   const now = new Date();
@@ -84,10 +88,9 @@ async function receiveContainer(tx, containerId, receivedByLine) {
     if (!Number.isInteger(qty) || qty < 0) {
       throw Object.assign(new Error("Received quantities must be whole numbers, 0 or more"), { status: 400 });
     }
-    await tx.warehouseStock.upsert({
-      where: { productId_warehouseId: { productId: line.productId, warehouseId: line.warehouseId } },
-      update: { onHand: { increment: qty } },
-      create: { productId: line.productId, warehouseId: line.warehouseId, onHand: qty },
+    await changeStock(tx, {
+      productId: line.productId, warehouseId: line.warehouseId, change: qty, reason: "RECEIVED",
+      note: containerNote(container), restockId: line.id, containerId, by,
     });
     await tx.restock.update({
       where: { id: line.id },
@@ -99,15 +102,15 @@ async function receiveContainer(tx, containerId, receivedByLine) {
 
 // Undo a receipt (e.g. received by mistake): takes the received quantities
 // back out of stock and returns the container to En Route.
-async function unreceiveContainer(tx, containerId) {
+async function unreceiveContainer(tx, containerId, by) {
   const container = await tx.container.findUnique({ where: { id: containerId }, include: { lines: true } });
   if (!container) throw Object.assign(new Error("Container not found"), { status: 404 });
   for (const line of container.lines) {
     if (line.status !== "RECEIVED") continue;
     const qty = line.receivedQuantity ?? line.quantity;
-    await tx.warehouseStock.update({
-      where: { productId_warehouseId: { productId: line.productId, warehouseId: line.warehouseId } },
-      data: { onHand: { decrement: qty } },
+    await changeStock(tx, {
+      productId: line.productId, warehouseId: line.warehouseId, change: -qty, reason: "UNRECEIVED",
+      note: `${containerNote(container)} un-received`, restockId: line.id, containerId, by,
     });
     await tx.restock.update({
       where: { id: line.id },

@@ -188,7 +188,9 @@ router.put("/:id", async (req, res) => {
         }
         const shippedAt = new Date();
         for (const o of toShip) {
-          await adjustStockForShippedTransition(tx, o.lines, -1);
+          await adjustStockForShippedTransition(tx, o.lines, -1, {
+            orderId: o.id, note: `Order ${o.orderNumber} · shipment ${existing.shipmentNumber}`, by: req.userName,
+          });
           await tx.order.update({ where: { id: o.id }, data: { status: "SHIPPED", shippedAt } });
           await logOrderChanges(tx, req, {
             orderId: o.id, field: "Status", before: o.status, after: "SHIPPED", note: `Shipment ${existing.shipmentNumber} picked up`,

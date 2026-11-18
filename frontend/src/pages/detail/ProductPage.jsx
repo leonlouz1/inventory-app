@@ -12,6 +12,24 @@ import ProductCostCard from "../../components/ProductCostCard";
 
 const orderLink = (n, row) => <Link to={`/orders/${row.orderId}`}>{n}</Link>;
 
+// Stock history reasons, as shown on the page
+const STOCK_REASONS = {
+  INITIAL: { label: "Starting stock", color: "default" },
+  IMPORT: { label: "Data import", color: "default" },
+  MANUAL: { label: "Manual edit", color: "gold" },
+  STOCK_UPLOAD: { label: "Stock upload", color: "gold" },
+  TRANSFER_IN: { label: "Transfer in", color: "cyan" },
+  TRANSFER_OUT: { label: "Transfer out", color: "cyan" },
+  RECEIVED: { label: "Received", color: "green" },
+  UNRECEIVED: { label: "Un-received", color: "orange" },
+  RESTOCK_DELETED: { label: "Restock deleted", color: "orange" },
+  SHIPPED: { label: "Shipped", color: "blue" },
+  UNSHIPPED: { label: "Un-shipped", color: "orange" },
+  ORDER_DELETED: { label: "Order deleted", color: "orange" },
+};
+
+const formatWhen = (iso) => new Date(iso).toLocaleString(undefined, { month: "numeric", day: "numeric", year: "2-digit", hour: "numeric", minute: "2-digit" });
+
 // One product on its own page: /products/:sku
 export default function ProductPage() {
   const { sku } = useParams();
@@ -211,6 +229,50 @@ export default function ProductPage() {
                 },
                 { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "—" },
                 { title: "Supplier / PO", key: "supplier", render: (_, r) => [r.supplier, r.poNumber].filter(Boolean).join(" · ") || "—" },
+              ]}
+            />
+          </Card>
+          <Card
+            size="small"
+            title={`Stock history (${(page.stockMovements || []).length})`}
+            extra={<Typography.Text type="secondary">Every change to on-hand stock since Nov 18, 2026</Typography.Text>}
+            style={{ marginBottom: 16 }}
+          >
+            <Table
+              size="small"
+              rowKey="id"
+              dataSource={page.stockMovements || []}
+              pagination={{ pageSize: 15, hideOnSinglePage: true }}
+              scroll={{ x: "max-content" }}
+              locale={{ emptyText: "No stock changes recorded yet. Receiving, shipping, uploads, edits and transfers will show here from now on." }}
+              columns={[
+                { title: "When", dataIndex: "at", render: formatWhen },
+                {
+                  title: "What",
+                  dataIndex: "reason",
+                  render: (reason) => <Tag color={STOCK_REASONS[reason]?.color}>{STOCK_REASONS[reason]?.label ?? reason}</Tag>,
+                },
+                {
+                  title: "Change",
+                  dataIndex: "change",
+                  align: "right",
+                  render: (c) => (
+                    <Typography.Text strong type={c < 0 ? "danger" : "success"}>
+                      {c > 0 ? "+" : ""}{c.toLocaleString()}
+                    </Typography.Text>
+                  ),
+                },
+                { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "—" },
+                { title: "On hand after", dataIndex: "onHandAfter", align: "right", render: (v) => v.toLocaleString() },
+                {
+                  title: "Details",
+                  dataIndex: "note",
+                  render: (note, m) => {
+                    const link = m.orderId && m.reason !== "ORDER_DELETED" ? `/orders/${m.orderId}` : m.containerId ? `/restocks/${m.containerId}` : null;
+                    return link ? <Link to={link}>{note || "Open"}</Link> : note || "—";
+                  },
+                },
+                { title: "By", dataIndex: "userName", render: (v) => v || "—" },
               ]}
             />
           </Card>

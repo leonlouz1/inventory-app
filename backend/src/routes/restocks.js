@@ -2,7 +2,11 @@ const express = require("express");
 const prisma = require("../prismaClient");
 const asyncHandler = require("../middleware/asyncHandler");
 
+const { changeStock } = require("../services/stock");
+
 const router = express.Router();
+
+const restockNote = (r) => `Restock${r.supplier ? ` from ${r.supplier}` : ""}`;
 
 const RESTOCK_STATUSES = ["DRAFT", "ON_HOLD", "IN_PRODUCTION", "EN_ROUTE", "RECEIVED"];
 
@@ -108,18 +112,17 @@ router.patch(
     const restock = await prisma.$transaction(async (tx) => {
       // Moving TO received — add stock
       if (!wasReceived && nowReceived) {
-        await tx.warehouseStock.upsert({
-          where: { productId_warehouseId: { productId: existing.productId, warehouseId: existing.warehouseId } },
-          update: { onHand: { increment: existing.quantity } },
-          create: { productId: existing.productId, warehouseId: existing.warehouseId, onHand: existing.quantity },
+        await changeStock(tx, {
+          productId: existing.productId, warehouseId: existing.warehouseId, change: existing.quantity,
+          reason: "RECEIVED", note: restockNote(existing), restockId: existing.id, containerId: existing.containerId, by: req.userName,
         });
       }
       const receivedQty = existing.receivedQuantity ?? existing.quantity;
       // Moving FROM received — reverse the stock
       if (wasReceived && !nowReceived) {
-        await tx.warehouseStock.update({
-          where: { productId_warehouseId: { productId: existing.productId, warehouseId: existing.warehouseId } },
-          data: { onHand: { decrement: receivedQty } },
+        await changeStock(tx, {
+          productId: existing.productId, warehouseId: existing.warehouseId, change: -receivedQty,
+          reason: "UNRECEIVED", note: `${restockNote(existing)} un-received`, restockId: existing.id, containerId: existing.containerId, by: req.userName,
         });
       }
 
@@ -190,9 +193,9 @@ router.delete(
       await prisma.$transaction(async (tx) => {
         // If received, reverse the stock before deleting
         if (restock.status === "RECEIVED") {
-          await tx.warehouseStock.update({
-            where: { productId_warehouseId: { productId: restock.productId, warehouseId: restock.warehouseId } },
-            data: { onHand: { decrement: restock.receivedQuantity ?? restock.quantity } },
+          await changeStock(tx, {
+            productId: restock.productId, warehouseId: restock.warehouseId, change: -(restock.receivedQuantity ?? restock.quantity),
+            reason: "RESTOCK_DELETED", note: `${restockNote(restock)} deleted`, restockId: restock.id, containerId: restock.containerId, by: req.userName,
           });
         }
         await tx.restock.delete({ where: { id } });

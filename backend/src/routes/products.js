@@ -5,6 +5,7 @@ const { buildSkuTimeline } = require("../services/timeline");
 const { applyPendingRestocks } = require("../services/autoReceive");
 const { PENDING_STATUSES } = require("../constants/orderStatuses");
 const { NOT_INCOMING_RESTOCK_STATUSES } = require("../constants/restockStatuses");
+const { changeStock } = require("../services/stock");
 const { defaultCasePack } = require("../constants/categories");
 const { systemUpcFor } = require("../services/upcProducts");
 
@@ -186,6 +187,15 @@ router.post(
             onHand: initialStockByWarehouse.get(w.id) ?? 0,
           })),
         });
+        const opening = warehouses.filter((w) => (initialStockByWarehouse.get(w.id) ?? 0) !== 0);
+        if (opening.length) {
+          await tx.stockMovement.createMany({
+            data: opening.map((w) => ({
+              productId: created.id, warehouseId: w.id, change: initialStockByWarehouse.get(w.id),
+              onHandAfter: initialStockByWarehouse.get(w.id), reason: "INITIAL", note: "Starting stock when the product was added", userName: req.userName ?? null,
+            })),
+          });
+        }
 
         return created;
       });
@@ -331,7 +341,7 @@ router.get(
       shippedAt: l.order.shippedAt ? l.order.shippedAt.toISOString().slice(0, 10) : null,
       warehouseName: l.warehouse?.name ?? null,
     });
-    const [openLines, shippedLines, restocks, receivedRestocks] = await Promise.all([
+    const [openLines, shippedLines, restocks, receivedRestocks, stockMovements] = await Promise.all([
       prisma.orderLine.findMany({
         where: { productId: product.id, order: { status: { notIn: ["SHIPPED", "CANCELLED"] } } },
         include: { order: true, warehouse: true },
@@ -354,6 +364,13 @@ router.get(
         include: { warehouse: true, container: { select: { containerNumber: true, poNumber: true } } },
         orderBy: [{ receivedAt: { sort: "desc", nulls: "last" } }, { expectedDate: "desc" }],
       }),
+      // Stock history: every change to on-hand, newest first
+      prisma.stockMovement.findMany({
+        where: { productId: product.id },
+        include: { warehouse: { select: { name: true } } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 500,
+      }),
     ]);
     res.json({
       id: product.id,
@@ -369,6 +386,18 @@ router.get(
         status: r.status,
         supplier: r.supplier,
         warehouseName: r.warehouse?.name ?? null,
+      })),
+      stockMovements: stockMovements.map((m) => ({
+        id: m.id,
+        at: m.createdAt.toISOString(),
+        warehouseName: m.warehouse?.name ?? null,
+        change: m.change,
+        onHandAfter: m.onHandAfter,
+        reason: m.reason,
+        note: m.note,
+        orderId: m.orderId,
+        containerId: m.containerId,
+        userName: m.userName,
       })),
       receivedRestocks: receivedRestocks.map((r) => ({
         id: r.id,
@@ -542,15 +571,11 @@ router.put(
       return res.status(400).json({ message: "onHand must be a non-negative integer" });
     }
 
-    await prisma.$transaction(
-      stock.map((s) =>
-        prisma.warehouseStock.upsert({
-          where: { productId_warehouseId: { productId: id, warehouseId: s.warehouseId } },
-          update: { onHand: s.onHand },
-          create: { productId: id, warehouseId: s.warehouseId, onHand: s.onHand },
-        })
-      )
-    );
+    await prisma.$transaction(async (tx) => {
+      for (const s of stock) {
+        await changeStock(tx, { productId: id, warehouseId: s.warehouseId, setTo: s.onHand, reason: "MANUAL", note: "Edited on the product", by: req.userName });
+      }
+    });
 
     const updatedStock = await prisma.warehouseStock.findMany({ where: { productId: id } });
     res.json({ productId: id, stock: updatedStock });
@@ -624,21 +649,17 @@ router.post(
       return res.status(400).json({ message: `Unknown SKUs: ${unknown.join(", ")}` });
     }
 
-    const ops = [];
-    for (const row of rows) {
-      const sku = String(row.sku).trim().toUpperCase();
-      const product = productBySku[sku];
-      for (const s of row.stock || []) {
-        ops.push(
-          prisma.warehouseStock.upsert({
-            where: { productId_warehouseId: { productId: product.id, warehouseId: s.warehouseId } },
-            update: { onHand: s.onHand },
-            create: { productId: product.id, warehouseId: s.warehouseId, onHand: s.onHand },
-          })
-        );
+    await prisma.$transaction(async (tx) => {
+      for (const row of rows) {
+        const sku = String(row.sku).trim().toUpperCase();
+        const product = productBySku[sku];
+        for (const s of row.stock || []) {
+          await changeStock(tx, {
+            productId: product.id, warehouseId: s.warehouseId, setTo: s.onHand, reason: "STOCK_UPLOAD", note: "Update Stock upload", by: req.userName,
+          });
+        }
       }
-    }
-    await prisma.$transaction(ops);
+    }, { timeout: 60000 });
     res.json({ updated: rows.length });
   })
 );

@@ -289,7 +289,7 @@ router.post(
     const id = Number(req.params.id);
     const receivedByLine = new Map((req.body.lines || []).map((l) => [Number(l.id), Number(l.receivedQuantity)]));
     try {
-      await prisma.$transaction((tx) => receiveContainer(tx, id, receivedByLine));
+      await prisma.$transaction((tx) => receiveContainer(tx, id, receivedByLine, req.userName));
       res.json(containerView(await loadContainer(prisma, id)));
     } catch (err) {
       sendError(res, err);
@@ -303,7 +303,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     try {
-      await prisma.$transaction((tx) => unreceiveContainer(tx, id));
+      await prisma.$transaction((tx) => unreceiveContainer(tx, id, req.userName));
       res.json(containerView(await loadContainer(prisma, id)));
     } catch (err) {
       sendError(res, err);
@@ -320,7 +320,7 @@ router.delete(
     const container = await prisma.container.findUnique({ where: { id } });
     if (!container) return res.status(404).json({ message: "Container not found" });
     await prisma.$transaction(async (tx) => {
-      if (container.status === "RECEIVED") await unreceiveContainer(tx, id);
+      if (container.status === "RECEIVED") await unreceiveContainer(tx, id, req.userName);
       await tx.restock.deleteMany({ where: { containerId: id } });
       await tx.container.delete({ where: { id } });
     });

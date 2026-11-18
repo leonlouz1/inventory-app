@@ -22,6 +22,7 @@ model Warehouse {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   stock      WarehouseStock[]
+  stockMovements StockMovement[]
   orderLines OrderLine[]
   restocks   Restock[]
   shipments  Shipment[]
@@ -67,10 +68,35 @@ model Product {
   linesheetItems LinesheetItem[]
   shadows        Product[]         @relation("ShadowSku")
   stock          WarehouseStock[]
+  stockMovements StockMovement[]
   orderLines     OrderLine[]
   restocks       Restock[]
 
   @@map("products")
+}
+
+// Stock history: one row per change to a product's on-hand stock in a
+// warehouse (receiving, shipping, uploads, manual edits, transfers...).
+// `change` is + or -, `onHandAfter` is the warehouse's total after it.
+model StockMovement {
+  id          Int      @id @default(autoincrement())
+  productId   Int      @map("product_id")
+  warehouseId Int      @map("warehouse_id")
+  change      Int
+  onHandAfter Int      @map("on_hand_after")
+  reason      String   @db.VarChar(30)
+  note        String?
+  orderId     Int?     @map("order_id")
+  restockId   Int?     @map("restock_id")
+  containerId Int?     @map("container_id")
+  userName    String?  @map("user_name") @db.VarChar(200)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@index([productId, createdAt])
+  @@map("stock_movements")
 }
 
 model WarehouseStock {

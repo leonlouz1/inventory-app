@@ -1,6 +1,7 @@
 const { Router } = require("express");
 const { PrismaClient } = require("@prisma/client");
 const { defaultCasePack } = require("../constants/categories");
+const { changeStock } = require("../services/stock");
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -73,10 +74,8 @@ router.post("/", async (req, res) => {
       for (const [whName, qty] of Object.entries(p.stock)) {
         const whId = warehouseMap[whName];
         if (!whId || isNaN(Number(qty))) continue;
-        await prisma.warehouseStock.upsert({
-          where: { productId_warehouseId: { productId: result.id, warehouseId: whId } },
-          update: { onHand: Number(qty) },
-          create: { productId: result.id, warehouseId: whId, onHand: Number(qty) },
+        await changeStock(prisma, {
+          productId: result.id, warehouseId: whId, setTo: Number(qty), reason: "IMPORT", note: "Data import", by: req.userName,
         });
         summary.stock.upserted++;
       }

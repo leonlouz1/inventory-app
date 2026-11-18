@@ -240,7 +240,9 @@ router.post(
           await tx.orderLine.createMany({ data: createdLines });
 
           if (status === "SHIPPED") {
-            await adjustStockForShippedTransition(tx, createdLines, -1);
+            await adjustStockForShippedTransition(tx, createdLines, -1, {
+              orderId: created.id, note: `Order ${created.orderNumber} (created as shipped)`, by: req.userName,
+            });
           }
 
           return created;
@@ -472,10 +474,11 @@ router.put(
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      const stockNote = { orderId: order.id, by: req.userName };
       if (!wasShipped && willBeShipped) {
-        await adjustStockForShippedTransition(tx, order.lines, -1);
+        await adjustStockForShippedTransition(tx, order.lines, -1, { ...stockNote, note: `Order ${order.orderNumber}` });
       } else if (wasShipped && !willBeShipped) {
-        await adjustStockForShippedTransition(tx, order.lines, 1);
+        await adjustStockForShippedTransition(tx, order.lines, 1, { ...stockNote, note: `Order ${order.orderNumber} moved back to ${status}` });
       }
       const statusData = { status };
       if (!wasShipped && willBeShipped) statusData.shippedAt = new Date();
@@ -506,7 +509,9 @@ router.delete(
 
     await prisma.$transaction(async (tx) => {
       if (order.status === "SHIPPED") {
-        await adjustStockForShippedTransition(tx, order.lines, 1);
+        await adjustStockForShippedTransition(tx, order.lines, 1, {
+          reason: "ORDER_DELETED", orderId: order.id, note: `Shipped order ${order.orderNumber} deleted`, by: req.userName,
+        });
       }
       await tx.order.delete({ where: { id } });
     });
