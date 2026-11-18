@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input, DatePicker, Upload } from "antd";
+import { Table, Button, Tag, Spin, Alert, Popconfirm, message, Typography, Space, Select, Modal, Input, DatePicker, Upload, Collapse } from "antd";
 import { PlusOutlined, DeleteOutlined, EditOutlined, UploadOutlined, FileExcelOutlined, TruckOutlined, MailOutlined, DownloadOutlined, ScissorOutlined, FileSearchOutlined } from "@ant-design/icons";
 import { ordersApi, productsApi, warehousesApi, restocksApi, shipmentsApi, skuGroupsApi } from "../api/inventory";
 import NewOrderModal from "../components/NewOrderModal";
@@ -17,6 +17,17 @@ import { downloadPackingList } from "../utils/packingList";
 import { showShadowMessages } from "../utils/shadowMessages";
 
 const STATUS_OPTIONS = ORDER_STATUSES.map((s) => ({ value: s, label: ORDER_STATUS_LABELS[s] }));
+
+// The Orders page is split into collapsible sections by status, in workflow order.
+// Finished orders (Shipped, Cancelled) start collapsed.
+const ORDER_SECTIONS = [
+  { key: "confirmed", statuses: ["CONFIRMED"], hint: "Waiting to be routed" },
+  { key: "routing", statuses: ["ROUTED", "ALLOCATED"], hint: "In routing / allocated at the warehouse" },
+  { key: "draft", statuses: ["DRAFT"], hint: "Not confirmed yet" },
+  { key: "shipped", statuses: ["SHIPPED"], hint: "Already shipped" },
+  { key: "cancelled", statuses: ["CANCELLED"], hint: "Cancelled orders" },
+];
+const DEFAULT_OPEN_SECTIONS = ["confirmed", "routing", "draft"];
 
 function OrderNotes({ order, onSaved }) {
   const [editing, setEditing] = useState(false);
@@ -203,6 +214,7 @@ export default function Orders() {
   const [swapTarget, setSwapTarget] = useState(null); // { orderId, line, groupSkus }
   const [swapLoading, setSwapLoading] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+  const [openSections, setOpenSections] = useState(DEFAULT_OPEN_SECTIONS);
   const [bulkStatusLoading, setBulkStatusLoading] = useState(false);
   const [bulkWarehouseLoading, setBulkWarehouseLoading] = useState(false);
 
@@ -327,8 +339,14 @@ export default function Orders() {
   useEffect(() => {
     if (!highlightId || orders.length === 0) return;
     setExpandedRowKeys((prev) => (prev.includes(highlightId) ? prev : [...prev, highlightId]));
-    const row = document.getElementById(`order-row-${highlightId}`);
-    if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Open the section the order is in (Shipped/Cancelled start collapsed), then scroll to it
+    const status = orders.find((o) => o.id === highlightId)?.status;
+    const section = ORDER_SECTIONS.find((sec) => sec.statuses.includes(status));
+    if (section) setOpenSections((prev) => (prev.includes(section.key) ? prev : [...prev, section.key]));
+    setTimeout(() => {
+      const row = document.getElementById(`order-row-${highlightId}`);
+      if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
     setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightId, orders.length]);
@@ -503,6 +521,294 @@ export default function Orders() {
     },
   ];
 
+  const renderOrdersTable = (sectionOrders) => (
+    <Table
+      columns={columns}
+      dataSource={sectionOrders}
+      rowKey="id"
+      size="small"
+      rowSelection={{
+        selectedRowKeys: selectedOrderIds.filter((id) => sectionOrders.some((o) => o.id === id)),
+        // Selections are kept per section, so picking here doesn't clear other sections
+        onChange: (keys) => setSelectedOrderIds((prev) => [
+          ...prev.filter((id) => !sectionOrders.some((o) => o.id === id)),
+          ...keys,
+        ]),
+      }}
+      pagination={{ defaultPageSize: 15, hideOnSinglePage: true, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
+      locale={{ emptyText: "No orders here" }}
+      onRow={(order) => ({ id: `order-row-${order.id}` })}
+      expandable={{
+        expandedRowKeys,
+        onExpandedRowsChange: setExpandedRowKeys,
+        expandedRowRender: (order) => {
+          const lineColumns = [
+            {
+              title: "SKU",
+              dataIndex: "sku",
+              render: (sku, line) => (
+                <>
+                  <Link to={`/products/${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
+                    {sku}
+                  </Link>
+                  {line.shadowOf && <Tag color="purple" style={{ marginLeft: 6 }}>shadow of {line.shadowOf}</Tag>}
+                </>
+              ),
+            },
+            { title: "Product", dataIndex: "productName" },
+            { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned" },
+            {
+              title: "Qty",
+              dataIndex: "quantity",
+              render: (qty, line) => {
+                const cases = line.casePack ? (qty / line.casePack).toFixed(1).replace(/\.0$/, "") : null;
+                return cases ? <span>{qty} <span style={{ color: "#888", fontSize: 12 }}>({cases} cs)</span></span> : qty;
+              },
+            },
+            { title: "Ship Date", dataIndex: "shipDate" },
+            {
+              title: "Container #",
+              dataIndex: "containerNumber",
+              render: (val, line) => (
+                <Input
+                  size="small"
+                  defaultValue={val || ""}
+                  placeholder="—"
+                  style={{ width: 120 }}
+                  onBlur={async (e) => {
+                    const newVal = e.target.value.trim() || null;
+                    if (newVal === (val || null)) return;
+                    try {
+                      await ordersApi.updateLineContainer(order.id, line.id, newVal);
+                      setOrders((prev) => prev.map((o) =>
+                        o.id === order.id
+                          ? { ...o, lines: o.lines.map((l) => l.id === line.id ? { ...l, containerNumber: newVal } : l) }
+                          : o
+                      ));
+                    } catch (err) {
+                      message.error(`Failed to save container #: ${err.message}`);
+                    }
+                  }}
+                  onPressEnter={(e) => e.target.blur()}
+                />
+              ),
+            },
+            {
+              title: "Carton Marking",
+              dataIndex: "cartonMarking",
+              render: (val, line) => (
+                <Input
+                  size="small"
+                  defaultValue={val || ""}
+                  placeholder="—"
+                  style={{ width: 140 }}
+                  onBlur={async (e) => {
+                    const newVal = e.target.value.trim() || null;
+                    if (newVal === (val || null)) return;
+                    try {
+                      await ordersApi.updateLineCartonMarking(order.id, line.id, newVal);
+                      setOrders((prev) => prev.map((o) =>
+                        o.id === order.id
+                          ? { ...o, lines: o.lines.map((l) => l.id === line.id ? { ...l, cartonMarking: newVal } : l) }
+                          : o
+                      ));
+                    } catch (err) {
+                      message.error(`Failed to save carton marking: ${err.message}`);
+                    }
+                  }}
+                  onPressEnter={(e) => e.target.blur()}
+                />
+              ),
+            },
+            { title: "Projection", dataIndex: "projection", render: (p) => <ProjectionTag projection={p} /> },
+            {
+              title: "",
+              key: "actions",
+              render: (_, line) => (
+                <Space>
+                  {line.shadowOf && order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                    <Popconfirm
+                      title={`Switch this line to ${line.shadowOf}?`}
+                      description="Use this when the warehouse is shipping new-barcode boxes for this line."
+                      okText="Switch"
+                      onConfirm={async () => {
+                        const parent = products.find((p) => p.sku === line.shadowOf);
+                        if (!parent) return message.error(`${line.shadowOf} not found`);
+                        try {
+                          await skuGroupsApi.swapLine(order.id, line.id, parent.id);
+                          message.success(`Switched to ${line.shadowOf}`);
+                          loadOrders();
+                        } catch (err) {
+                          message.error(err.message);
+                        }
+                      }}
+                    >
+                      <Button size="small">Switch to {line.shadowOf}</Button>
+                    </Popconfirm>
+                  )}
+                  {line.groupId && order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                    <Button
+                      size="small"
+                      onClick={async () => {
+                        const groups = await skuGroupsApi.list();
+                        const group = groups.find((g) => g.id === line.groupId);
+                        setSwapTarget({ orderId: order.id, line, groupSkus: group?.skus || [] });
+                      }}
+                    >
+                      Swap SKU
+                    </Button>
+                  )}
+                  <Button
+                    icon={<EditOutlined />}
+                    type="text"
+                    onClick={() => setEditingLine({ orderId: order.id, line })}
+                  />
+                  {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                    <Popconfirm
+                      title="Remove this line?"
+                      onConfirm={async () => {
+                        try {
+                          await ordersApi.deleteLine(order.id, line.id);
+                          loadOrders();
+                        } catch (err) {
+                          message.error(err.message);
+                        }
+                      }}
+                      okText="Remove"
+                      okButtonProps={{ danger: true }}
+                    >
+                      <Button icon={<DeleteOutlined />} type="text" danger size="small" />
+                    </Popconfirm>
+                  )}
+                </Space>
+              ),
+            },
+          ];
+          const linkedRestocks = restocksByOrderId.get(order.id) || [];
+          return (
+            <>
+              <Table columns={lineColumns} dataSource={order.lines} rowKey="id" pagination={false} size="small" />
+              <Space style={{ marginTop: 8 }}>
+                {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                  <Button
+                    icon={<PlusOutlined />}
+                    size="small"
+                    onClick={() => setAddingLineToOrder(order)}
+                  >
+                    Add SKU
+                  </Button>
+                )}
+                {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                  <Select
+                    size="small"
+                    placeholder="Assign all to warehouse"
+                    style={{ minWidth: 180 }}
+                    allowClear
+                    options={warehouses.map((w) => ({ value: w.id, label: w.name }))}
+                    onChange={async (warehouseId) => {
+                      try {
+                        await ordersApi.assignWarehouse(order.id, warehouseId ?? null);
+                        message.success("All lines assigned");
+                        loadOrders();
+                      } catch (err) {
+                        message.error(err.message);
+                      }
+                    }}
+                  />
+                )}
+                {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
+                  <Select
+                    size="small"
+                    placeholder={<><TruckOutlined /> Add to shipment</>}
+                    style={{ minWidth: 180 }}
+                    value={order.shipmentId || undefined}
+                    options={shipments
+                      .filter((s) => s.status !== "DELIVERED")
+                      .map((s) => ({ value: s.id, label: `${s.shipmentNumber} · ${dayjs(s.pickupDate).format("MMM D")}` }))}
+                    onChange={async (shipmentId) => {
+                      if (order.status === "ROUTED") {
+                        const current = shipments.find((s) => s.id === order.shipmentId)?.shipmentNumber;
+                        const ok = await new Promise((resolve) => Modal.confirm({
+                          title: "This order is already routed",
+                          content: current
+                            ? `${order.orderNumber} is on ${current}. Move it to this shipment?`
+                            : `${order.orderNumber} is already routed. Add it to this shipment anyway?`,
+                          okText: "Add anyway",
+                          onOk: () => resolve(true),
+                          onCancel: () => resolve(false),
+                        }));
+                        if (!ok) return;
+                      }
+                      try {
+                        await shipmentsApi.addOrder(shipmentId, order.id);
+                        message.success(`Added to shipment`);
+                        loadOrders();
+                        const [, , , s] = await Promise.all([productsApi.list(), warehousesApi.list(), restocksApi.list(), shipmentsApi.list()]);
+                        setShipments(s);
+                      } catch (err) {
+                        message.error(err.message);
+                      }
+                    }}
+                    allowClear
+                    onClear={async () => {
+                      if (!order.shipmentId) return;
+                      try {
+                        await shipmentsApi.removeOrder(order.shipmentId, order.id);
+                        message.success("Removed from shipment");
+                        loadOrders();
+                        shipmentsApi.list().then(setShipments);
+                      } catch (err) {
+                        message.error(err.message);
+                      }
+                    }}
+                  />
+                )}
+              </Space>
+              <OrderCustomer
+                order={order}
+                onSaved={(customer) =>
+                  setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, customer } : o))
+                }
+              />
+              <OrderCustomerPo
+                order={order}
+                onSaved={(customerPo) =>
+                  setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, customerPo } : o))
+                }
+              />
+              <OrderNotes
+                order={order}
+                onSaved={(notes) =>
+                  setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, notes } : o))
+                }
+              />
+              {linkedRestocks.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <Typography.Text strong style={{ fontSize: 13 }}>Linked Containers ({linkedRestocks.length} line{linkedRestocks.length > 1 ? "s" : ""})</Typography.Text>
+                  <Table
+                    size="small"
+                    pagination={false}
+                    style={{ marginTop: 6 }}
+                    rowKey="id"
+                    dataSource={linkedRestocks}
+                    columns={[
+                      { title: "SKU", dataIndex: "sku", render: (sku) => <Link to={`/products/${encodeURIComponent(sku)}`}>{sku}</Link> },
+                      { title: "Product", dataIndex: "productName" },
+                      { title: "Warehouse", dataIndex: "warehouseName" },
+                      { title: "Qty Incoming", dataIndex: "quantity" },
+                      { title: "Expected Date", dataIndex: "expectedDate" },
+                      { title: "Supplier / PO", dataIndex: "supplier", render: (v) => v || "—" },
+                    ]}
+                  />
+                </div>
+              )}
+            </>
+          );
+        },
+      }}
+    />
+  );
+
   if (error) {
     return <Alert type="error" message="Failed to load orders" description={error} showIcon />;
   }
@@ -619,281 +925,27 @@ export default function Orders() {
         </div>
       )}
 
-      <Table
-        columns={columns}
-        dataSource={filteredOrders}
-        rowKey="id"
-        rowSelection={{ selectedRowKeys: selectedOrderIds, onChange: setSelectedOrderIds }}
-        pagination={{ defaultPageSize: 15, showSizeChanger: true, pageSizeOptions: ["10", "20", "50", "100"] }}
-        onRow={(order) => ({ id: `order-row-${order.id}` })}
-        expandable={{
-          expandedRowKeys,
-          onExpandedRowsChange: setExpandedRowKeys,
-          expandedRowRender: (order) => {
-            const lineColumns = [
-              {
-                title: "SKU",
-                dataIndex: "sku",
-                render: (sku, line) => (
-                  <>
-                    <Link to={`/products/${encodeURIComponent(sku)}`} onClick={(e) => e.stopPropagation()}>
-                      {sku}
-                    </Link>
-                    {line.shadowOf && <Tag color="purple" style={{ marginLeft: 6 }}>shadow of {line.shadowOf}</Tag>}
-                  </>
-                ),
-              },
-              { title: "Product", dataIndex: "productName" },
-              { title: "Warehouse", dataIndex: "warehouseName", render: (v) => v || "Unassigned" },
-              {
-                title: "Qty",
-                dataIndex: "quantity",
-                render: (qty, line) => {
-                  const cases = line.casePack ? (qty / line.casePack).toFixed(1).replace(/\.0$/, "") : null;
-                  return cases ? <span>{qty} <span style={{ color: "#888", fontSize: 12 }}>({cases} cs)</span></span> : qty;
-                },
-              },
-              { title: "Ship Date", dataIndex: "shipDate" },
-              {
-                title: "Container #",
-                dataIndex: "containerNumber",
-                render: (val, line) => (
-                  <Input
-                    size="small"
-                    defaultValue={val || ""}
-                    placeholder="—"
-                    style={{ width: 120 }}
-                    onBlur={async (e) => {
-                      const newVal = e.target.value.trim() || null;
-                      if (newVal === (val || null)) return;
-                      try {
-                        await ordersApi.updateLineContainer(order.id, line.id, newVal);
-                        setOrders((prev) => prev.map((o) =>
-                          o.id === order.id
-                            ? { ...o, lines: o.lines.map((l) => l.id === line.id ? { ...l, containerNumber: newVal } : l) }
-                            : o
-                        ));
-                      } catch (err) {
-                        message.error(`Failed to save container #: ${err.message}`);
-                      }
-                    }}
-                    onPressEnter={(e) => e.target.blur()}
-                  />
-                ),
-              },
-              {
-                title: "Carton Marking",
-                dataIndex: "cartonMarking",
-                render: (val, line) => (
-                  <Input
-                    size="small"
-                    defaultValue={val || ""}
-                    placeholder="—"
-                    style={{ width: 140 }}
-                    onBlur={async (e) => {
-                      const newVal = e.target.value.trim() || null;
-                      if (newVal === (val || null)) return;
-                      try {
-                        await ordersApi.updateLineCartonMarking(order.id, line.id, newVal);
-                        setOrders((prev) => prev.map((o) =>
-                          o.id === order.id
-                            ? { ...o, lines: o.lines.map((l) => l.id === line.id ? { ...l, cartonMarking: newVal } : l) }
-                            : o
-                        ));
-                      } catch (err) {
-                        message.error(`Failed to save carton marking: ${err.message}`);
-                      }
-                    }}
-                    onPressEnter={(e) => e.target.blur()}
-                  />
-                ),
-              },
-              { title: "Projection", dataIndex: "projection", render: (p) => <ProjectionTag projection={p} /> },
-              {
-                title: "",
-                key: "actions",
-                render: (_, line) => (
-                  <Space>
-                    {line.shadowOf && order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
-                      <Popconfirm
-                        title={`Switch this line to ${line.shadowOf}?`}
-                        description="Use this when the warehouse is shipping new-barcode boxes for this line."
-                        okText="Switch"
-                        onConfirm={async () => {
-                          const parent = products.find((p) => p.sku === line.shadowOf);
-                          if (!parent) return message.error(`${line.shadowOf} not found`);
-                          try {
-                            await skuGroupsApi.swapLine(order.id, line.id, parent.id);
-                            message.success(`Switched to ${line.shadowOf}`);
-                            loadOrders();
-                          } catch (err) {
-                            message.error(err.message);
-                          }
-                        }}
-                      >
-                        <Button size="small">Switch to {line.shadowOf}</Button>
-                      </Popconfirm>
-                    )}
-                    {line.groupId && order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
-                      <Button
-                        size="small"
-                        onClick={async () => {
-                          const groups = await skuGroupsApi.list();
-                          const group = groups.find((g) => g.id === line.groupId);
-                          setSwapTarget({ orderId: order.id, line, groupSkus: group?.skus || [] });
-                        }}
-                      >
-                        Swap SKU
-                      </Button>
-                    )}
-                    <Button
-                      icon={<EditOutlined />}
-                      type="text"
-                      onClick={() => setEditingLine({ orderId: order.id, line })}
-                    />
-                    {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
-                      <Popconfirm
-                        title="Remove this line?"
-                        onConfirm={async () => {
-                          try {
-                            await ordersApi.deleteLine(order.id, line.id);
-                            loadOrders();
-                          } catch (err) {
-                            message.error(err.message);
-                          }
-                        }}
-                        okText="Remove"
-                        okButtonProps={{ danger: true }}
-                      >
-                        <Button icon={<DeleteOutlined />} type="text" danger size="small" />
-                      </Popconfirm>
-                    )}
-                  </Space>
-                ),
-              },
-            ];
-            const linkedRestocks = restocksByOrderId.get(order.id) || [];
-            return (
-              <>
-                <Table columns={lineColumns} dataSource={order.lines} rowKey="id" pagination={false} size="small" />
-                <Space style={{ marginTop: 8 }}>
-                  {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
-                    <Button
-                      icon={<PlusOutlined />}
-                      size="small"
-                      onClick={() => setAddingLineToOrder(order)}
-                    >
-                      Add SKU
-                    </Button>
-                  )}
-                  {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
-                    <Select
-                      size="small"
-                      placeholder="Assign all to warehouse"
-                      style={{ minWidth: 180 }}
-                      allowClear
-                      options={warehouses.map((w) => ({ value: w.id, label: w.name }))}
-                      onChange={async (warehouseId) => {
-                        try {
-                          await ordersApi.assignWarehouse(order.id, warehouseId ?? null);
-                          message.success("All lines assigned");
-                          loadOrders();
-                        } catch (err) {
-                          message.error(err.message);
-                        }
-                      }}
-                    />
-                  )}
-                  {order.status !== "SHIPPED" && order.status !== "CANCELLED" && (
-                    <Select
-                      size="small"
-                      placeholder={<><TruckOutlined /> Add to shipment</>}
-                      style={{ minWidth: 180 }}
-                      value={order.shipmentId || undefined}
-                      options={shipments
-                        .filter((s) => s.status !== "DELIVERED")
-                        .map((s) => ({ value: s.id, label: `${s.shipmentNumber} · ${dayjs(s.pickupDate).format("MMM D")}` }))}
-                      onChange={async (shipmentId) => {
-                        if (order.status === "ROUTED") {
-                          const current = shipments.find((s) => s.id === order.shipmentId)?.shipmentNumber;
-                          const ok = await new Promise((resolve) => Modal.confirm({
-                            title: "This order is already routed",
-                            content: current
-                              ? `${order.orderNumber} is on ${current}. Move it to this shipment?`
-                              : `${order.orderNumber} is already routed. Add it to this shipment anyway?`,
-                            okText: "Add anyway",
-                            onOk: () => resolve(true),
-                            onCancel: () => resolve(false),
-                          }));
-                          if (!ok) return;
-                        }
-                        try {
-                          await shipmentsApi.addOrder(shipmentId, order.id);
-                          message.success(`Added to shipment`);
-                          loadOrders();
-                          const [, , , s] = await Promise.all([productsApi.list(), warehousesApi.list(), restocksApi.list(), shipmentsApi.list()]);
-                          setShipments(s);
-                        } catch (err) {
-                          message.error(err.message);
-                        }
-                      }}
-                      allowClear
-                      onClear={async () => {
-                        if (!order.shipmentId) return;
-                        try {
-                          await shipmentsApi.removeOrder(order.shipmentId, order.id);
-                          message.success("Removed from shipment");
-                          loadOrders();
-                          shipmentsApi.list().then(setShipments);
-                        } catch (err) {
-                          message.error(err.message);
-                        }
-                      }}
-                    />
-                  )}
-                </Space>
-                <OrderCustomer
-                  order={order}
-                  onSaved={(customer) =>
-                    setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, customer } : o))
-                  }
-                />
-                <OrderCustomerPo
-                  order={order}
-                  onSaved={(customerPo) =>
-                    setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, customerPo } : o))
-                  }
-                />
-                <OrderNotes
-                  order={order}
-                  onSaved={(notes) =>
-                    setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, notes } : o))
-                  }
-                />
-                {linkedRestocks.length > 0 && (
-                  <div style={{ marginTop: 12 }}>
-                    <Typography.Text strong style={{ fontSize: 13 }}>Linked Containers ({linkedRestocks.length} line{linkedRestocks.length > 1 ? "s" : ""})</Typography.Text>
-                    <Table
-                      size="small"
-                      pagination={false}
-                      style={{ marginTop: 6 }}
-                      rowKey="id"
-                      dataSource={linkedRestocks}
-                      columns={[
-                        { title: "SKU", dataIndex: "sku", render: (sku) => <Link to={`/products/${encodeURIComponent(sku)}`}>{sku}</Link> },
-                        { title: "Product", dataIndex: "productName" },
-                        { title: "Warehouse", dataIndex: "warehouseName" },
-                        { title: "Qty Incoming", dataIndex: "quantity" },
-                        { title: "Expected Date", dataIndex: "expectedDate" },
-                        { title: "Supplier / PO", dataIndex: "supplier", render: (v) => v || "—" },
-                      ]}
-                    />
-                  </div>
-                )}
-              </>
-            );
-          },
-        }}
+      <Collapse
+        activeKey={openSections}
+        onChange={setOpenSections}
+        items={ORDER_SECTIONS
+          .filter((sec) => !statusFilter.length || sec.statuses.some((st) => statusFilter.includes(st)))
+          .map((sec) => {
+            const sectionOrders = filteredOrders.filter((o) => sec.statuses.includes(o.status));
+            return {
+              key: sec.key,
+              label: (
+                <span>
+                  {sec.statuses.map((st) => (
+                    <Tag key={st} color={ORDER_STATUS_COLORS[st]}>{ORDER_STATUS_LABELS[st]}</Tag>
+                  ))}
+                  <Typography.Text strong>{sectionOrders.length} order{sectionOrders.length === 1 ? "" : "s"}</Typography.Text>
+                  <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>{sec.hint}</Typography.Text>
+                </span>
+              ),
+              children: renderOrdersTable(sectionOrders),
+            };
+          })}
       />
 
       <NewOrderModal
