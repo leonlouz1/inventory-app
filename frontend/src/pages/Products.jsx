@@ -60,6 +60,8 @@ export default function Products() {
   const [linesheetCategories, setLinesheetCategories] = useState([]);
   const [linesheetBrands, setLinesheetBrands] = useState([]);
   const [linesheetExporting, setLinesheetExporting] = useState(false);
+  // "ats" = ATS Linesheet, "catalog" = Catalog Export (all SKUs, one row each)
+  const [linesheetMode, setLinesheetMode] = useState("ats");
   const [inventoryReportActiveOnly, setInventoryReportActiveOnly] = useState(false);
 
   const filteredProducts = useMemo(() => {
@@ -193,14 +195,15 @@ export default function Products() {
 
   async function handleLinesheetDownload() {
     const picked = linesheetInCategories.filter((p) => !linesheetBrands.length || linesheetBrands.includes(p.brand ?? null));
-    if (!atsLinesheetBlocks(picked).length) {
-      message.warning("Nothing available to sell or on its way in that selection");
+    const catalog = linesheetMode === "catalog";
+    if (catalog ? !picked.length : !atsLinesheetBlocks(picked).length) {
+      message.warning(catalog ? "No products in that selection" : "Nothing available to sell or on its way in that selection");
       return;
     }
     setLinesheetExporting(true);
     try {
       const title = linesheetBrands.length === 1 && linesheetBrands[0] ? linesheetBrands[0] : "";
-      const { missingImages } = await downloadAtsLinesheet(picked, { title });
+      const { missingImages } = await downloadAtsLinesheet(picked, { title, catalog });
       if (missingImages) message.warning(`${missingImages} picture${missingImages === 1 ? "" : "s"} couldn't be loaded and were left out`);
       setLinesheetOpen(false);
     } catch (err) {
@@ -409,8 +412,11 @@ export default function Products() {
           <Button icon={<DownloadOutlined />} onClick={() => { setAtsCategories([]); setAtsOpen(true); }}>
             Export Available to Sell
           </Button>
-          <Button icon={<DownloadOutlined />} onClick={() => { setLinesheetCategories([]); setLinesheetBrands([]); setLinesheetOpen(true); }}>
+          <Button icon={<DownloadOutlined />} onClick={() => { setLinesheetMode("ats"); setLinesheetCategories([]); setLinesheetBrands([]); setLinesheetOpen(true); }}>
             ATS Linesheet
+          </Button>
+          <Button icon={<DownloadOutlined />} onClick={() => { setLinesheetMode("catalog"); setLinesheetCategories([]); setLinesheetBrands([]); setLinesheetOpen(true); }}>
+            Catalog Export
           </Button>
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
             Import CSV
@@ -511,7 +517,7 @@ export default function Products() {
       />
 
       <Modal
-        title="ATS Linesheet"
+        title={linesheetMode === "catalog" ? "Catalog Export" : "ATS Linesheet"}
         open={linesheetOpen}
         onCancel={() => setLinesheetOpen(false)}
         okText="Download"
@@ -521,7 +527,10 @@ export default function Products() {
         width={420}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          Pick a category, then a brand. Leave blank for all. Styles with nothing to sell now and nothing in production or en route are left out.
+          Pick a category, then a brand. Leave blank for all.{" "}
+          {linesheetMode === "catalog"
+            ? "Every SKU is included, in stock or not, each on its own row with its own picture."
+            : "Styles with nothing to sell now and nothing in production or en route are left out."}
         </Typography.Paragraph>
         <Typography.Text strong>Category</Typography.Text>
         <Select

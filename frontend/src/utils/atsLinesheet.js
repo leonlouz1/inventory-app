@@ -44,6 +44,13 @@ function atsBreakdown(p) {
   return { now, byDate };
 }
 
+// Catalog mode: every SKU, each on its own row with its own picture
+function catalogBlocks(products) {
+  return products
+    .map((p) => [{ ...p, ats: atsBreakdown(p) }])
+    .sort((a, b) => (a[0].brand || "").localeCompare(b[0].brand || "") || a[0].sku.localeCompare(b[0].sku));
+}
+
 // Group products into style blocks, keeping only blocks with something to sell
 // now or coming. Zero rows inside a block stay, so the buyer sees every color.
 export function atsLinesheetBlocks(products) {
@@ -65,9 +72,10 @@ function styleRow(row, dateCols) {
   for (let c = 1; c <= BASE_COLUMNS.length + dateCols; c++) row.getCell(c).border = BORDER;
 }
 
+// catalog: true → every SKU (stock or not), one row and picture per SKU
 // Returns { skus, missingImages }
-export async function downloadAtsLinesheet(products, { title } = {}) {
-  const blocks = atsLinesheetBlocks(products);
+export async function downloadAtsLinesheet(products, { title, catalog = false } = {}) {
+  const blocks = catalog ? catalogBlocks(products) : atsLinesheetBlocks(products);
   const dates = [...new Set(blocks.flat().flatMap((p) => Object.keys(p.ats.byDate).filter((d) => p.ats.byDate[d] > 0)))].sort();
   const columns = [...BASE_COLUMNS, ...dates.map((d) => ({ header: `ATS\n${shortDate(d)}`, width: DATE_COL_WIDTH }))];
 
@@ -134,7 +142,7 @@ export async function downloadAtsLinesheet(products, { title } = {}) {
 
   const d = new Date();
   const stamp = `${d.getMonth() + 1}-${d.getDate()}-${String(d.getFullYear()).slice(2)}`;
-  const name = `${(title ? `${title} ` : "").toUpperCase()}ATS ${stamp}`.replace(/[^\w &-]+/g, "").trim();
+  const name = `${(title ? `${title} ` : "").toUpperCase()}${catalog ? "CATALOG" : "ATS"} ${stamp}`.replace(/[^\w &-]+/g, "").trim();
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
   const a = document.createElement("a");
