@@ -4,6 +4,7 @@ const asyncHandler = require("../middleware/asyncHandler");
 const { PENDING_STATUSES } = require("../constants/orderStatuses");
 const { NOT_INCOMING_RESTOCK_STATUSES } = require("../constants/restockStatuses");
 const { systemUpcFor } = require("../services/upcProducts");
+const { atsWarehouseFilters } = require("../services/atsWarehouses");
 
 const router = express.Router();
 
@@ -84,16 +85,19 @@ router.patch(
 router.get(
   "/report/available-to-sell",
   asyncHandler(async (req, res) => {
+    const warehouses = await prisma.warehouse.findMany();
+    const atsWhere = atsWarehouseFilters(warehouses);
+    const counted = new Set(warehouses.filter((w) => w.countInAts !== false).map((w) => w.id));
     const [products, pending, incoming] = await Promise.all([
       prisma.product.findMany({ orderBy: { sku: "asc" }, include: { stock: true } }),
       prisma.orderLine.groupBy({
         by: ["productId"],
-        where: { order: { status: { in: PENDING_STATUSES } } },
+        where: { order: { status: { in: PENDING_STATUSES } }, ...atsWhere.orderLine },
         _sum: { quantity: true },
       }),
       prisma.restock.groupBy({
         by: ["productId"],
-        where: { status: { notIn: NOT_INCOMING_RESTOCK_STATUSES } },
+        where: { status: { notIn: NOT_INCOMING_RESTOCK_STATUSES }, ...atsWhere.restock },
         _sum: { quantity: true },
       }),
     ]);
@@ -102,7 +106,7 @@ router.get(
     const incomingMap = new Map(incoming.map((r) => [r.productId, r._sum.quantity ?? 0]));
 
     const rows = products.map((p) => {
-      const onHand = p.stock.reduce((s, w) => s + w.onHand, 0);
+      const onHand = p.stock.reduce((s, w) => s + (counted.has(w.warehouseId) ? w.onHand : 0), 0);
       const committed = pendingMap.get(p.id) ?? 0;
       const incomingQty = incomingMap.get(p.id) ?? 0;
       const available = onHand - committed;

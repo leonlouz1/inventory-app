@@ -1,0 +1,1 @@
+ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "count_in_ats" BOOLEAN NOT NULL DEFAULT true;

@@ -35,7 +35,9 @@ router.post(
     }
 
     try {
-      const warehouse = await prisma.warehouse.create({ data: { name, location, email: email || null, ...address } });
+      const warehouse = await prisma.warehouse.create({
+        data: { name, location, email: email || null, ...address, ...(typeof req.body.countInAts === "boolean" && { countInAts: req.body.countInAts }) },
+      });
       res.status(201).json(warehouse);
     } catch (err) {
       if (err.code === "P2002") {
@@ -61,6 +63,7 @@ router.put(
           ...(name !== undefined && { name }),
           ...(location !== undefined && { location }),
           ...(email !== undefined && { email: email || null }),
+          ...(typeof req.body.countInAts === "boolean" && { countInAts: req.body.countInAts }),
           ...address,
         },
       });

@@ -19,6 +19,9 @@ model Warehouse {
   state     String?  @db.VarChar(50)
   zip       String?  @db.VarChar(20)
   phone     String?  @db.VarChar(50)
+  // Off for places like the port of entry (POE): stock there is already spoken
+  // for, so it isn't added into totals, ATS or the inventory report
+  countInAts Boolean @default(true) @map("count_in_ats")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   stock      WarehouseStock[]

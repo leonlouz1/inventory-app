@@ -6,6 +6,7 @@ const { applyPendingRestocks } = require("../services/autoReceive");
 const { PENDING_STATUSES } = require("../constants/orderStatuses");
 const { NOT_INCOMING_RESTOCK_STATUSES } = require("../constants/restockStatuses");
 const { changeStock } = require("../services/stock");
+const { atsWarehouseFilters } = require("../services/atsWarehouses");
 const { defaultCasePack } = require("../constants/categories");
 const { systemUpcFor } = require("../services/upcProducts");
 
@@ -39,22 +40,26 @@ router.get(
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    const [products, warehouses, pendingByProduct, incomingRestocks, onHoldByProduct] = await Promise.all([
+    // Warehouses switched off for ATS (e.g. POE) are left out of the totals,
+    // along with the orders and restocks assigned to them
+    const warehouses = await prisma.warehouse.findMany({ orderBy: { id: "asc" } });
+    const atsWhere = atsWarehouseFilters(warehouses);
+
+    const [products, pendingByProduct, incomingRestocks, onHoldByProduct] = await Promise.all([
       prisma.product.findMany({
         orderBy: { sku: "asc" },
         include: { stock: true },
       }),
-      prisma.warehouse.findMany({ orderBy: { id: "asc" } }),
       // Only Confirmed/Routed lines count as pending — Shipped is already
       // reflected directly in on-hand, Draft/Cancelled never counted.
       prisma.orderLine.groupBy({
         by: ["productId"],
-        where: { order: { status: { in: PENDING_STATUSES } } },
+        where: { order: { status: { in: PENDING_STATUSES } }, ...atsWhere.orderLine },
         _sum: { quantity: true },
       }),
       // Incoming = restocks in production or en route (each one, with its date)
       prisma.restock.findMany({
-        where: { status: { notIn: NOT_INCOMING_RESTOCK_STATUSES } },
+        where: { status: { notIn: NOT_INCOMING_RESTOCK_STATUSES }, ...atsWhere.restock },
         select: { productId: true, quantity: true, expectedDate: true, status: true },
         orderBy: { expectedDate: "asc" },
       }),
@@ -62,7 +67,7 @@ router.get(
       // user can see the stock exists.
       prisma.restock.groupBy({
         by: ["productId"],
-        where: { status: "ON_HOLD" },
+        where: { status: "ON_HOLD", ...atsWhere.restock },
         _sum: { quantity: true },
       }),
     ]);
@@ -90,7 +95,7 @@ router.get(
         const row = product.stock.find((s) => s.warehouseId === warehouse.id);
         const onHand = row ? row.onHand : 0;
         stockByWarehouse[warehouse.id] = onHand;
-        totalOnHand += onHand;
+        if (warehouse.countInAts !== false) totalOnHand += onHand;
       }
       const pendingQty = pendingQtyByProductId.get(product.id) ?? 0;
       const incoming = incomingByProductId.get(product.id) ?? [];

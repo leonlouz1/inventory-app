@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Table, Button, Spin, Alert, Typography, Modal, Form, Input, message, Popconfirm } from "antd";
+import { Table, Button, Spin, Alert, Typography, Modal, Form, Input, message, Popconfirm, Switch, Tag } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { warehousesApi } from "../api/inventory";
 
@@ -15,6 +15,14 @@ const ADDRESS_FIELDS = (
       <Form.Item name="zip" label="Zip"><Input /></Form.Item>
     </div>
     <Form.Item name="phone" label="Phone"><Input /></Form.Item>
+    <Form.Item
+      name="countInAts"
+      label="Count toward ATS"
+      valuePropName="checked"
+      extra="Turn off for places like POE, where a container goes straight to a buyer. Its stock, orders and restocks are then left out of totals, ATS and the inventory report."
+    >
+      <Switch />
+    </Form.Item>
   </>
 );
 
@@ -47,7 +55,7 @@ function NewWarehouseModal({ open, onClose, onCreated }) {
       okText="Create"
       destroyOnHidden
     >
-      <Form form={form} layout="vertical">
+      <Form form={form} layout="vertical" initialValues={{ countInAts: true }}>
         <Form.Item name="name" label="Name" rules={[{ required: true, message: "Required" }]}>
           <Input placeholder="Northeast" />
         </Form.Item>
@@ -91,6 +99,7 @@ function EditWarehouseModal({ open, onClose, onUpdated, warehouse }) {
         initialValues={{
           name: warehouse?.name, location: warehouse?.location, address: warehouse?.address,
           city: warehouse?.city, state: warehouse?.state, zip: warehouse?.zip, phone: warehouse?.phone,
+          countInAts: warehouse?.countInAts !== false,
         }}
       >
         <Form.Item name="name" label="Name" rules={[{ required: true, message: "Required" }]}>
@@ -139,7 +148,17 @@ export default function Warehouses() {
   }
 
   const columns = [
-    { title: "Name", dataIndex: "name", sorter: (a, b) => a.name.localeCompare(b.name) },
+    {
+      title: "Name",
+      dataIndex: "name",
+      sorter: (a, b) => a.name.localeCompare(b.name),
+      render: (name, w) => (
+        <>
+          {name}
+          {w.countInAts === false && <Tag style={{ marginLeft: 8 }}>Not in ATS</Tag>}
+        </>
+      ),
+    },
     {
       title: "Location",
       dataIndex: "location",

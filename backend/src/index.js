@@ -436,6 +436,7 @@ async function runStartupMigrations() {
     CONSTRAINT "stock_movements_warehouse_id_fkey" FOREIGN KEY ("warehouse_id") REFERENCES "warehouses"("id") ON DELETE CASCADE ON UPDATE CASCADE
 )`);
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "stock_movements_product_id_created_at_idx" ON "stock_movements"("product_id", "created_at")`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "count_in_ats" BOOLEAN NOT NULL DEFAULT true`);
     await seedProductFields(prisma);
     await seedStorageHangers(prisma);
     if (!hadUpcGroups) await groupExistingUpcNumbers(prisma);
