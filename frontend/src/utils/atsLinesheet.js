@@ -15,9 +15,8 @@ const BASE_COLUMNS = [
   { header: "Brand", width: 14.88 },
   { header: "Case\nPack", width: 9.88 },
   { header: "Cost", width: 8.88 },
-  { header: "ATS", width: 10.5 },
 ];
-const DATE_COL_WIDTH = 10.5;
+const QTY_COL_WIDTH = 10.5;
 const ROW_HEIGHT = 36.75; // points
 const MIN_BLOCK_HEIGHT = 110; // points, so a one-SKU block still shows a usable picture
 const GAP_ROW_HEIGHT = 12;
@@ -66,10 +65,10 @@ export function atsLinesheetBlocks(products) {
     .sort((a, b) => (a[0].brand || "").localeCompare(b[0].brand || "") || a[0].sku.localeCompare(b[0].sku));
 }
 
-function styleRow(row, dateCols) {
+function styleRow(row, columnCount) {
   row.font = FONT;
   row.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  for (let c = 1; c <= BASE_COLUMNS.length + dateCols; c++) row.getCell(c).border = BORDER;
+  for (let c = 1; c <= columnCount; c++) row.getCell(c).border = BORDER;
 }
 
 // catalog: true → every SKU (stock or not), one row and picture per SKU
@@ -77,7 +76,45 @@ function styleRow(row, dateCols) {
 export async function downloadAtsLinesheet(products, { title, catalog = false } = {}) {
   const blocks = catalog ? catalogBlocks(products) : atsLinesheetBlocks(products);
   const dates = [...new Set(blocks.flat().flatMap((p) => Object.keys(p.ats.byDate).filter((d) => p.ats.byDate[d] > 0)))].sort();
-  const columns = [...BASE_COLUMNS, ...dates.map((d) => ({ header: `ATS\n${shortDate(d)}`, width: DATE_COL_WIDTH }))];
+  const qtyColumns = [
+    { header: "ATS", value: (p) => p.ats.now },
+    ...dates.map((d) => ({ header: `ATS\n${shortDate(d)}`, value: (p) => p.ats.byDate[d] ?? 0 })),
+  ];
+  return writeLinesheet(blocks, qtyColumns, `${(title ? `${title} ` : "").toUpperCase()}${catalog ? "CATALOG" : "ATS"} ${fileStamp()}`);
+}
+
+// Linesheet for one container: each SKU on its own row with its own picture,
+// and its quantity under "ATS <ETA>". Lines already linked to an order are
+// spoken for, so they're left out.
+// Returns { skus, missingImages }
+export async function downloadContainerLinesheet(container, products) {
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const qtyByProduct = new Map();
+  for (const l of container.lines || []) {
+    if (l.linkedOrderId) continue;
+    const qty = l.receivedQuantity ?? l.orderedQuantity ?? 0;
+    qtyByProduct.set(l.productId, (qtyByProduct.get(l.productId) ?? 0) + qty);
+  }
+  const blocks = [...qtyByProduct]
+    .filter(([, qty]) => qty > 0)
+    .map(([productId, qty]) => {
+      const p = byId.get(productId) ?? { sku: (container.lines.find((l) => l.productId === productId) || {}).sku || "" };
+      return [{ ...p, containerQty: qty }];
+    })
+    .sort((a, b) => (a[0].brand || "").localeCompare(b[0].brand || "") || a[0].sku.localeCompare(b[0].sku));
+  const header = container.eta ? `ATS\n${shortDate(container.eta)}` : "ATS";
+  const label = container.containerNumber || container.poNumber || `Container ${container.id}`;
+  return writeLinesheet(blocks, [{ header, value: (p) => p.containerQty }], `${label} ATS ${fileStamp()}`);
+}
+
+function fileStamp() {
+  const d = new Date();
+  return `${d.getMonth() + 1}-${d.getDate()}-${String(d.getFullYear()).slice(2)}`;
+}
+
+// blocks: arrays of products (one picture per block); qtyColumns: [{ header, value(p) }]
+async function writeLinesheet(blocks, qtyColumns, fileName) {
+  const columns = [...BASE_COLUMNS, ...qtyColumns.map((q) => ({ header: q.header, width: QTY_COL_WIDTH }))];
 
   const { default: ExcelJS } = await import("exceljs");
   const wb = new ExcelJS.Workbook();
@@ -89,7 +126,7 @@ export async function downloadAtsLinesheet(products, { title, catalog = false } 
 
   const header = ws.addRow(columns.map((c) => c.header));
   header.height = 36.75;
-  styleRow(header, dates.length);
+  styleRow(header, columns.length);
 
   let missingImages = 0;
   for (let b = 0; b < blocks.length; b++) {
@@ -105,11 +142,10 @@ export async function downloadAtsLinesheet(products, { title, catalog = false } 
         p.brand || "",
         p.casePack ?? null,
         p.wholesalePrice ?? null,
-        p.ats.now,
-        ...dates.map((d) => p.ats.byDate[d] ?? 0),
+        ...qtyColumns.map((q) => q.value(p)),
       ]);
       row.height = rowHeight;
-      styleRow(row, dates.length);
+      styleRow(row, columns.length);
       row.getCell(7).numFmt = MONEY;
       for (let c = 8; c <= columns.length; c++) row.getCell(c).numFmt = "#,##0";
     }
@@ -140,9 +176,7 @@ export async function downloadAtsLinesheet(products, { title, catalog = false } 
     ws.addRow([]).height = GAP_ROW_HEIGHT;
   }
 
-  const d = new Date();
-  const stamp = `${d.getMonth() + 1}-${d.getDate()}-${String(d.getFullYear()).slice(2)}`;
-  const name = `${(title ? `${title} ` : "").toUpperCase()}${catalog ? "CATALOG" : "ATS"} ${stamp}`.replace(/[^\w &-]+/g, "").trim();
+  const name = fileName.replace(/[^\w &-]+/g, "").trim();
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
   const a = document.createElement("a");

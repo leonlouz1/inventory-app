@@ -6,12 +6,13 @@ import {
   message,
 } from "antd";
 import {
-  ArrowLeftOutlined, DeleteOutlined, EditOutlined, InboxOutlined, PlusOutlined, RollbackOutlined, ScissorOutlined,
+  ArrowLeftOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, InboxOutlined, PlusOutlined, RollbackOutlined, ScissorOutlined,
 } from "@ant-design/icons";
 import { containersApi, ordersApi, productsApi, warehousesApi } from "../../api/inventory";
 import {
   ContainerFormModal, ReceiveContainerModal, SplitContainerModal, DifferenceTag,
 } from "../../components/ContainerModals";
+import { downloadContainerLinesheet } from "../../utils/atsLinesheet";
 import { CONTAINER_STATUS_COLORS, CONTAINER_STATUS_LABELS } from "../../constants/containers";
 
 // One container on its own page: /restocks/:id
@@ -27,6 +28,21 @@ export default function ContainerPage() {
   const [receiving, setReceiving] = useState(false);
   const [splitting, setSplitting] = useState(false);
   const [newLine, setNewLine] = useState(null); // { sku, quantity } while adding
+  const [linesheetExporting, setLinesheetExporting] = useState(false);
+
+  // Sales linesheet for what's on this container (lines linked to an order left out)
+  async function downloadLinesheet() {
+    setLinesheetExporting(true);
+    try {
+      const { skus, missingImages } = await downloadContainerLinesheet(container, products);
+      if (!skus) message.warning("Nothing to sell on this container: every line is linked to an order");
+      else if (missingImages) message.warning(`${missingImages} picture${missingImages === 1 ? "" : "s"} couldn't be loaded and were left out`);
+    } catch (err) {
+      message.error(`Couldn't build the linesheet: ${err.message}`);
+    } finally {
+      setLinesheetExporting(false);
+    }
+  }
 
   const load = useCallback(
     () => containersApi.get(id).then(setContainer).catch((err) => setError(err.message)),
@@ -130,6 +146,9 @@ export default function ContainerPage() {
           {!received && <Button type="primary" icon={<InboxOutlined />} onClick={() => setReceiving(true)}>Receive</Button>}
           {!received && <Button icon={<ScissorOutlined />} onClick={() => setSplitting(true)}>Split</Button>}
           {received && <Button icon={<RollbackOutlined />} onClick={undoReceive}>Undo receive</Button>}
+          <Button icon={<DownloadOutlined />} loading={linesheetExporting} disabled={!products.length} onClick={downloadLinesheet}>
+            Linesheet
+          </Button>
           <Button icon={<EditOutlined />} onClick={() => setEditing(true)}>Edit</Button>
           <Popconfirm
             title="Delete this container?"
